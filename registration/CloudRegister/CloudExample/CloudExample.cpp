@@ -33,7 +33,7 @@ int main()
 		vecCloudPtr.emplace_back(pCloud);
 	}
 
-	CloudRegister obj;
+	CloudReg::CloudRegister obj;
 	obj.run(vecCloudPtr, cad_file);
    
 	return 0;

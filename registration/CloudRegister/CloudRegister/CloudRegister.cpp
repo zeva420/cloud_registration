@@ -4,24 +4,27 @@
 #include "BaseType.h"
 #include "CADModel.h"
 
-CloudRegister::CloudRegister()
+namespace CloudReg
 {
-	google::InitGoogleLogging("Cloud");
-	FLAGS_log_dir = "./log";
-}
+	CloudRegister::CloudRegister()
+	{
+		google::InitGoogleLogging("Cloud");
+		FLAGS_log_dir = "./log";
+	}
 
-CloudRegister::~CloudRegister()
-{
-	google::ShutdownGoogleLogging();
-}
+	CloudRegister::~CloudRegister()
+	{
+		google::ShutdownGoogleLogging();
+	}
 
-bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecCloudPtr,
-	const std::string& CAD_File)
-{
-	
-	LOG(INFO) << "file: " << CAD_File;
-	
-	CADModel model;
-	model.initCAD(CAD_File);
-	return true;
+	bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecCloudPtr,
+		const std::string& CAD_File)
+	{
+
+		LOG(INFO) << "file: " << CAD_File;
+
+		CADModel model;
+		model.initCAD(CAD_File);
+		return true;
+	}
 }

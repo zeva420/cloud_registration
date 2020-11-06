@@ -6,15 +6,18 @@
 #include<pcl/point_types.h>
 #include<pcl/io/pcd_io.h>
 
-class  __declspec(dllexport) CloudRegister
+namespace CloudReg
 {
-public:
-	CloudRegister();
-	~CloudRegister();
+	class  __declspec(dllexport) CloudRegister
+	{
+	public:
+		CloudRegister();
+		~CloudRegister();
 
-	bool run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecCloudPtr,
-		const std::string& CAD_File);
-private:
+		bool run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecCloudPtr,
+			const std::string& CAD_File);
+	private:
 
-};
+	};
+}
 
