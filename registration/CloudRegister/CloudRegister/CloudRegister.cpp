@@ -1,18 +1,27 @@
 #include "CloudRegister.h"
 
-#include <iostream>
+
+#include "BaseType.h"
+#include "CADModel.h"
 
 CloudRegister::CloudRegister()
 {
-	
+	google::InitGoogleLogging("Cloud");
+	FLAGS_log_dir = "./log";
 }
 
 CloudRegister::~CloudRegister()
 {
+	google::ShutdownGoogleLogging();
 }
 
-bool CloudRegister::run()
+bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecCloudPtr,
+	const std::string& CAD_File)
 {
-	std::cout << "test" << std::endl;
+	
+	LOG(INFO) << "file: " << CAD_File;
+	
+	CADModel model;
+	model.initCAD(CAD_File);
 	return true;
 }

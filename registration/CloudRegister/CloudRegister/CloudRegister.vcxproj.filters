@@ -18,9 +18,24 @@
     <ClCompile Include="CloudRegister.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="CADModel.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="funHelper.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CloudRegister.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="CADModel.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="BaseType.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="funHelper.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
