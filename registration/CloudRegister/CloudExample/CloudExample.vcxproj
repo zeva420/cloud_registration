@@ -72,9 +72,9 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <LibraryPath>C:\Program Files\PCL 1.8.1\lib;C:\Program Files\PCL 1.8.1\3rdParty\Boost\lib;..\..\CloudRegister\x64\Release;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(PCL_ROOT)\lib;$(PCL_ROOT)\3rdParty\Boost\lib;..\..\CloudRegister\x64\Release;$(LibraryPath)</LibraryPath>
     <IncludePath>$(IncludePath)</IncludePath>
-    <LibraryWPath>C:\Program Files\PCL 1.8.1\lib;$(LibraryWPath)</LibraryWPath>
+    <LibraryWPath>$(LibraryWPath)</LibraryWPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
@@ -96,7 +96,7 @@
       <SDLCheck>false</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Program Files\PCL 1.8.1\3rdParty\Eigen\eigen3\Eigen\src;C:\Program Files\PCL 1.8.1\3rdParty\Eigen\eigen3\;C:\Program Files\PCL 1.8.1\include\pcl-1.8\;C:\Program Files\PCL 1.8.1\3rdParty\Boost\include\boost-1_64;..\..\CloudRegister\CloudRegister;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(PCL_ROOT)\3rdParty\Eigen\eigen3\Eigen\src;$(PCL_ROOT)\3rdParty\Eigen\eigen3\;$(PCL_ROOT)\include\pcl-1.8\;$(PCL_ROOT)\3rdParty\Boost\include\boost-1_64;..\..\CloudRegister\CloudRegister;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>4819;4996</DisableSpecificWarnings>
     </ClCompile>
     <Link>
