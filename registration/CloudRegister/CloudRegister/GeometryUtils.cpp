@@ -1,0 +1,137 @@
+#include "GeometryUtils.h"
+
+#include <pcl/common/transforms.h>
+#include <pcl/filters/passthrough.h>
+#include <pcl/filters/voxel_grid.h>
+#include <pcl/filters/extract_indices.h>
+#include <pcl/filters/radius_outlier_removal.h>
+#include <pcl/kdtree/kdtree.h>
+#include <pcl/segmentation/extract_clusters.h>
+#include <pcl/sample_consensus/model_types.h>
+#include <pcl/sample_consensus/method_types.h>
+#include <pcl/sample_consensus/ransac.h>
+#include <pcl/sample_consensus/sac_model_line.h>
+#include <pcl/sample_consensus/sac_model_plane.h>
+#include <pcl/segmentation/sac_segmentation.h>
+
+// trans2d
+#define RBLOCK(T) T.block<2, 2>(0, 0)
+#define tBLOCK(T) T.block<2, 1>(0, 2)
+
+namespace trans2d {
+
+Matrix2x3f buildTransform(float theta, const Eigen::Vector2f& t) {
+	float c{ std::cos(theta) }, s{ std::sin(theta) };
+
+	Matrix2x3f T;
+	RBLOCK(T) << c, -s, s, c;
+	tBLOCK(T) = t;
+
+	return T;
+}
+
+Matrix2x3f inverse(const Matrix2x3f& T) {
+	Matrix2x3f invT;
+	RBLOCK(invT) = RBLOCK(T).transpose();
+	tBLOCK(invT) = -RBLOCK(invT) * tBLOCK(T);
+	return invT;
+}
+
+Eigen::Vector2f transform(const Eigen::Vector2f& p, const Matrix2x3f& T) {
+	return RBLOCK(T) * p + tBLOCK(T);
+}
+
+// return T where T* s2 = s1, T* e2 = e1
+Matrix2x3f estimateTransform(const Eigen::Vector2f& s1, const Eigen::Vector2f& e1,
+	const Eigen::Vector2f& s2, const Eigen::Vector2f& e2) {
+	Matrix2x3f T;
+
+	Eigen::Vector2f n1 = (e1 - s1).normalized();
+	Eigen::Vector2f n2 = (e2 - s2).normalized();
+	float c = n1.dot(n2);
+	float s = -(n1[0] * n2[1] - n1[1] * n2[0]);
+	T(0, 0) = c;
+	T(0, 1) = -s;
+	T(1, 0) = s;
+	T(1, 1) = c;
+
+	Eigen::Vector2f cen1 = (s1 + e1) / 2.0f;
+	Eigen::Vector2f cen2 = (s2 + e2) / 2.0f;
+
+	tBLOCK(T) = cen1 - RBLOCK(T) * cen2;
+
+	return T;
+}
+
+// simply shift to 3d
+Eigen::Matrix4f asTransform3d(const Matrix2x3f& T2d) {
+	Eigen::Matrix4f T3d = Eigen::Matrix4f::Identity();
+	T3d.block<2, 2>(0, 0) = RBLOCK(T2d);
+	T3d.block<2, 1>(0, 3) = tBLOCK(T2d);
+	return T3d;
+}
+
+#undef RBLOCK
+#undef tBLOCK
+
+}
+
+namespace geo {
+PointCloud::Ptr passThrough(PointCloud::Ptr cloud, const std::string& field, float low, float high) {
+	pcl::PassThrough<Point> filter;
+	filter.setInputCloud(cloud);
+	filter.setFilterFieldName(field);
+	filter.setFilterLimits(low, high);
+
+	PointCloud::Ptr filtered(new PointCloud());
+	filter.filter(*filtered);
+	return filtered;
+}
+
+PointCloud::Ptr getSubSet(PointCloud::Ptr cloud, const std::vector<int>& indices, bool negative) {
+	PointCloud::Ptr sub(new PointCloud());
+
+	pcl::PointIndices::Ptr pi(new pcl::PointIndices());
+	pi->indices = indices;
+
+	pcl::ExtractIndices<Point> ei;
+	ei.setInputCloud(cloud);
+	ei.setIndices(pi);
+	ei.setNegative(negative);
+	ei.filter(*sub);
+
+	return sub;
+}
+
+PointCloud::Ptr clusterMainStructure(PointCloud::Ptr cloud, float distance) {
+	pcl::search::KdTree<Point>::Ptr tree(new pcl::search::KdTree<Point>);
+	tree->setInputCloud(cloud);
+
+	std::vector<pcl::PointIndices> clusters;
+	pcl::EuclideanClusterExtraction<Point> ece;
+	ece.setClusterTolerance(distance);
+	ece.setSearchMethod(tree);
+	ece.setInputCloud(cloud);
+	ece.extract(clusters);
+
+	// cluster is already sorted, just use the first one.
+	PointCloud::Ptr main(new PointCloud());
+	pcl::copyPointCloud(*cloud, clusters.front().indices, *main);
+
+	return main;
+}
+
+std::pair<std::vector<int>, Eigen::VectorXf> detectOneLineRansac(PointCloud::Ptr cloud, float disthresh){
+	pcl::SampleConsensusModelLine<Point>::Ptr lineModel(new pcl::SampleConsensusModelLine<Point>(cloud));
+	pcl::RandomSampleConsensus<Point> ransac(lineModel);
+	ransac.setDistanceThreshold(disthresh);
+	ransac.computeModel();
+
+	std::pair<std::vector<int>, Eigen::VectorXf> re;
+	ransac.getInliers(re.first);
+	ransac.getModelCoefficients(re.second);
+
+	return re;
+}
+
+}
