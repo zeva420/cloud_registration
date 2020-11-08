@@ -129,23 +129,22 @@ namespace CloudReg
 						return false;
 					}
 
-					
+				
 					const auto& segment = botton.segments_[parent];
 
 					std::size_t other_axis_index = 1;
-					double other_axis = segment.first[1];
-					double start_axis = segment.first[0];
-					bool operate = segment.first[0] < segment.second[0] ? true : false;
+					double other_axis = segment.second[1];
+					double start_axis = segment.second[0];
+					bool operate = segment.second[0] < segment.first[0] ? true : false;
 
 					if (segment.first[0] == segment.second[0])
 					{
 						other_axis_index = 0;
-						other_axis = segment.first[0];
-						start_axis = segment.first[1];
-						operate = segment.first[1] < segment.second[1] ? true : false;
+						other_axis = segment.second[0];
+						start_axis = segment.second[1];
+						operate = segment.second[1] < segment.first[1] ? true : false;
 
 					}
-					
 					
 					double minZ = 999999, maxZ = 0;
 					for (std::size_t i = 2; i < number * 2 + 1; )
@@ -198,19 +197,19 @@ namespace CloudReg
 						return false;
 					}
 
-					
 					const auto& segment = botton.segments_[parent];
+					
 					std::size_t other_axis_index = 1;
-					double other_axis = segment.first[1];
-					double start_axis = segment.first[0];
-					bool operate = segment.first[0] < segment.second[0] ? true : false;
+					double other_axis = segment.second[1];
+					double start_axis = segment.second[0];
+					bool operate = segment.second[0] < segment.first[0] ? true : false;
 
 					if (segment.first[0] == segment.second[0])
 					{
 						other_axis_index = 0;
-						other_axis = segment.first[0];
-						start_axis = segment.first[1];
-						operate = segment.first[1] < segment.second[1] ? true : false;
+						other_axis = segment.second[0];
+						start_axis = segment.second[1];
+						operate = segment.second[1] < segment.first[1] ? true : false;
 
 					}
 
