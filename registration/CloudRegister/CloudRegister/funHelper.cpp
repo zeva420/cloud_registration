@@ -2,6 +2,25 @@
 
 namespace CloudReg
 {
+	Eigen::vector<Eigen::Vector3d> ininterpolateSeg(const Eigen::Vector3d& sPoint, const Eigen::Vector3d& ePoint, const double step)
+	{
+		Eigen::vector<Eigen::Vector3d> value;
+
+
+		const std::size_t number = (sPoint - ePoint).norm() / step;
+
+		const double r_N = 1.0 / number;
+		const Eigen::Vector3d step_AB = (ePoint - sPoint) * r_N;
+
+		value.emplace_back(sPoint);
+		for (std::size_t i = 1; i < number; i++)
+		{
+			value.emplace_back(Eigen::Vector3d(step_AB * i + sPoint));
+		}
+		value.emplace_back(ePoint);
+		LOG(INFO) << "ininterpolateSeg number:" << value.size();
+		return value;
+	}
 
 	std::vector<std::string> splitByCharacter(const std::string& strtem, const char a)
 	{

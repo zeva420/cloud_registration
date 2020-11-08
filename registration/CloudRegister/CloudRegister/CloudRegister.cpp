@@ -9,7 +9,7 @@ namespace CloudReg
 	CloudRegister::CloudRegister()
 	{
 		google::InitGoogleLogging("Cloud");
-		FLAGS_log_dir = "./log";
+		FLAGS_log_dir = "./";
 	}
 
 	CloudRegister::~CloudRegister()
@@ -24,7 +24,9 @@ namespace CloudReg
 		LOG(INFO) << "file: " << CAD_File;
 
 		CADModel model;
-		model.initCAD(CAD_File);
+		if (!model.initCAD(CAD_File))
+			return false;
+		
 		return true;
 	}
 }

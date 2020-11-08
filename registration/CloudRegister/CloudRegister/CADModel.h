@@ -61,7 +61,7 @@ namespace CloudReg
 	private:
 		using vecItems_t = std::vector<ModelItem>;
 
-		bool savePCD(const std::string& name, ModelItem& item);
+		bool savePCD(const std::string& name, std::vector<ModelItem>& vec_item);
 
 		std::map<ModelItemType, vecItems_t> mapModelItem_;
 	};
