@@ -25,6 +25,7 @@ namespace CloudReg
 			parentIndex_ = other.parentIndex_;
 			points_ = other.points_;
 			segments_ = other.segments_;
+			highRange_ = other.highRange_;
 
 		}
 
@@ -48,6 +49,7 @@ namespace CloudReg
 		Eigen::vector<ItemPair_t> segments_;
 		const ModelItemType itemtype_;
 		std::size_t parentIndex_ = 9999;
+		std::pair<double, double> highRange_ = std::make_pair(0,0);
 	};
 	class CADModel
 	{
@@ -64,5 +66,6 @@ namespace CloudReg
 		bool savePCD(const std::string& name, std::vector<ModelItem>& vec_item);
 
 		std::map<ModelItemType, vecItems_t> mapModelItem_;
+		Eigen::Vector3d centerPt_ = Eigen::Vector3d(0,0,0);
 	};
 }
