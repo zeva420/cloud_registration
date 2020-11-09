@@ -13,6 +13,7 @@
 #include <pcl/sample_consensus/sac_model_line.h>
 #include <pcl/sample_consensus/sac_model_plane.h>
 #include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/filters/conditional_removal.h>
 
 // trans2d
 #define RBLOCK(T) T.block<2, 2>(0, 0)
@@ -77,6 +78,17 @@ Eigen::Matrix4f asTransform3d(const Matrix2x3f& T2d) {
 }
 
 namespace geo {
+
+std::vector<std::size_t> sort_points_counter_clockwise(const Eigen::vector<Eigen::Vector2f>& points) {
+	auto cen_theta = ll::mapf([](const Eigen::Vector2f& p) { return std::atan2f(p[1], p[0]); }, points);
+	auto indices = ll::range(cen_theta.size());
+	std::sort(indices.begin(), indices.end(), [&cen_theta](std::size_t i, std::size_t j) { return cen_theta[i] < cen_theta[j]; });
+
+	return indices;
+}
+
+// cloud
+
 PointCloud::Ptr passThrough(PointCloud::Ptr cloud, const std::string& field, float low, float high) {
 	pcl::PassThrough<Point> filter;
 	filter.setInputCloud(cloud);
@@ -121,7 +133,7 @@ PointCloud::Ptr clusterMainStructure(PointCloud::Ptr cloud, float distance) {
 	return main;
 }
 
-std::pair<std::vector<int>, Eigen::VectorXf> detectOneLineRansac(PointCloud::Ptr cloud, float disthresh){
+std::pair<std::vector<int>, Eigen::VectorXf> detectOneLineRansac(PointCloud::Ptr cloud, float disthresh) {
 	pcl::SampleConsensusModelLine<Point>::Ptr lineModel(new pcl::SampleConsensusModelLine<Point>(cloud));
 	pcl::RandomSampleConsensus<Point> ransac(lineModel);
 	ransac.setDistanceThreshold(disthresh);
@@ -132,6 +144,45 @@ std::pair<std::vector<int>, Eigen::VectorXf> detectOneLineRansac(PointCloud::Ptr
 	ransac.getModelCoefficients(re.second);
 
 	return re;
+}
+
+PointCloud::Ptr mapPoints(PointCloud::Ptr cloud, std::function<Point (const Point & p)> mapfunc) {
+	PointCloud::Ptr newcloud(new PointCloud());
+	newcloud->reserve(cloud->size());
+	for (const auto& p : *cloud) newcloud->push_back(mapfunc(p));
+	newcloud->width = newcloud->size();
+	newcloud->height = 1;
+
+	return newcloud;
+}
+
+class FunctorCondition : public pcl::ConditionBase<Point> {
+public:
+	using FilterFunc = std::function<bool (const Point&)>;
+	FunctorCondition(FilterFunc filterfunc) :
+		pcl::ConditionBase<Point>(), func_(filterfunc) {}
+
+	bool evaluate(const Point& point) const override {
+		return func_(point);
+	}
+
+private:
+	FilterFunc func_;
+};
+
+PointCloud::Ptr filterPoints(PointCloud::Ptr cloud, std::function<bool (const Point&)> evafunc, bool negative) {
+	pcl::ConditionalRemoval<Point> filter;
+	{
+		FunctorCondition::Ptr cond(new FunctorCondition(evafunc));
+		filter.setCondition(cond);
+	}
+	filter.setInputCloud(cloud);
+
+	PointCloud::Ptr filtered_cloud(new PointCloud());
+	filter.filter(*filtered_cloud);
+	filter.setKeepOrganized(!negative);
+
+	return filtered_cloud;
 }
 
 }

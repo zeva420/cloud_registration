@@ -3,13 +3,16 @@
 
 #include "BaseType.h"
 #include "CADModel.h"
+#include "CoarseMatching.h"
 
 namespace CloudReg
 {
 	CloudRegister::CloudRegister()
 	{
 		google::InitGoogleLogging("Cloud");
-		FLAGS_log_dir = "./";
+		FLAGS_log_dir = "./log";
+
+		google::LogToStderr();
 	}
 
 	CloudRegister::~CloudRegister()
@@ -24,9 +27,19 @@ namespace CloudReg
 		LOG(INFO) << "file: " << CAD_File;
 
 		CADModel model;
-		if (!model.initCAD(CAD_File))
+		model.initCAD(CAD_File);
+
+		// wall segmentation: (PointCloud, CADModel)-> [PointCloud]
+
+		// coarse match: ([PointCloud], CADModel)-> ([filtered PointCloud], Mat4d)
+		CoarseMatching cm;
+		if(!cm.run(vecCloudPtr, model)){
+			LOG(INFO)<< "coarse matching failed.";
 			return false;
-		
+		}
+
+		// registration
+
 		return true;
 	}
 }

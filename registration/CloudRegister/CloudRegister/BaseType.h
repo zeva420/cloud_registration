@@ -110,3 +110,5 @@ namespace Eigen
 	using MatrixXb_t = Matrix< bool, Eigen::Dynamic, Eigen::Dynamic >;
 }
 
+using Point = pcl::PointXYZ;
+using PointCloud = pcl::PointCloud<Point>;
