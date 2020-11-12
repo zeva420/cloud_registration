@@ -72,9 +72,10 @@ extern PointCloud::Ptr clusterMainStructure(PointCloud::Ptr cloud, float distanc
 //return: indices of inliers, [p, n] of the line (dim = 6).
 extern std::pair<std::vector<int>, Eigen::VectorXf> detectOneLineRansac(PointCloud::Ptr cloud, float disthresh);
 
+extern PointCloud::Ptr transfromPointCloud(PointCloud::Ptr cloud, const Eigen::Matrix4f& T);
+
 extern PointCloud::Ptr mapPoints(PointCloud::Ptr cloud, std::function<Point (const Point & p)> mapfunc);
 
 extern PointCloud::Ptr filterPoints(PointCloud::Ptr cloud, std::function<bool (const Point&)> evafunc, bool negative = false);
-
 };
 

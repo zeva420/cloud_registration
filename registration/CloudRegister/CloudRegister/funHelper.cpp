@@ -18,7 +18,7 @@ namespace CloudReg
 			value.emplace_back(Eigen::Vector3d(step_AB * i + sPoint));
 		}
 		value.emplace_back(ePoint);
-		LOG(INFO) << "ininterpolateSeg number:" << value.size();
+		// LOG(INFO) << "ininterpolateSeg number:" << value.size();
 		return value;
 	}
 

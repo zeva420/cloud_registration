@@ -18,7 +18,7 @@ class CoarseMatching {
 public:
 	CoarseMatching();
 
-	bool run(const std::vector<PointCloud::Ptr>& allPieces, const CADModel& cadModel);
+	bool run(std::vector<PointCloud::Ptr>& allPieces, const CADModel& cadModel);
 
 private:
 	static constexpr double PLANE_REFINE_DISTANCE = 0.02;

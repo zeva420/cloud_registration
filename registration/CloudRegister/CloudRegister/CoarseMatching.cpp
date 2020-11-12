@@ -16,12 +16,23 @@ namespace CloudReg {
 
 CoarseMatching::CoarseMatching() {}
 
-bool CoarseMatching::run(const std::vector<PointCloud::Ptr>& allPieces, const CADModel& cadModel) {
+bool CoarseMatching::run(std::vector<PointCloud::Ptr>& allPieces, const CADModel& cadModel) {
+
+	const auto& holes = cadModel.getTypedModelItems(ITEM_HOLE_E);
+	for (const auto& hole : holes) LOG(INFO) << hole.toString();
+
+	// return true;
+
+	constexpr float HOR_CHECK_EPS = 0.01f;
+
 	LOG(INFO) << "coarse match " << allPieces.size() << " walls.";
 
-	//1. we use walls to do coarse matching.
+	//1. basically, we use walls to do coarse matching.
 	std::vector<std::pair<PointCloud::Ptr, Segment>> wallPieces;
 	wallPieces.reserve(allPieces.size()); // may -2
+	PointCloud::Ptr floor, roof; // still we need floor and roof to get the proper Y
+	float zFloor, zRoof;
+
 	for (auto pr : ll::enumerate(allPieces)) {
 		auto cloud = *pr.iter;
 
@@ -29,15 +40,21 @@ bool CoarseMatching::run(const std::vector<PointCloud::Ptr>& allPieces, const CA
 		Eigen::Vector4f params;
 		std::tie(plane, params) = refinePlanePattern(cloud, PLANE_REFINE_DISTANCE);
 
-		float nz = std::abs(params[2]);
+		float nz = params[2];
 		LOG(INFO) << pr.index << "] nz: " << nz;
-		if (std::fabs(nz) > 0.01f) continue;
-
-		auto segment = detectSegementXoY(plane, params, LINE_DETECT_DIS_THRESH, LINE_DETECT_CONNECT_THRESH);
-
-		wallPieces.emplace_back(plane, segment);
+		if (std::fabs(nz) < HOR_CHECK_EPS) {
+			// we got a wall piece
+			auto segment = detectSegementXoY(plane, params, LINE_DETECT_DIS_THRESH, LINE_DETECT_CONNECT_THRESH);
+			wallPieces.emplace_back(plane, segment);
+		} else {
+			float z = -params[3] / nz;
+			if (z > 0.f) { roof = plane; zRoof = z; } else { floor = plane; zFloor = z; }
+		}
 	}
-	LOG(INFO) << wallPieces.size() << " walls found.";
+
+	// LOG(INFO) << wallPieces.size() << " walls found, floor -> roof: "<< ;
+	LOG(INFO) << ll::unsafe_format("%d walls found, floor %.3f -> roof %.3f, total height: %3.f.",
+		wallPieces.size(), zFloor, zRoof, (zRoof - zFloor));
 	LOG_IF(INFO, wallPieces.size() % 2 != 0) << "note that wall size is odd, we may missed some.";
 
 	//2. setup outline
@@ -62,10 +79,6 @@ bool CoarseMatching::run(const std::vector<PointCloud::Ptr>& allPieces, const CA
 			}
 		}
 
-		std::stringstream ss;
-		for (int i = 1; i < lineends.size(); ++i) ss << (lineends[i] - lineends[i - 1]).norm() << ", ";
-		LOG(INFO) << ss.str();
-
 		auto uiter = std::unique(lineends.begin(), lineends.end(), [](const Eigen::Vector3f& v1, const Eigen::Vector3f& v2) {
 			return (v1 - v2).squaredNorm() < OUTLINE_LINK_DIS_THRESH_SQUARED;
 		});
@@ -77,18 +90,37 @@ bool CoarseMatching::run(const std::vector<PointCloud::Ptr>& allPieces, const CA
 	LOG(INFO) << "outline/wall size: " << outline.size() << " / " << wallPieces.size();
 
 	//3. match
+	const auto& blueprint3d = cadModel.getTypedModelItems(ITEM_BOTTOM_E).front();
+	LOG(INFO) << blueprint3d.points_.size() << " points in blueprint.";
 
+	Eigen::vector<Eigen::Vector2f> blueprint(blueprint3d.points_.size());
+	std::transform(blueprint3d.points_.begin(), blueprint3d.points_.end(), blueprint.begin(),
+		[](const Eigen::Vector3d& v) { return Eigen::Vector2f(v(0, 0), v(1, 0)); });
+
+	Eigen::Matrix4f T = computeOutlineTransformation(blueprint, outline, BLUEPRINT_MATCH_DIS_THRESH);
+	T(2, 3) = -zFloor; // shift to zero
+	LOG(INFO) << "T: \n" << T << "\n";
+
+	//4. transform point cloud
+	allPieces.clear();
+	for (auto& pr : wallPieces) allPieces.push_back(geo::transfromPointCloud(pr.first, T));
+	allPieces.push_back(geo::transfromPointCloud(floor, T));
+	allPieces.push_back(geo::transfromPointCloud(roof, T));
+
+	// debug write.
+	for (auto pr : ll::enumerate(allPieces))
+		pcl::io::savePCDFile(ll::unsafe_format("coarse-wall-%d.pcd", pr.index), *(*pr.iter), true);
 
 	// simple visualization
 	pcl::visualization::PCLVisualizer viewer;
 
-	for (auto pr : ll::enumerate(wallPieces)) {
-		auto cloud = pr.iter->first;
+	for (auto pr : ll::enumerate(allPieces)) {
+		auto cloud = *pr.iter;
 
 		double r{ geo::random() }, g{ geo::random() }, b{ geo::random() };
 
 		pcl::visualization::PointCloudColorHandlerCustom<Point> color(cloud, r * 255., g * 255., b * 255.);
-		viewer.addPointCloud(cloud, color, "wall" + std::to_string(pr.index));
+		viewer.addPointCloud(cloud, color, "piece" + std::to_string(pr.index));
 	}
 
 	for (auto pr : ll::enumerate(outline)) {
@@ -99,12 +131,18 @@ bool CoarseMatching::run(const std::vector<PointCloud::Ptr>& allPieces, const CA
 		viewer.addText3D(std::to_string(pr.index), Point(p.x, p.y, 0.2f), 0.3f);
 	}
 
+	{
+		auto cad = cadModel.genTestCloud();
+		pcl::visualization::PointCloudColorHandlerCustom<Point> color(cad, 255., 0., 0.);
+		viewer.addPointCloud(cad, color, "cad");
+	}
+
 	while (!viewer.wasStopped()) {
 		viewer.spinOnce(33);
 		std::this_thread::sleep_for(std::chrono::microseconds(33));
 	}
 
-	return false;
+	return true;
 }
 
 std::pair<PointCloud::Ptr, Eigen::Vector4f> CoarseMatching::refinePlanePattern(PointCloud::Ptr cloud, double disthresh) const {

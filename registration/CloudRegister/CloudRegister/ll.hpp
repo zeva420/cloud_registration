@@ -32,6 +32,7 @@
 
 #include <cassert>
 #include <ctime>
+#include <stdarg.h>
 
 // macros
 #define LL_BAN_COPY(X)  \
@@ -70,6 +71,14 @@ inline std::string __current_filename(const std::string& file) {
 }
 
 static char __logchar_mem__[1024]; // memory for LL_LOG_F
+
+inline std::string unsafe_format(const char* fmt, ...) {
+	va_list args;
+	va_start(args, fmt);
+	std::vsprintf(__logchar_mem__, fmt, args);
+	return std::string(__logchar_mem__);
+	va_end(args);
+}
 
 #if __cplusplus < 201402L
 //* before c++14

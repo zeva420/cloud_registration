@@ -146,6 +146,12 @@ std::pair<std::vector<int>, Eigen::VectorXf> detectOneLineRansac(PointCloud::Ptr
 	return re;
 }
 
+PointCloud::Ptr transfromPointCloud(PointCloud::Ptr cloud, const Eigen::Matrix4f& T) {
+	PointCloud::Ptr trans(new PointCloud());
+	pcl::transformPointCloud<Point>(*cloud, *trans, T);
+	return trans;
+}
+
 PointCloud::Ptr mapPoints(PointCloud::Ptr cloud, std::function<Point (const Point & p)> mapfunc) {
 	PointCloud::Ptr newcloud(new PointCloud());
 	newcloud->reserve(cloud->size());
