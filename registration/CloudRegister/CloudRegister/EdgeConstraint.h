@@ -5,8 +5,9 @@
 #include "g2o/core/base_unary_edge.h"
 #include "g2o/core/base_binary_edge.h"
 #include "g2o/core/base_multi_edge.h"
-//#include "g2o/types/types_sba.h"
+#include "g2o/types/types_sba.h"
 #include "g2o/types/sba/types_six_dof_expmap.h"
+#include "g2o/types/sba/types_seven_dof_expmap.h"
 
 namespace g2o
 {
@@ -25,10 +26,10 @@ public:
 
     double calcPt2PlaneDist(const Eigen::Vector3d &point, const Eigen::Vector4d &plane)
     {
-        //plane: Ax+By+Cz+D=0,  point to plane dist = Ax+By+Cz+D/(sqrt(A*A+B*B+C*C))
+        //plane: Ax+By+Cz+D=0,  point to plane dist = ||Ax+By+Cz+D||/(sqrt(A*A+B*B+C*C))
         Eigen::Vector3d n  = plane.block<3,1>(0,0);
         double d = plane(3);
-        double dis = (n.dot(point) + d) / n.norm();
+        double dis = std::abs(n.dot(point) + d) / n.norm();
         return dis;
     }
 

@@ -1,32 +1,33 @@
 #ifndef TRANSFORM_OPTIMIZE_H
 #define TRANSFORM_OPTIMIZE_H
 
-//pcl
-#include <pcl/io/pcd_io.h>
-#include <pcl/point_types.h>
+#include "BaseType.h"
+#include "glog/logging.h"
+#include "CADModel.h"
 
 //edge
 #include "EdgeConstraint.h"
 
-#include "g2o/core/factory.h"
-#include "g2o/stuff/macros.h"
-
-#include "g2o/core/block_solver.h"
-#include "g2o/solvers/eigen/linear_solver_eigen.h"
-#include "g2o/core/optimization_algorithm_levenberg.h"
-#include "g2o/core/robust_kernel_impl.h"
+//pcl
+#include <pcl/io/pcd_io.h>
+#include <pcl/point_types.h>
 
 /*
+#include "g2o/core/factory.h"
+#include "g2o/stuff/macros.h"
 #include "g2o/types/slam3d/types_slam3d.h"
 #include "g2o/core/sparse_optimizer.h"
-#include "g2o/core/block_solver.h"
-#include "g2o/core/factory.h"
 #include "g2o/core/optimization_algorithm_factory.h"
 #include "g2o/core/robust_kernel.h"
 #include "g2o/core/robust_kernel_factory.h"
 */
 
-namespace cloudReg
+#include "g2o/core/block_solver.h"
+#include "g2o/solvers/linear_solver_eigen.h"
+#include "g2o/core/optimization_algorithm_levenberg.h"
+#include "g2o/core/robust_kernel_impl.h"
+
+namespace CloudReg
 {
 
 typedef int32_t VertexID_G2O_t;
@@ -48,17 +49,61 @@ public:
 		clear();
     }
 
-    void run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &walls_vec,
-                            std::vector<Eigen::Vector4d> &modelCoeff,
-                            Eigen::Matrix4d &transform);
+    bool run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
+			CADModel &cadModel);
 
 private:
+
+	void uniformSampling(double radius, 
+                    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, 
+                    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered);
+
+	bool downSampling(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr);
+
+	bool convertToPclCloud(CADModel &cadModel, 
+					std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec);
+
+	void planeFitting(double distTh, 
+					pcl::PointCloud<pcl::PointXYZ>::Ptr ground, 
+					Eigen::VectorXf &coeff, std::vector<int> &inlierIdxs);
+
+	bool getModelPlaneCoeff(
+					std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec,
+					std::vector<Eigen::Vector4d> &modelPlanes);
+
+	double calcCloudToPLaneAveDist(Eigen::Vector4d &plane,
+                                pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
+
+	bool matchCloudToMode(
+                    std::vector<Eigen::Vector4d> &modePlanes,
+                    std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr);
+
+	bool optimize(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
+					std::vector<Eigen::Vector4d> &modelPlanes,
+					Eigen::Matrix4d &transform);
+
     bool addWallPointToModelPlaneEdges(
-                    std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &walls_vec,
+                    std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
                     std::vector<Eigen::Vector4d> &modelPlanes,
 					Eigen::Matrix4d &transform);
 
     bool getSE3Transfor(Eigen::Matrix4d &transform);
+
+	bool transformCloud(
+					std::vector<Eigen::Vector4d> &modePlanes,
+					std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
+					Eigen::Matrix4d &finalT);
+
+	bool viewModelAndChangedCloud(
+					std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec,
+					std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr);
+
+	std::string convertToSimpleIDStr(uint64_t id)
+	{
+		std::stringstream ss;
+		ss << std::setfill('0') << std::setw(4) << std::to_string((id % 10000));
+		return ss.str();
+	}
 
 private:
 
@@ -71,19 +116,19 @@ private:
 
 	void initSolver()
 	{
-        /*
+        
 		g2o::BlockSolverX::LinearSolverType * linearSolver = 
                         new g2o::LinearSolverEigen<g2o::BlockSolverX::PoseMatrixType>();
         g2o::BlockSolverX * blockSolver = new g2o::BlockSolverX(linearSolver);
         g2o::OptimizationAlgorithmLevenberg* algorithm 
 				= new g2o::OptimizationAlgorithmLevenberg(blockSolver);
-		*/
-
+		
+/*
 		auto linearSolver = g2o::make_unique<g2o::LinearSolverEigen<g2o::BlockSolverX::PoseMatrixType>>();
 		auto blockSolver = g2o::make_unique<g2o::BlockSolverX>(std::move(linearSolver));
 		g2o::OptimizationAlgorithmLevenberg* algorithm 
 				= new g2o::OptimizationAlgorithmLevenberg(std::move(blockSolver));
-
+*/
 		optimizer_.setAlgorithm(algorithm);
     }
 
@@ -129,7 +174,7 @@ private:
 		const VertexID_G2O_t id = createG2OID(pValue);
 		if (INVAILD_G2O_VERTEXID == id)
 		{
-			std::cerr << "createG2OID Failed: " << pValue << std::endl;
+			LOG(INFO) << "createG2OID Failed: " << pValue;
 			return id;
 		}
 
@@ -185,7 +230,7 @@ private:
 		ss << "########################################################################################" << "\n";
 
 		if(bPrint)
-			std::cout << ss.str();
+			LOG(INFO) << ss.str();
 
 		return errSum;
 	}

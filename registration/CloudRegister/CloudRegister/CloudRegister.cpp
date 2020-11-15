@@ -4,6 +4,7 @@
 #include "BaseType.h"
 #include "CADModel.h"
 #include "CoarseMatching.h"
+#include "TransformOptimize.h"
 
 namespace CloudReg {
 CloudRegister::CloudRegister() {
@@ -35,6 +36,9 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	}
 
 	// registration
+    std::string logStr = "";
+    TransformOptimize obj("refined Transform Opt", logStr);
+    obj.run(vecCloudPtr, model);
 
 	return true;
 }
