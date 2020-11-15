@@ -3,7 +3,8 @@
 
 #include <pcl/common/transforms.h>
 
-#include <pcl/keypoints/impl/uniform_sampling.hpp>
+//#include <pcl/keypoints/uniform_sampling.hpp>
+#include <pcl/filters/uniform_sampling.h>
 
 #include <pcl/sample_consensus/method_types.h>
 #include <pcl/sample_consensus/model_types.h>
@@ -49,12 +50,13 @@ void TransformOptimize::uniformSampling(double radius,
     pcl::UniformSampling<pcl::PointXYZ> filter;
     filter.setInputCloud(cloud);
     filter.setRadiusSearch(radius);
+
     // We need an additional object to store the indices of surviving points.
-    pcl::PointCloud<int> keypointIndices;
+    //pcl::PointCloud<int> keypointIndices;
+    //filter.compute(keypointIndices);
+    //pcl::copyPointCloud(*cloud, keypointIndices.points, *cloud_filtered);
 
-    filter.compute(keypointIndices);
-    pcl::copyPointCloud(*cloud, keypointIndices.points, *cloud_filtered);
-
+	filter.filter(*cloud_filtered);
     LOG(INFO) << "uniformSampling, radius:" << radius 
         << " cloud size before:" << cloudSize 
         << " after: "<< cloud_filtered->size();
@@ -327,8 +329,6 @@ bool TransformOptimize::viewModelAndChangedCloud(
     // float txt_gray_lvl = 1.0 - bckgr_gray_level;
     // viewer.setBackgroundColor(bckgr_gray_level, bckgr_gray_level, bckgr_gray_level, v1);     
     // viewer.setSize(1280, 1024);  // Visualiser window size
-    std::default_random_engine e;
-    std::uniform_real_distribution<double> random(0,1);
 
     int index = -1;
     for (auto cloud : model_vec)

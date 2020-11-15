@@ -23,7 +23,7 @@
 */
 
 #include "g2o/core/block_solver.h"
-#include "g2o/solvers/linear_solver_eigen.h"
+#include "g2o/solvers/eigen/linear_solver_eigen.h"
 #include "g2o/core/optimization_algorithm_levenberg.h"
 #include "g2o/core/robust_kernel_impl.h"
 
@@ -116,19 +116,20 @@ private:
 
 	void initSolver()
 	{
-        
+#if 0
 		g2o::BlockSolverX::LinearSolverType * linearSolver = 
                         new g2o::LinearSolverEigen<g2o::BlockSolverX::PoseMatrixType>();
         g2o::BlockSolverX * blockSolver = new g2o::BlockSolverX(linearSolver);
         g2o::OptimizationAlgorithmLevenberg* algorithm 
 				= new g2o::OptimizationAlgorithmLevenberg(blockSolver);
-		
-/*
+#endif
+
+#if 1
 		auto linearSolver = g2o::make_unique<g2o::LinearSolverEigen<g2o::BlockSolverX::PoseMatrixType>>();
 		auto blockSolver = g2o::make_unique<g2o::BlockSolverX>(std::move(linearSolver));
 		g2o::OptimizationAlgorithmLevenberg* algorithm 
 				= new g2o::OptimizationAlgorithmLevenberg(std::move(blockSolver));
-*/
+#endif
 		optimizer_.setAlgorithm(algorithm);
     }
 
