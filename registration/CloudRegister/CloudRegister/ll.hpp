@@ -33,6 +33,7 @@
 #include <cassert>
 #include <ctime>
 #include <stdarg.h>
+#include <cctype>
 
 // macros
 #define LL_BAN_COPY(X)  \
@@ -415,9 +416,9 @@ std::string string_join(const Collection& c, const std::string& split = " ") {
 
 inline std::string& string_strip(std::string& str) {
 	str.erase(str.begin(), std::find_if(str.begin(), str.end(),
-		[](char c) { return !std::isspace(c); }));
+		[](char c) { return !isspace(c); }));
 	str.erase(std::find_if(str.rbegin(), str.rend(),
-		[](char c) { return !std::isspace(c); })
+		[](char c) { return !isspace(c); })
 		.base(),
 		str.end());
 	return str;

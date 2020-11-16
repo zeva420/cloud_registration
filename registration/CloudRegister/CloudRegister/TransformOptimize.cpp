@@ -233,6 +233,8 @@ bool TransformOptimize::optimize(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr
 
     LOG(INFO) << "********getSE3Transfor*******";
     getSE3Transfor(transform);
+
+	return true;
 }
 
 bool TransformOptimize::addWallPointToModelPlaneEdges(

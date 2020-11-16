@@ -24,6 +24,18 @@
     <ClCompile Include="funHelper.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="CoarseMatching.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="EdgeConstraint.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="GeometryUtils.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="TransformOptimize.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CloudRegister.h">
@@ -36,6 +48,21 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="funHelper.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="CoarseMatching.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="EdgeConstraint.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="GeometryUtils.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="ll.hpp">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="TransformOptimize.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
