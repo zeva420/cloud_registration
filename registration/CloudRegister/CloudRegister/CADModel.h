@@ -8,6 +8,7 @@ enum ModelItemType {
 	ITEM_BEAM_E,
 	ITEM_BOTTOM_E,
 	ITEM_WALL_E,
+	ITEM_TOP_E,
 	ITEM_MAX_E
 };
 struct ModelItem {
@@ -50,7 +51,7 @@ struct ModelItem {
 class CADModel {
 public:
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-		CADModel();
+	CADModel();
 	~CADModel();
 
 	bool initCAD(const std::string& fileName);

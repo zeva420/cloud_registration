@@ -7,7 +7,7 @@ namespace CloudReg {
 // debug func
 inline std::string toString(ModelItemType type) {
 	const std::array<std::string, ITEM_MAX_E> TYPENAME{
-		"hole", "beam", "bottom", "wall", "--"
+		"hole", "beam", "bottom", "wall","top", "--"
 	};
 	return TYPENAME[type - ITEM_HOLE_E];
 }
@@ -36,6 +36,7 @@ bool CADModel::initCAD(const std::string& fileName) {
 	mapModelItem_[ITEM_WALL_E] = std::move(std::vector<ModelItem>());
 	mapModelItem_[ITEM_HOLE_E] = std::move(std::vector<ModelItem>());
 	mapModelItem_[ITEM_BEAM_E] = std::move(std::vector<ModelItem>());
+	mapModelItem_[ITEM_TOP_E] = std::move(std::vector<ModelItem>());
 
 	std::vector<ModelItem> vec_item;
 	double maxX = 0, maxY = 0, minX = 0, minY = 0;
@@ -244,9 +245,61 @@ bool CADModel::initCAD(const std::string& fileName) {
 
 		}
 	} else {
-		LOG(INFO) << "no such file" << fileName;
+		LOG(ERROR) << "no such file" << fileName;
 		return false;
 	}
+
+	//build top
+	const std::vector<ModelItem>& vecWall = mapModelItem_[ITEM_WALL_E];
+	const std::vector<ModelItem>& vecBeam = mapModelItem_[ITEM_BEAM_E];
+	if (vecWall.empty()) return false;
+	Eigen::vector<Eigen::Vector3d> vecPoints;
+	for (auto& value : vecWall)
+	{
+		vecPoints.emplace_back(value.points_[0]);
+		vecPoints.emplace_back(value.points_[3]);
+	}
+
+	for (auto& value : vecBeam)
+	{
+		std::size_t parent = value.parentIndex_;
+		if (parent > vecWall.size() - 1)
+		{
+			LOG(ERROR) << "parent out of range";
+			return false;
+		}
+
+		vecPoints[parent] = value.points_[1];
+		vecPoints[parent+1] = value.points_[2];
+
+		if (parent == 0)
+		{
+			vecPoints[vecPoints.size()-1] = value.points_[1];
+			vecPoints[parent + 2] = value.points_[2];
+		}
+		else if (parent == vecWall.size()-1)
+		{
+			vecPoints[parent - 1] = value.points_[1];
+			vecPoints[0] = value.points_[2];
+		}
+		else
+		{
+			vecPoints[parent-1] = value.points_[1];
+			vecPoints[parent+2] = value.points_[2];
+
+		}
+		
+	}
+
+	ModelItem item(ITEM_TOP_E);
+	for (std::size_t i = 0; i < vecPoints.size(); i += 2)
+	{
+		item.points_.emplace_back(vecPoints[i]);
+	}
+	item.buildSegment();
+	vec_item.emplace_back(item);
+	mapModelItem_[ITEM_TOP_E].emplace_back(item);
+
 
 	// scale to meters
 	//todo: in place
