@@ -14,14 +14,32 @@
 
 namespace CloudReg {
 
+///
+
+std::vector<PointCloud::Ptr> CoarseMatching::MatchResult::getAllPieces() const {
+	auto pieces = walls_;
+	pieces.push_back(floor_);
+	pieces.push_back(roof_);
+	return pieces;
+}
+
+std::string CoarseMatching::MatchResult::toString() const {
+	std::stringstream ss;
+	ss << "MatchResult: \n"
+		<< walls_.size() << " walls, match index: [" << ll::string_join(matchIndices_, ", ") << "]\n"
+		<< "T: \n" << T_;
+
+	return ss.str();
+}
+
+///
+
 CoarseMatching::CoarseMatching() {}
 
-bool CoarseMatching::run(std::vector<PointCloud::Ptr>& allPieces, const CADModel& cadModel) {
+CoarseMatching::MatchResult CoarseMatching::run(const std::vector<PointCloud::Ptr>& allPieces, const CADModel& cadModel) {
 
 	const auto& holes = cadModel.getTypedModelItems(ITEM_HOLE_E);
 	for (const auto& hole : holes) LOG(INFO) << hole.toString();
-
-	// return true;
 
 	constexpr float HOR_CHECK_EPS = 0.01f;
 
@@ -45,6 +63,12 @@ bool CoarseMatching::run(std::vector<PointCloud::Ptr>& allPieces, const CADModel
 		if (std::fabs(nz) < HOR_CHECK_EPS) {
 			// we got a wall piece
 			auto segment = detectSegementXoY(plane, params, LINE_DETECT_DIS_THRESH, LINE_DETECT_CONNECT_THRESH);
+			// sort counter clock wise
+			if (segment.s_.cross(segment.e_)[2] < 0.f) {
+				Eigen::Vector3f s = segment.s_;
+				segment.s_ = segment.e_;
+				segment.e_ = s;
+			}
 			wallPieces.emplace_back(plane, segment);
 		} else {
 			float z = -params[3] / nz;
@@ -70,13 +94,8 @@ bool CoarseMatching::run(std::vector<PointCloud::Ptr>& allPieces, const CADModel
 		Eigen::vector<Eigen::Vector3f> lineends;
 		for (auto i : sorted_indices) {
 			const auto& seg = wallPieces[i].second;
-			if (seg.s_.cross(seg.e_)[2] > 0.f) {
-				lineends.push_back(seg.s_);
-				lineends.push_back(seg.e_);
-			} else {
-				lineends.push_back(seg.e_);
-				lineends.push_back(seg.s_);
-			}
+			lineends.push_back(seg.s_);
+			lineends.push_back(seg.e_);
 		}
 
 		auto uiter = std::unique(lineends.begin(), lineends.end(), [](const Eigen::Vector3f& v1, const Eigen::Vector3f& v2) {
@@ -101,11 +120,39 @@ bool CoarseMatching::run(std::vector<PointCloud::Ptr>& allPieces, const CADModel
 	T(2, 3) = -zFloor; // shift to zero
 	LOG(INFO) << "T: \n" << T << "\n";
 
-	//4. transform point cloud
-	allPieces.clear();
-	for (auto& pr : wallPieces) allPieces.push_back(geo::transfromPointCloud(pr.first, T));
-	allPieces.push_back(geo::transfromPointCloud(floor, T));
-	allPieces.push_back(geo::transfromPointCloud(roof, T));
+	//4. transform point cloud, prepare result
+	CoarseMatching::MatchResult result;
+	{
+		LL_ASSERT(blueprint3d.segments_.size() == blueprint3d.points_.size() && "havnt build segment?");
+
+		const auto& bpSegments = blueprint3d.segments_;
+		// search by ends distance
+		auto get_nearst_wall_index_in_blueprint = [&bpSegments](const Segment& seg, const Eigen::Matrix4f& T)-> std::size_t {
+			Eigen::Vector3f s = T.block<3, 3>(0, 0) * seg.s_ + T.block<3, 1>(0, 3);
+			Eigen::Vector3f e = T.block<3, 3>(0, 0) * seg.e_ + T.block<3, 1>(0, 3);
+
+			auto pr = ll::min_by([&s, &e](const std::pair<Eigen::Vector3d, Eigen::Vector3d>& bpseg) {
+				Eigen::Vector3d sd(s(0, 0), s(1, 0), s(2, 0)), ed(e(0, 0), e(1, 0), e(2, 0));
+				return (sd - bpseg.first).squaredNorm() + (ed - bpseg.second).squaredNorm();
+			}, bpSegments);
+
+			return std::distance(bpSegments.cbegin(), pr.first);
+		};
+
+		result.T_ = T;
+
+		result.walls_.reserve(wallPieces.size());
+		result.matchIndices_.reserve(wallPieces.size());
+		for (auto& pr : wallPieces) {
+			result.walls_.push_back(geo::transfromPointCloud(pr.first, T));
+			result.matchIndices_.push_back(get_nearst_wall_index_in_blueprint(pr.second, T));
+		}
+
+		result.floor_ = geo::transfromPointCloud(floor, T);
+		result.roof_ = geo::transfromPointCloud(roof, T);
+	}
+
+	LOG(INFO) << result.toString();
 
 	// debug write.
 	for (auto pr : ll::enumerate(allPieces))
@@ -114,7 +161,7 @@ bool CoarseMatching::run(std::vector<PointCloud::Ptr>& allPieces, const CADModel
 	// simple visualization
 	pcl::visualization::PCLVisualizer viewer;
 
-	for (auto pr : ll::enumerate(allPieces)) {
+	for (auto pr : ll::enumerate(result.walls_)) {
 		auto cloud = *pr.iter;
 
 		double r{ geo::random() }, g{ geo::random() }, b{ geo::random() };
@@ -139,10 +186,9 @@ bool CoarseMatching::run(std::vector<PointCloud::Ptr>& allPieces, const CADModel
 
 	while (!viewer.wasStopped()) {
 		viewer.spinOnce(33);
-		std::this_thread::sleep_for(std::chrono::microseconds(33));
 	}
 
-	return true;
+	return result;
 }
 
 std::pair<PointCloud::Ptr, Eigen::Vector4f> CoarseMatching::refinePlanePattern(PointCloud::Ptr cloud, double disthresh) const {

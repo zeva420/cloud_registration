@@ -18,7 +18,28 @@ class CoarseMatching {
 public:
 	CoarseMatching();
 
-	bool run(std::vector<PointCloud::Ptr>& allPieces, const CADModel& cadModel);
+	struct MatchResult {
+		EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
+		bool isValid() const { return !walls_.empty() && walls_.size() == matchIndices_.size(); }
+
+		std::vector<PointCloud::Ptr> getAllPieces() const;
+
+		std::string toString() const;
+
+		// refined & transformed clouds
+		std::vector<PointCloud::Ptr> walls_;
+		PointCloud::Ptr floor_, roof_;
+
+		// the index of wall in CADModel which the wall matched to
+		// #matchIndices_ = #walls_ 
+		// walls_[i] -> cadModel.getTypedModelItems(ITEM_WALL_E)[matchIndices_[i]]
+		std::vector<std::size_t> matchIndices_;
+
+		Eigen::Matrix4f T_; //! note that the clouds are already transformed by T_;
+	};
+
+	MatchResult run(const std::vector<PointCloud::Ptr>& allPieces, const CADModel& cadModel);
 
 private:
 	static constexpr double PLANE_REFINE_DISTANCE = 0.02;
