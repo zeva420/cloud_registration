@@ -58,6 +58,9 @@ private:
 
 	Eigen::Matrix4f computeOutlineTransformation(const Eigen::vector<Eigen::Vector2f>& blueprint,
 		const Eigen::vector<Eigen::Vector2f>& outline, float disthresh);
+
+	std::vector<Segment> detectSegmentsXOY(PointCloud::Ptr cloud, float linethresh, float connect_thresh, float min_seg_length) const;
+	std::vector<Segment> splitSegments(PointCloud::Ptr cloud, Eigen::VectorXf line_params, float connect_thresh, float min_seg_length) const;
 };
 
 }

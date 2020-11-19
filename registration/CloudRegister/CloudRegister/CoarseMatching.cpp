@@ -77,7 +77,7 @@ CoarseMatching::MatchResult CoarseMatching::run(const std::vector<PointCloud::Pt
 	}
 
 	// LOG(INFO) << wallPieces.size() << " walls found, floor -> roof: "<< ;
-	LOG(INFO) << ll::unsafe_format("%d walls found, floor %.3f -> roof %.3f, total height: %3.f.",
+	LOG(INFO) << ll::unsafe_format("%d walls found, floor %.3f -> roof %.3f, total height: %.3f.",
 		wallPieces.size(), zFloor, zRoof, (zRoof - zFloor));
 	LOG_IF(INFO, wallPieces.size() % 2 != 0) << "note that wall size is odd, we may missed some.";
 
@@ -105,6 +105,16 @@ CoarseMatching::MatchResult CoarseMatching::run(const std::vector<PointCloud::Pt
 		outline.resize(std::distance(lineends.begin(), uiter));
 		std::transform(lineends.begin(), uiter, outline.begin(), [](const Eigen::Vector3f& v) { return static_cast<Eigen::Vector2f>(v.block<2, 1>(0, 0));  });
 		if ((outline.back() - outline.front()).squaredNorm() < OUTLINE_LINK_DIS_THRESH_SQUARED) outline.pop_back();
+
+		// debug
+		std::stringstream ss;
+		for (std::size_t i = 0; i < outline.size(); ++i) {
+			const auto& cur = outline[i];
+			const auto& nxt = outline[(i + 1) % outline.size()];
+
+			ss << "(" << cur.transpose() << ") -- " << (nxt - cur).squaredNorm() << " --> ";
+		}
+		LOG(INFO) << "outline chain (threshold: " << OUTLINE_LINK_DIS_THRESH_SQUARED << "): " << ss.str();
 	}
 	LOG(INFO) << "outline/wall size: " << outline.size() << " / " << wallPieces.size();
 
@@ -330,7 +340,7 @@ Eigen::Matrix4f CoarseMatching::computeOutlineTransformation(const Eigen::vector
 
 			float maxmindis = ll::max_by(&ll::get_value<std::size_t, float>, matchids).second;
 
-			if (maxmindis > disthresh_squared) continue;
+			// if (maxmindis > disthresh_squared) continue;
 
 			can c;
 			c.i = i;
@@ -342,14 +352,17 @@ Eigen::Matrix4f CoarseMatching::computeOutlineTransformation(const Eigen::vector
 		}
 	}
 
-	if (candidates.empty()) {
+	std::sort(candidates.begin(), candidates.end(), [](const can& c1, const can& c2) {return c1.maxmindis < c2.maxmindis; });
+	{
+		std::stringstream ss;
+		for (std::size_t i = 0; i < candidates.size() && i < 20; ++i) ss << i << "| " << candidates[i].to_string() << "\n";
+		LOG(INFO) << "all candidates (threshold: " << disthresh_squared << ") \n" << ss.str();
+	}
+
+	if (candidates.front().maxmindis > disthresh_squared) {
 		LOG(INFO) << "no candidates found, match failed!\n";
 		return Eigen::Matrix4f::Identity();
 	}
-
-	LOG(INFO) << candidates.size() << " candidates found:\n";
-	for (auto pr : ll::enumerate(candidates))
-		LOG(INFO) << "[" << pr.index << "] " << pr.iter->to_string() << "\n";
 
 	// remove duplicate match pattern
 	{
@@ -361,6 +374,8 @@ Eigen::Matrix4f CoarseMatching::computeOutlineTransformation(const Eigen::vector
 		// std::make_unique need a sort, simple brute-force. this can be optimized
 		std::vector<can> unique_candidates;
 		for (const auto& ci : candidates) {
+			if (ci.maxmindis > disthresh_squared) break;
+
 			auto iter = std::find_if(unique_candidates.begin(), unique_candidates.end(), [&ci, &is_same](const can& cj) { return is_same(ci, cj); });
 			if (iter == unique_candidates.end()) {
 				unique_candidates.push_back(ci);
@@ -385,6 +400,38 @@ Eigen::Matrix4f CoarseMatching::computeOutlineTransformation(const Eigen::vector
 	LOG(INFO) << "choosing: " << std::distance(candidates.begin(), iter) << "\n";
 
 	return trans2d::asTransform3d(iter->T);
+}
+
+std::vector<CoarseMatching::Segment> CoarseMatching::detectSegmentsXOY(PointCloud::Ptr cloud,
+	float linethresh, float connect_thresh, float min_seg_length) const {
+	auto cloud2d = geo::mapPoints(cloud, [](const Point& p) { return Point(p.x, p.y, 0.f); });
+
+	auto rest = cloud2d;
+	LOG(INFO) << "left points: " << rest->size();
+
+	std::vector<Segment> segments;
+
+	std::vector<int> inliers;
+	Eigen::VectorXf params;
+	while (rest->size() > 1000) {
+		std::tie(inliers, params) = geo::detectOneLineRansac(rest, linethresh);
+
+		auto line = geo::getSubSet(cloud2d, inliers);
+		auto subsegs = splitSegments(line, params, connect_thresh, min_seg_length);
+		segments.insert(segments.end(), subsegs.begin(), subsegs.end());
+
+		rest = geo::getSubSet(cloud2d, inliers, true);
+
+		LOG(INFO) << segments.size() << " segments, left points: " << rest->size();
+	}
+
+	return segments;
+}
+
+std::vector<CoarseMatching::Segment> CoarseMatching::splitSegments(PointCloud::Ptr cloud, Eigen::VectorXf line_params,
+	float connect_thresh, float min_seg_length) const {
+
+
 }
 
 }

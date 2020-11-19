@@ -30,15 +30,17 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 
 	// coarse match: ([PointCloud], CADModel)-> ([transformed & filtered PointCloud])
 	CoarseMatching cm;
-	if (!cm.run(vecCloudPtr, model)) {
+	auto re = cm.run(vecCloudPtr, model);
+	if (!re.isValid()) {
 		LOG(INFO) << "coarse matching failed.";
 		return false;
 	}
 
 	// registration
-    std::string logStr = "";
-    TransformOptimize obj("refined Transform Opt", logStr);
-    obj.run(vecCloudPtr, model);
+	std::string logStr = "";
+	TransformOptimize obj("refined Transform Opt", logStr);
+	auto cloud = re.getAllPieces();
+	obj.run(cloud, model);
 
 	return true;
 }
