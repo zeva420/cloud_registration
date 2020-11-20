@@ -44,4 +44,32 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 
 	return true;
 }
+
+const std::map<CloudItem, vecItems_t>& CloudRegister::getAllCloudPlane() const
+{
+	return mapCloudItem_;
+}
+
+const std::map<pairCloud_t, std::pair<double, double>>& CloudRegister::getAllCorner() const
+{
+	return mapCorner_;
+}
+
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr
+CloudRegister::calcDistError(const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_,
+	const Eigen::Vector3d& plane, const double downRatio) const
+{
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloud = nullptr;
+	return pCloud;
+}
+
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr
+CloudRegister::genCloudByModel(const Eigen::Vector3d& planePara,
+	const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>& border) const
+{
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloud = nullptr;
+	return pCloud;
+}
+
+
 }
