@@ -8,20 +8,6 @@
 
 namespace CloudReg
 {
-	struct CloudItem {
-		EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-			CloudItem(pcl::PointCloud<pcl::PointXYZ>::Ptr pData)
-			:pCloud_(pData)
-		{
-		}
-
-		const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_;
-		Eigen::Vector3d cloudPlane_;
-		Eigen::Vector3d cadPlane_;
-		std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> cloudBorder_;
-		std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> cadBorder_;
-	};
-
 	enum CloudItemType {
 		CLOUD_BEAM_E,
 		CLOUD_BOTTOM_E,
@@ -29,6 +15,25 @@ namespace CloudReg
 		CLOUD_TOP_E,
 		CLOUD_MAX_E
 	};
+
+	struct CloudItem {
+		EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+			CloudItem(pcl::PointCloud<pcl::PointXYZ>::Ptr pData)
+			:pCloud_(pData)
+		{
+		}
+
+		
+		const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_;
+		CloudItemType type_;
+		std::size_t parentIndex_ = 9999;
+		Eigen::Vector3d cloudPlane_;
+		Eigen::Vector3d cadPlane_;
+		std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> cloudBorder_;
+		std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> cadBorder_;
+	};
+
+	
 	using vecItems_t = std::vector<CloudItem>;
 	using pairCloud_t = std::pair<CloudItem*, CloudItem*>;
 
