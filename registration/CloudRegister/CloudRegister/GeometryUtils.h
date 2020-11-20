@@ -35,6 +35,7 @@ extern Eigen::Matrix4f asTransform3d(const Matrix2x3f& T2d);
 
 namespace geo {
 constexpr float PI = 3.14159265f;
+constexpr float TAU = PI * 2.f;
 
 /* point operations */
 inline double random(double max = 1.0) { return std::rand() / static_cast<double>(RAND_MAX)* max; }
@@ -57,11 +58,15 @@ inline float length2d(const Point& p) { return std::sqrt(length2d_squared(p)); }
 
 inline float cross2d(const Point& p, const Point& q) { return p.x * q.y - p.y * q.x; }
 
+extern float distance_to_segment_2d(const Eigen::Vector2f& p, const Eigen::Vector2f& s, const Eigen::Vector2f& e);
+
 extern std::vector<std::size_t> sort_points_counter_clockwise(const Eigen::vector<Eigen::Vector2f>& points);
 
 /* cloud operations */
 
 extern PointCloud::Ptr passThrough(PointCloud::Ptr cloud, const std::string& field, float low, float high);
+
+extern PointCloud::Ptr downsampleUniformly(PointCloud::Ptr cloud, float radius);
 
 // set negative to TRUE to inverse grab.
 extern PointCloud::Ptr getSubSet(PointCloud::Ptr cloud, const std::vector<int>& indices, bool negative = false);

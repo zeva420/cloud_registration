@@ -11,6 +11,7 @@
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/ModelCoefficients.h>
 #include <pcl/visualization/pcl_visualizer.h>
+#include <pcl/filters/radius_outlier_removal.h>
 
 namespace CloudReg {
 
@@ -37,7 +38,6 @@ std::string CoarseMatching::MatchResult::toString() const {
 CoarseMatching::CoarseMatching() {}
 
 CoarseMatching::MatchResult CoarseMatching::run(const std::vector<PointCloud::Ptr>& allPieces, const CADModel& cadModel) {
-
 	const auto& holes = cadModel.getTypedModelItems(ITEM_HOLE_E);
 	for (const auto& hole : holes) LOG(INFO) << hole.toString();
 
@@ -62,7 +62,7 @@ CoarseMatching::MatchResult CoarseMatching::run(const std::vector<PointCloud::Pt
 		LOG(INFO) << pr.index << "] nz: " << nz;
 		if (std::fabs(nz) < HOR_CHECK_EPS) {
 			// we got a wall piece
-			auto segment = detectSegementXoY(plane, params, LINE_DETECT_DIS_THRESH, LINE_DETECT_CONNECT_THRESH);
+			auto segment = detectMainSegementXoY(plane, params, LINE_DETECT_DIS_THRESH, LINE_DETECT_CONNECT_THRESH);
 			// sort counter clock wise
 			if (segment.s_.cross(segment.e_)[2] < 0.f) {
 				Eigen::Vector3f s = segment.s_;
@@ -81,6 +81,39 @@ CoarseMatching::MatchResult CoarseMatching::run(const std::vector<PointCloud::Pt
 		wallPieces.size(), zFloor, zRoof, (zRoof - zFloor));
 	LOG_IF(INFO, wallPieces.size() % 2 != 0) << "note that wall size is odd, we may missed some.";
 
+	if (0) {
+		// test
+		PointCloud::Ptr joinall(new PointCloud());
+		for (const auto& pr : wallPieces) {
+			auto sparsed = geo::downsampleUniformly(pr.first, 0.01f);
+			LOG(INFO) << "down sample wall: " << pr.first->size() << " -> " << sparsed->size();
+
+			for (const auto& p : sparsed->points) {
+				joinall->points.emplace_back(p);
+			}
+		}
+		joinall->width = joinall->points.size();
+		joinall->height = 1;
+
+		auto segs = detectSegmentsXOY(joinall, LINE_DETECT_DIS_THRESH, 0.1f, 0.1f);
+
+		pcl::visualization::PCLVisualizer viewer;
+
+		pcl::visualization::PointCloudColorHandlerCustom<Point> color(joinall, 255., 255., 0.);
+		viewer.addPointCloud(joinall, color, "cloud");
+		for (auto pr : ll::enumerate(segs)) {
+			auto s = geo::P_(pr.iter->s_);
+			auto e = geo::P_(pr.iter->e_);
+			viewer.addSphere(s, 0.1f, "seg-s-" + std::to_string(pr.index));
+			viewer.addSphere(e, 0.1f, "seg-e-" + std::to_string(pr.index));
+			viewer.addText3D(std::to_string(pr.index), (s + e) / 2.f, 0.3f);
+		}
+
+		while (!viewer.wasStopped()) viewer.spinOnce(33);
+
+		return CoarseMatching::MatchResult();
+	}
+
 	//2. setup outline
 	Eigen::vector<Eigen::Vector2f> cens(wallPieces.size());
 	std::transform(wallPieces.begin(), wallPieces.end(), cens.begin(),
@@ -96,6 +129,13 @@ CoarseMatching::MatchResult CoarseMatching::run(const std::vector<PointCloud::Pt
 			const auto& seg = wallPieces[i].second;
 			lineends.push_back(seg.s_);
 			lineends.push_back(seg.e_);
+		}
+
+		// debug
+		{
+			std::stringstream ss;
+			for (const auto& p : lineends) ss << p.transpose() << ", ";
+			LOG(INFO) << "sorted segments: " << ss.str();
 		}
 
 		auto uiter = std::unique(lineends.begin(), lineends.end(), [](const Eigen::Vector3f& v1, const Eigen::Vector3f& v2) {
@@ -251,15 +291,14 @@ std::pair<PointCloud::Ptr, Eigen::Vector4f> CoarseMatching::refinePlanePattern(P
 #endif
 }
 
-CoarseMatching::Segment CoarseMatching::detectSegementXoY(PointCloud::Ptr cloud, const Eigen::Vector4f& plane_param,
+CoarseMatching::Segment CoarseMatching::detectMainSegementXoY(PointCloud::Ptr cloud, const Eigen::Vector4f& plane_param,
 	double disthresh, double connect_thresh) const {
 
 	if (std::abs(plane_param[2]) > 0.1f) {
 		LOG(WARNING) << "initial plane n.z: " << plane_param[2] << ", may not a proper call.";
 	}
 
-	double ratio = std::min(0.1, 20000. / cloud->size()); // need sparse, todo: if we now the height, we can simply do passthrough
-	PointCloud::Ptr sparsed = geo::filterPoints(cloud, [ratio](const Point& p) { return geo::random() < ratio; });
+	PointCloud::Ptr sparsed = geo::downsampleUniformly(cloud, 0.01f);
 	PointCloud::Ptr cloud2d = geo::mapPoints(sparsed, [](const Point& p) { return Point(p.x, p.y, 0.f); });
 
 	LOG(INFO) << "filter|map to 2d: " << cloud->size() << " -> " << cloud2d->size();
@@ -270,7 +309,15 @@ CoarseMatching::Segment CoarseMatching::detectSegementXoY(PointCloud::Ptr cloud,
 	LOG_IF(INFO, std::fabs(params[5]) > 1e-6) << "detected line is not parallel to XoY!";
 
 	auto inliers = geo::getSubSet(cloud2d, indices);
-	auto body = geo::clusterMainStructure(inliers, connect_thresh);
+	// auto body = geo::clusterMainStructure(inliers, connect_thresh);
+	PointCloud::Ptr body(new PointCloud());
+	{
+		pcl::RadiusOutlierRemoval<Point> ror;
+		ror.setInputCloud(inliers);
+		ror.setRadiusSearch(0.05);
+		ror.setMinNeighborsInRadius(10);
+		ror.filter(*body);
+	}
 	LOG(INFO) << "get segment cloud: " << cloud2d->size() << "->" << inliers->size() << " -> " << body->size();
 
 	// we now get ends
@@ -296,18 +343,31 @@ Eigen::Matrix4f CoarseMatching::computeOutlineTransformation(const Eigen::vector
 		std::size_t i, j;
 		trans2d::Matrix2x3f T;
 		float maxmindis;
+		float avgdis;
 
-		std::vector<std::size_t> nearest_indices; // defines which indices were matched: #nearest_indices = #outline
+		float a() const { return std::atan2f(T(1, 0), T(0, 0)); }
 
 		std::string to_string() const {
 			std::stringstream ss;
-			ss << "(" << i << ", " << j << ") " << maxmindis << " [" << ll::string_join(nearest_indices, ", ") << "]";
-			// << "\n"  << T;
+			ss << "(" << i << ", " << j << ") " << maxmindis << ", " << avgdis
+				<< " [" << (a() * 180.f / geo::PI) << ", (" << t().transpose() << ")]";
 			return ss.str();
 		}
+
+	private:
+		Eigen::Vector2f t() const { return -T.block<2, 2>(0, 0).transpose() * T.block<2, 1>(0, 2); }
 	};
 
-	const float disthresh_squared = disthresh * disthresh;
+	auto min_distance_to_blueprint = [&blueprint](const Eigen::Vector2f& p) {
+		float mindis = std::numeric_limits<float>::max();
+		for (std::size_t i = 0; i < blueprint.size(); ++i) {
+			std::size_t j = (i + 1) % blueprint.size();
+			float dis = geo::distance_to_segment_2d(p, blueprint[i], blueprint[j]);
+			if (dis < mindis) mindis = dis;
+		}
+
+		return mindis;
+	};
 
 	std::vector<can> candidates;
 	for (std::size_t i = 0; i < blueprint.size(); ++i) {
@@ -328,62 +388,77 @@ Eigen::Matrix4f CoarseMatching::computeOutlineTransformation(const Eigen::vector
 			trans2d::Matrix2x3f T = trans2d::estimateTransform(s1, e1, s2, e2);
 
 			// now check max-min distance
-			// [(index, distance^ 2), ...] todo: may check one to one
-			auto get_nearest_point_in_blueprint = [&blueprint](const Eigen::Vector2f& p)->std::pair<std::size_t, float> {
-				auto prpr = ll::min_by([&p](const Eigen::Vector2f& q) { return (p - q).squaredNorm(); }, blueprint);
-				return std::make_pair(std::distance(blueprint.begin(), prpr.first), prpr.second);
-			};
-
-			auto matchids = ll::mapf([&](const Eigen::Vector2f& p) {
-				return get_nearest_point_in_blueprint(trans2d::transform(p, T));
+			auto mindis = ll::mapf([&T, &min_distance_to_blueprint](const Eigen::Vector2f& p) {
+				Eigen::Vector2f q = T.block<2, 2>(0, 0) * p + T.block<2, 1>(0, 2);
+				return min_distance_to_blueprint(q);
 			}, outline);
-
-			float maxmindis = ll::max_by(&ll::get_value<std::size_t, float>, matchids).second;
-
-			// if (maxmindis > disthresh_squared) continue;
 
 			can c;
 			c.i = i;
 			c.j = j;
 			c.T = T;
-			c.maxmindis = std::sqrt(maxmindis);
-			c.nearest_indices = ll::mapf(&ll::get_key<std::size_t, float>, matchids);
+			c.maxmindis = *(std::max_element(mindis.begin(), mindis.end()));
+			c.avgdis = ll::sum(mindis) / mindis.size();
 			candidates.push_back(c);
 		}
 	}
 
+	// sort
 	std::sort(candidates.begin(), candidates.end(), [](const can& c1, const can& c2) {return c1.maxmindis < c2.maxmindis; });
+
 	{
 		std::stringstream ss;
 		for (std::size_t i = 0; i < candidates.size() && i < 20; ++i) ss << i << "| " << candidates[i].to_string() << "\n";
-		LOG(INFO) << "all candidates (threshold: " << disthresh_squared << ") \n" << ss.str();
+		LOG(INFO) << "all candidates (threshold: " << disthresh << ") \n" << ss.str();
 	}
 
-	if (candidates.front().maxmindis > disthresh_squared) {
+	if (candidates.front().maxmindis > disthresh) {
 		LOG(INFO) << "no candidates found, match failed!\n";
 		return Eigen::Matrix4f::Identity();
 	}
 
-	// remove duplicate match pattern
+	// remove duplicate match pattern by transformation
 	{
-		auto is_same = [](const can& ci, const can& cj) {
-			return ci.nearest_indices.size() == cj.nearest_indices.size() &&
-				std::equal(ci.nearest_indices.begin(), ci.nearest_indices.end(), cj.nearest_indices.begin());
+		constexpr float ANGLE_THRESH = 5.f / geo::PI;
+		constexpr float TRANSLATE_THRESH = 0.1f;
+
+		auto is_same = [ANGLE_THRESH, TRANSLATE_THRESH](const can& ci, const can& cj) {
+			float da = ci.a() - cj.a();
+			if (da > geo::PI) da -= geo::TAU;
+			else if (da < -geo::PI) da += geo::TAU;
+
+			if (std::fabs(da) > ANGLE_THRESH) return false;
+
+			// t dis
+			Eigen::Matrix2f Ri = ci.T.block<2, 2>(0, 0);
+			Eigen::Vector2f ti = ci.T.block<2, 1>(0, 2);
+			Eigen::Vector2f tj = cj.T.block<2, 1>(0, 2);
+
+			float dt = (Ri.transpose() * (tj - ti)).norm();
+			return dt < TRANSLATE_THRESH;
 		};
 
-		// std::make_unique need a sort, simple brute-force. this can be optimized
+		std::cout << "===================================================\n";
+		for (const auto& can : candidates) {
+			is_same(candidates.front(), can);
+		}
+
+		// simple brute-force. this can be optimized
+		// keep in mind that the candidates are already sorted.
 		std::vector<can> unique_candidates;
 		for (const auto& ci : candidates) {
-			if (ci.maxmindis > disthresh_squared) break;
+			if (ci.maxmindis > disthresh) break;
 
 			auto iter = std::find_if(unique_candidates.begin(), unique_candidates.end(), [&ci, &is_same](const can& cj) { return is_same(ci, cj); });
 			if (iter == unique_candidates.end()) {
 				unique_candidates.push_back(ci);
-			} else if (iter->maxmindis > ci.maxmindis) {
+			} else if (iter->avgdis > ci.avgdis) {
+				// copy.
 				iter->i = ci.i;
 				iter->j = ci.j;
 				iter->T = ci.T;
 				iter->maxmindis = ci.maxmindis;
+				iter->avgdis = ci.avgdis;
 			}
 		}
 
@@ -392,18 +467,17 @@ Eigen::Matrix4f CoarseMatching::computeOutlineTransformation(const Eigen::vector
 
 	LOG(INFO) << candidates.size() << " UNIQUE candidates found:\n";
 	for (auto pr : ll::enumerate(candidates))
-		LOG(INFO) << "[" << pr.index << "] " << pr.iter->to_string() << "\n";
+		LOG(INFO) << pr.index << "| " << pr.iter->to_string() << "\n";
 
-	//todo: may remove duplicated transform
-	auto iter = std::min_element(candidates.begin(), candidates.end(), [](const can& ci, const can& cj) { return ci.maxmindis < cj.maxmindis; });
+	//todo: handle the case where #candidates /= 1
 
-	LOG(INFO) << "choosing: " << std::distance(candidates.begin(), iter) << "\n";
-
-	return trans2d::asTransform3d(iter->T);
+	return trans2d::asTransform3d(candidates.front().T);
 }
 
 std::vector<CoarseMatching::Segment> CoarseMatching::detectSegmentsXOY(PointCloud::Ptr cloud,
 	float linethresh, float connect_thresh, float min_seg_length) const {
+	ll::TimeCounter tc([](int ms) { LOG(INFO) << ms << " ms passed in " << __FUNCTION__; });
+
 	auto cloud2d = geo::mapPoints(cloud, [](const Point& p) { return Point(p.x, p.y, 0.f); });
 
 	auto rest = cloud2d;
@@ -430,8 +504,59 @@ std::vector<CoarseMatching::Segment> CoarseMatching::detectSegmentsXOY(PointClou
 
 std::vector<CoarseMatching::Segment> CoarseMatching::splitSegments(PointCloud::Ptr cloud, Eigen::VectorXf line_params,
 	float connect_thresh, float min_seg_length) const {
+	Point p = geo::P_(line_params.block<3, 1>(0, 0));
+	Point n = geo::P_(line_params.block<3, 1>(3, 0));
 
+	auto projlens = ll::mapf([p, n](const Point& q) {return geo::dot(q - p, n); }, cloud->points);
 
+	// a simple 1d cluster, todo: optimize this
+	std::vector<std::unordered_set<std::size_t>> sets;
+	for (std::size_t i = 0; i < projlens.size(); ++i) {
+		// find connected sets
+		std::vector<std::size_t> connected_sets;
+		for (auto pr : ll::enumerate(sets)) {
+			auto& ids = *pr.iter;
+			if (std::any_of(ids.begin(), ids.end(), [&](std::size_t id) {
+				return std::fabs(projlens[i] - projlens[id]) < connect_thresh; }))
+				connected_sets.push_back(pr.index);
+		}
+
+		if (connected_sets.empty()) {
+			// find an empty set to 
+			std::unordered_set<std::size_t> ids;
+			ids.insert(i);
+			sets.push_back(ids);
+		} else {
+			// join them
+			auto& joined = sets[connected_sets.front()];
+			joined.insert(i);
+			for (std::size_t j = 1; j < connected_sets.size(); ++j) {
+				auto& tobe_joined = sets[j];
+				joined.insert(tobe_joined.begin(), tobe_joined.end());
+				tobe_joined.clear(); // clear
+			}
+		}
+	}
+
+	auto cnt = std::count_if(sets.begin(), sets.end(), [](const std::unordered_set<std::size_t>& c) { return c.size() > 1; });
+	LOG(INFO) << cnt << " cluster(s) found.";
+
+	std::vector<Segment> segments;
+	for (const auto& ids : sets) {
+		auto pr = std::minmax_element(ids.begin(), ids.end(), [&projlens](std::size_t i, std::size_t j) {
+			return projlens[i] < projlens[j];
+		});
+
+		Segment s;
+		s.s_ = geo::V_(cloud->points[*pr.first]);
+		s.e_ = geo::V_(cloud->points[*pr.second]);
+
+		if ((s.s_ - s.e_).norm() < min_seg_length) continue;
+
+		segments.push_back(s);
+	}
+
+	return segments;
 }
 
 }

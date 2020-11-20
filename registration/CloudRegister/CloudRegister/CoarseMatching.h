@@ -53,8 +53,8 @@ private:
 
 	std::pair<PointCloud::Ptr, Eigen::Vector4f> refinePlanePattern(PointCloud::Ptr cloud, double disthresh) const;
 
-	// we already get the plane parameters, use as initialization
-	Segment detectSegementXoY(PointCloud::Ptr cloud, const Eigen::Vector4f& plane_param, double disthresh, double connect_thresh) const;
+	// we already get the plane parameters, use as initialization, 
+	Segment detectMainSegementXoY(PointCloud::Ptr cloud, const Eigen::Vector4f& plane_param, double disthresh, double connect_thresh) const;
 
 	Eigen::Matrix4f computeOutlineTransformation(const Eigen::vector<Eigen::Vector2f>& blueprint,
 		const Eigen::vector<Eigen::Vector2f>& outline, float disthresh);

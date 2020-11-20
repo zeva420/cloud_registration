@@ -5,6 +5,7 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/filters/radius_outlier_removal.h>
+#include <pcl/filters/uniform_sampling.h>
 #include <pcl/kdtree/kdtree.h>
 #include <pcl/segmentation/extract_clusters.h>
 #include <pcl/sample_consensus/model_types.h>
@@ -79,6 +80,19 @@ Eigen::Matrix4f asTransform3d(const Matrix2x3f& T2d) {
 
 namespace geo {
 
+float distance_to_segment_2d(const Eigen::Vector2f& p, const Eigen::Vector2f& s, const Eigen::Vector2f& e) {
+	Eigen::Vector2f sp = p - s;
+	Eigen::Vector2f se = e - s;
+	float se2 = se.squaredNorm();
+	if (se2 < 1e-8) return sp.norm();
+
+	float t = sp.dot(se) / se2;
+	if (t < 0.f) return sp.norm();
+	if (t > 1.f) return (p - e).norm();
+
+	return std::fabs(sp(0) * se(1) - sp(1) * se(0)) / std::sqrt(se2);
+}
+
 std::vector<std::size_t> sort_points_counter_clockwise(const Eigen::vector<Eigen::Vector2f>& points) {
 	auto cen_theta = ll::mapf([](const Eigen::Vector2f& p) { return std::atan2f(p[1], p[0]); }, points);
 	auto indices = ll::range(cen_theta.size());
@@ -97,6 +111,17 @@ PointCloud::Ptr passThrough(PointCloud::Ptr cloud, const std::string& field, flo
 
 	PointCloud::Ptr filtered(new PointCloud());
 	filter.filter(*filtered);
+	return filtered;
+}
+
+PointCloud::Ptr downsampleUniformly(PointCloud::Ptr cloud, float radius) {
+	PointCloud::Ptr filtered(new PointCloud());
+
+	pcl::UniformSampling<Point> filter;
+	filter.setInputCloud(cloud);
+	filter.setRadiusSearch(radius);
+	filter.filter(*filtered);
+
 	return filtered;
 }
 
