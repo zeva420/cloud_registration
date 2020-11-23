@@ -61,6 +61,10 @@ private:
 
 	std::vector<Segment> detectSegmentsXOY(PointCloud::Ptr cloud, float linethresh, float connect_thresh, float min_seg_length) const;
 	std::vector<Segment> splitSegments(PointCloud::Ptr cloud, Eigen::VectorXf line_params, float connect_thresh, float min_seg_length) const;
+
+	// get SORTED intersection points on cad
+	Eigen::vector<Eigen::Vector3d> intersectCADModelOnZ(const CADModel& cadModel, float z) const;
+
 };
 
 }

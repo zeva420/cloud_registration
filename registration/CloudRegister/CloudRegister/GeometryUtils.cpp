@@ -101,6 +101,18 @@ std::vector<std::size_t> sort_points_counter_clockwise(const Eigen::vector<Eigen
 	return indices;
 }
 
+SegmentIntersectInfo zIntersectSegment(const Eigen::Vector3d& a, const Eigen::Vector3d& b, double z) {
+	SegmentIntersectInfo sii;
+
+	double dz = b(2, 0) - a(2, 0);
+	if (std::fabs(dz) < 1e-6) return sii;
+
+	sii.lambda_ = (z - a(2, 0)) / dz;
+	if (sii.valid()) sii.point_ = a * (1 - sii.lambda_) + b * sii.lambda_;
+
+	return sii;
+}
+
 // cloud
 
 PointCloud::Ptr passThrough(PointCloud::Ptr cloud, const std::string& field, float low, float high) {

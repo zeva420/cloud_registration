@@ -81,35 +81,58 @@ CoarseMatching::MatchResult CoarseMatching::run(const std::vector<PointCloud::Pt
 		wallPieces.size(), zFloor, zRoof, (zRoof - zFloor));
 	LOG_IF(INFO, wallPieces.size() % 2 != 0) << "note that wall size is odd, we may missed some.";
 
-	if (0) {
-		// test
-		PointCloud::Ptr joinall(new PointCloud());
-		for (const auto& pr : wallPieces) {
-			auto sparsed = geo::downsampleUniformly(pr.first, 0.01f);
-			LOG(INFO) << "down sample wall: " << pr.first->size() << " -> " << sparsed->size();
+	if (1) {
+		constexpr float MARGIN = 0.02f;
+		constexpr float Z = 1.f;
 
-			for (const auto& p : sparsed->points) {
-				joinall->points.emplace_back(p);
-			}
-		}
-		joinall->width = joinall->points.size();
-		joinall->height = 1;
-
-		auto segs = detectSegmentsXOY(joinall, LINE_DETECT_DIS_THRESH, 0.1f, 0.1f);
+		auto bpm = intersectCADModelOnZ(cadModel, Z);
 
 		pcl::visualization::PCLVisualizer viewer;
 
-		pcl::visualization::PointCloudColorHandlerCustom<Point> color(joinall, 255., 255., 0.);
-		viewer.addPointCloud(joinall, color, "cloud");
-		for (auto pr : ll::enumerate(segs)) {
-			auto s = geo::P_(pr.iter->s_);
-			auto e = geo::P_(pr.iter->e_);
-			viewer.addSphere(s, 0.1f, "seg-s-" + std::to_string(pr.index));
-			viewer.addSphere(e, 0.1f, "seg-e-" + std::to_string(pr.index));
-			viewer.addText3D(std::to_string(pr.index), (s + e) / 2.f, 0.3f);
+		const float wallz = zFloor + Z;
+
+		for (const auto& pr : ll::enumerate(wallPieces)) {
+			const auto& wallpr = *pr.iter;
+			auto line = geo::passThrough(wallpr.first, "z", wallz - MARGIN, wallz + MARGIN);
+			Eigen::VectorXf params(6, 1);
+			params.block<3, 1>(0, 0) = wallpr.second.s_;
+			params.block<3, 1>(3, 0) = wallpr.second.dir();
+			LOG(INFO) << "passthrough: " << line->size() << " / " << wallpr.first->size() << ", line: " << params.transpose();
+
+			const auto subsegs = splitSegments(line, params, 0.1f, 0.1f);
+
+			// show
+			double r{ geo::random() }, g{ geo::random() }, b{ geo::random() };
+
+			pcl::visualization::PointCloudColorHandlerCustom<Point> color(line, r * 255., g * 255., b * 255.);
+			viewer.addPointCloud(line, color, "piece" + std::to_string(pr.index));
+
+			for (auto segpr : ll::enumerate(subsegs)) {
+				const auto& seg = *segpr.iter;
+
+				viewer.addSphere(geo::P_(seg.s_), 0.1f, 1., 1., 0.,
+					"seg-s-" + std::to_string(pr.index) + "-" + std::to_string(segpr.index));
+				viewer.addSphere(geo::P_(seg.e_), 0.1f, 1., 1., 0.,
+					"seg-e-" + std::to_string(pr.index) + "-" + std::to_string(segpr.index));
+				// viewer.addText3D(std::to_string(pr.index), Point(p.x, p.y, 0.2f), 0.3f);
+			}
 		}
 
-		while (!viewer.wasStopped()) viewer.spinOnce(33);
+		auto cad = cadModel.genTestCloud();
+		pcl::visualization::PointCloudColorHandlerCustom<Point> color(cad, 255., 0., 0.);
+		viewer.addPointCloud(cad, color, "cad");
+
+		for (auto pr : ll::enumerate(bpm)) {
+			const Eigen::Vector3d& v = *pr.iter;
+			Point p(v(0), v(1), v(2));
+
+			viewer.addSphere(p, 0.1f, "outline" + std::to_string(pr.index));
+			viewer.addText3D(std::to_string(pr.index), Point(p.x, p.y, 0.2f), 0.3f);
+		}
+
+		while (!viewer.wasStopped()) {
+			viewer.spinOnce(33);
+		}
 
 		return CoarseMatching::MatchResult();
 	}
@@ -489,12 +512,13 @@ std::vector<CoarseMatching::Segment> CoarseMatching::detectSegmentsXOY(PointClou
 	Eigen::VectorXf params;
 	while (rest->size() > 1000) {
 		std::tie(inliers, params) = geo::detectOneLineRansac(rest, linethresh);
+		LOG(INFO) << "line found: " << params.transpose();
 
-		auto line = geo::getSubSet(cloud2d, inliers);
+		auto line = geo::getSubSet(rest, inliers);
 		auto subsegs = splitSegments(line, params, connect_thresh, min_seg_length);
 		segments.insert(segments.end(), subsegs.begin(), subsegs.end());
 
-		rest = geo::getSubSet(cloud2d, inliers, true);
+		rest = geo::getSubSet(rest, inliers, true);
 
 		LOG(INFO) << segments.size() << " segments, left points: " << rest->size();
 	}
@@ -531,7 +555,7 @@ std::vector<CoarseMatching::Segment> CoarseMatching::splitSegments(PointCloud::P
 			auto& joined = sets[connected_sets.front()];
 			joined.insert(i);
 			for (std::size_t j = 1; j < connected_sets.size(); ++j) {
-				auto& tobe_joined = sets[j];
+				auto& tobe_joined = sets[connected_sets[j]];
 				joined.insert(tobe_joined.begin(), tobe_joined.end());
 				tobe_joined.clear(); // clear
 			}
@@ -543,6 +567,8 @@ std::vector<CoarseMatching::Segment> CoarseMatching::splitSegments(PointCloud::P
 
 	std::vector<Segment> segments;
 	for (const auto& ids : sets) {
+		if (ids.size() < 2) continue;
+
 		auto pr = std::minmax_element(ids.begin(), ids.end(), [&projlens](std::size_t i, std::size_t j) {
 			return projlens[i] < projlens[j];
 		});
@@ -557,6 +583,57 @@ std::vector<CoarseMatching::Segment> CoarseMatching::splitSegments(PointCloud::P
 	}
 
 	return segments;
+}
+
+Eigen::vector<Eigen::Vector3d> CoarseMatching::intersectCADModelOnZ(const CADModel& cadModel, float z) const {
+	const auto& roof = cadModel.getTypedModelItems(ITEM_TOP_E).front();
+	const auto& floor = cadModel.getTypedModelItems(ITEM_BOTTOM_E).front();
+
+	const auto& bottom_outline = floor.points_;
+
+	const float floorZ = floor.points_.front()(2, 0);
+	const float roofZ = roof.points_.front()(2, 0);
+
+	if (z <= floorZ || z >= roofZ || !cadModel.containModels(ITEM_HOLE_E)) return bottom_outline;
+
+	// we now try intersect each hole
+	// note that the hole can be non-convex, so we only need intersection points
+	auto points = bottom_outline;
+	for (Eigen::Vector3d& p : points) p(2) = z;
+
+	const auto& holes = cadModel.getTypedModelItems(ITEM_HOLE_E); // we already checked this in above
+
+	for (const auto& hole : holes) {
+		const auto& hr = hole.highRange_;
+		if (z <= hr.first || z >= hr.second) continue;
+
+		Eigen::vector<Eigen::Vector3d> ips;
+		for (const auto& seg : hole.segments_) {
+			auto sii = geo::zIntersectSegment(seg.first, seg.second, z);
+			if (sii.valid()) { //todo: use margin check
+				ips.emplace_back(sii.point_);
+			}
+		}
+		LOG_IF(WARNING, ips.size() % 2 != 0) << "intersection points is odd! may intersected with ends.";
+
+		// todo: may just insert refer to its parent index, but we just sort here then
+		points.insert(points.end(), ips.begin(), ips.end());
+	}
+
+	LOG(INFO) << points.size() << "/" << bottom_outline.size() << " intersection points found on z: " << z;
+
+	if (points.size() != bottom_outline.size()) {
+		Eigen::vector<Eigen::Vector2f> points2d(points.size());
+		std::transform(points.begin(), points.end(), points2d.begin(), [](const Eigen::Vector3d& p) { return Eigen::Vector2f(p(0, 0), p(1, 0));  });
+
+		auto ids = geo::sort_points_counter_clockwise(points2d);
+		Eigen::vector<Eigen::Vector3d> sorted(points.size());
+		for (auto pr : ll::enumerate(ids))
+			sorted[pr.index] = points[*pr.iter];
+		points.swap(sorted);
+	}
+
+	return points;
 }
 
 }
