@@ -23,13 +23,15 @@ namespace CloudReg
 		{
 		}
 
-		
+		//origin data
 		const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_;
-		CloudItemType type_;
+		pcl::PointCloud<pcl::PointXYZ>::Ptr pCADCloud_;
+		CloudItemType type_ = CLOUD_MAX_E;
 		std::size_t parentIndex_ = 9999;
 		Eigen::Vector3d cloudPlane_;
 		Eigen::Vector3d cadPlane_;
-		std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> cloudBorder_;
+		// if type is WALL include windows and door
+		std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> cloudBorder_; 
 		std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> cadBorder_;
 	};
 
@@ -57,9 +59,6 @@ namespace CloudReg
 			calcDistError(const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_,
 			const Eigen::Vector3d& plane, const double downRatio= 0.1) const;
 
-		pcl::PointCloud<pcl::PointXYZRGB>::Ptr
-			genCloudByModel(const Eigen::Vector3d& planePara,
-				const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>& border)const;
 
 	private:
 		

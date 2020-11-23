@@ -63,13 +63,6 @@ CloudRegister::calcDistError(const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_,
 	return pCloud;
 }
 
-pcl::PointCloud<pcl::PointXYZRGB>::Ptr
-CloudRegister::genCloudByModel(const Eigen::Vector3d& planePara,
-	const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>& border) const
-{
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloud = nullptr;
-	return pCloud;
-}
 
 
 }
