@@ -61,4 +61,19 @@ namespace CloudReg
 
 		return true;
 	}
+
+	double calcArea(const Eigen::vector<Eigen::Vector2d>& vecPts)
+	{
+		if (vecPts.size() < 3) return 0.0;
+
+		double area = 0.0;
+		for (std::size_t i = 2; i < vecPts.size();i++)
+		{
+			Eigen::Vector2d OB = vecPts[0] - vecPts[i - 1];
+			Eigen::Vector2d OC = vecPts[0] - vecPts[i];
+			area += OB[0] * OC[1] - OC[0] * OB[1];
+			
+		}
+		return fabs(0.5* area);
+	}
 }

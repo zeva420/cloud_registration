@@ -58,12 +58,14 @@ bool CADModel::initCAD(const std::string& fileName) {
 					return false;
 				}
 
-
+				
 				for (std::size_t i = 2; i < number * 2 + 1; ) {
 					Eigen::Vector3d point;
+					
 					point[0] = atol(vecSubStr[i].c_str());
 					point[1] = atol(vecSubStr[i + 1].c_str());
-					point[2] = 0;
+					point[2] = 0;													
+
 					item.points_.emplace_back(point);
 
 					if (point[0] > maxX) maxX = point[0];
@@ -77,6 +79,8 @@ bool CADModel::initCAD(const std::string& fileName) {
 
 				centerPt_[0] = (maxX + minX) / 2;
 				centerPt_[1] = (maxY + minY) / 2;
+				
+				
 				item.buildSegment();
 
 				vec_item.emplace_back(item);
@@ -146,6 +150,7 @@ bool CADModel::initCAD(const std::string& fileName) {
 				}
 
 				double minZ = 999999, maxZ = 0;
+				Eigen::vector<Eigen::Vector2d> vecOriPts;
 				for (std::size_t i = 2; i < number * 2 + 1; ) {
 					Eigen::Vector3d point;
 
@@ -157,6 +162,10 @@ bool CADModel::initCAD(const std::string& fileName) {
 
 					point[other_axis_index] = other_axis;
 					point[2] = atol(vecSubStr[i + 1].c_str());
+					
+					vecOriPts.emplace_back(Eigen::Vector2d(atol(vecSubStr[i].c_str()), atol(vecSubStr[i+1].c_str())));
+					item.points_.emplace_back(point);
+
 					item.points_.emplace_back(point);
 
 					if (point[2] > maxZ) maxZ = point[2];
@@ -169,6 +178,9 @@ bool CADModel::initCAD(const std::string& fileName) {
 
 				item.parentIndex_ = parent;
 				item.highRange_ = std::make_pair(minZ, maxZ);
+				item.area_ = calcArea(vecOriPts);
+				
+
 				item.buildSegment();
 				vec_item.emplace_back(item);
 				mapModelItem_[ITEM_HOLE_E].emplace_back(item);
@@ -291,6 +303,8 @@ bool CADModel::initCAD(const std::string& fileName) {
 		
 	}
 
+	reSortWall();
+
 	ModelItem item(ITEM_TOP_E);
 	for (std::size_t i = 0; i < vecPoints.size(); i += 2)
 	{
@@ -376,4 +390,57 @@ std::string CADModel::toString() const {
 	return ss.str();
 }
 
+void CADModel::reSortWall()
+{
+	std::size_t maxIndex = 0;
+	double maxArea = 0;
+	const auto& vecHole = mapModelItem_[ITEM_HOLE_E];
+	
+	std::vector<double> vecArea(mapModelItem_[ITEM_WALL_E].size(), 0);
+
+	for (auto& hole : vecHole)
+	{
+		if (hole.parentIndex_ < vecArea.size())
+		{
+			vecArea[hole.parentIndex_] += hole.area_;
+			if (vecArea[hole.parentIndex_] > maxArea)
+			{
+				maxArea = vecArea[hole.parentIndex_];
+				maxIndex = hole.parentIndex_;
+			}
+		}
+	}
+
+	if (maxIndex > 0)
+	{
+		auto& wall = mapModelItem_[ITEM_WALL_E];
+		vecItems_t newWall;
+		newWall.insert(newWall.end(),wall.begin()+maxIndex, wall.end());
+		newWall.insert(newWall.end(),wall.begin(), wall.begin()+maxIndex);
+		wall.swap(newWall);
+		
+
+		auto& botton = mapModelItem_[ITEM_BOTTOM_E].front().points_;
+		Eigen::vector<Eigen::Vector3d> points;
+		points.insert(points.end(), botton.begin() + maxIndex, botton.end());
+		points.insert(points.end(), botton.begin(), botton.begin() + maxIndex);
+		botton.swap(points);
+		mapModelItem_[ITEM_BOTTOM_E].front().buildSegment();
+
+		auto& vecHole = mapModelItem_[ITEM_HOLE_E];
+		for (auto& hole : vecHole)
+		{
+			if (hole.parentIndex_ < vecArea.size())
+			{
+				if (hole.parentIndex_ >= maxIndex)
+					hole.parentIndex_ -= maxIndex;
+				else
+					hole.parentIndex_ += (wall.size() - maxIndex);
+
+			}
+		}
+
+	}
+	
+}
 }

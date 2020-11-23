@@ -9,6 +9,8 @@ namespace CloudReg
 		const Eigen::Vector3d& ePoint, const double step);
 	std::vector<std::string> splitByCharacter(const std::string& strtem, const char a);
 	bool writePCDFile(const std::string& name, Eigen::vector<Eigen::Vector3d>& vecCloud);
+
+	double calcArea(const Eigen::vector<Eigen::Vector2d>& vecPts);
 }
 
 

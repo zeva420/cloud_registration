@@ -17,13 +17,16 @@ struct ModelItem {
 
 	}
 
-	ModelItem(const ModelItem& other) :itemtype_(other.itemtype_) {
+	ModelItem(const ModelItem& other){
+		itemtype_ = other.itemtype_;
 		parentIndex_ = other.parentIndex_;
 		points_ = other.points_;
 		segments_ = other.segments_;
 		highRange_ = other.highRange_;
+		area_ = other.area_;
 
 	}
+
 
 
 	using ItemPair_t = std::pair<Eigen::Vector3d, Eigen::Vector3d>;
@@ -43,9 +46,10 @@ struct ModelItem {
 	
 	Eigen::vector<Eigen::Vector3d> points_;
 	Eigen::vector<ItemPair_t> segments_;
-	const ModelItemType itemtype_;
+	ModelItemType itemtype_;
 	std::size_t parentIndex_ = 9999;
 	std::pair<double, double> highRange_ = std::make_pair(0, 0);
+	double area_ = 0.0; //only hole has this value
 
 };
 class CADModel {
@@ -73,6 +77,7 @@ private:
 	using vecItems_t = std::vector<ModelItem>;
 
 	bool savePCD(const std::string& name, std::vector<ModelItem>& vec_item);
+	void reSortWall();
 
 	std::map<ModelItemType, vecItems_t> mapModelItem_;
 	Eigen::Vector3d centerPt_ = Eigen::Vector3d(0, 0, 0);
