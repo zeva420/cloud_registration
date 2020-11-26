@@ -2,6 +2,7 @@
 
 #include "BaseType.h"
 #include "CADModel.h"
+#include "GeometryUtils.h"
 
 namespace CloudReg {
 
@@ -56,11 +57,18 @@ private:
 	// we already get the plane parameters, use as initialization, 
 	Segment detectMainSegementXoY(PointCloud::Ptr cloud, const Eigen::Vector4f& plane_param, double disthresh, double connect_thresh) const;
 
-	Eigen::Matrix4f computeOutlineTransformation(const Eigen::vector<Eigen::Vector2f>& blueprint,
+	Eigen::vector<trans2d::Matrix2x3f> computeOutlineTransformCandidates(const Eigen::vector<Eigen::Vector2f>& blueprint,
 		const Eigen::vector<Eigen::Vector2f>& outline, float disthresh);
+
+	// wallparams: [Vector6f(p, n)] 2d line params
+	trans2d::Matrix2x3f chooseTransformByHoles(const CADModel& cadModel, const std::vector<PointCloud::Ptr>& walls,
+		const std::vector<Eigen::VectorXf>& wallparams, const Eigen::vector<trans2d::Matrix2x3f>& Ts, const float floorZ) const;
 
 	std::vector<Segment> detectSegmentsXOY(PointCloud::Ptr cloud, float linethresh, float connect_thresh, float min_seg_length) const;
 	std::vector<Segment> splitSegments(PointCloud::Ptr cloud, Eigen::VectorXf line_params, float connect_thresh, float min_seg_length) const;
+
+	// get SORTED intersection points on cad
+	Eigen::vector<Eigen::Vector3d> intersectCADModelOnZ(const CADModel& cadModel, float z) const;
 };
 
 }

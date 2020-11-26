@@ -62,6 +62,17 @@ extern float distance_to_segment_2d(const Eigen::Vector2f& p, const Eigen::Vecto
 
 extern std::vector<std::size_t> sort_points_counter_clockwise(const Eigen::vector<Eigen::Vector2f>& points);
 
+// simple geometric
+struct SegmentIntersectInfo {
+	EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
+	bool valid() const { return lambda_ >= 0. && lambda_ <= 1.; }
+
+	double lambda_{ -1. };
+	Eigen::Vector3d point_;
+};
+extern SegmentIntersectInfo zIntersectSegment(const Eigen::Vector3d& a, const Eigen::Vector3d& b, double z);
+
 /* cloud operations */
 
 extern PointCloud::Ptr passThrough(PointCloud::Ptr cloud, const std::string& field, float low, float high);
