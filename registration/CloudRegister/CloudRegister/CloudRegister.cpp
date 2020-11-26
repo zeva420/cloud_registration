@@ -40,7 +40,11 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	std::string logStr = "";
 	TransformOptimize obj("refined Transform Opt", logStr);
 	auto cloud = re.getAllPieces();
-	obj.run(cloud, model);
+	auto optRet = obj.run(cloud, model);
+	if (!re.isValid()) {
+		LOG(INFO) << "transform opt failed.";
+		return false;
+	}
 
 	fillRet(model);
 

@@ -37,6 +37,22 @@ typedef int32_t VertexID_G2O_t;
 class TransformOptimize
 {
 public:
+	struct OptResult 
+	{
+		EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
+		bool isValid() const { 
+			return !vecCloud_.empty() 
+				   && vecCloud_.size() == vecCloudPlane_.size()
+				   && vecCloud_.size() == vecCadPlane_.size(); 
+		}
+
+		std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> vecCloud_;
+		std::vector<Eigen::Vector4d> vecCloudPlane_;
+		std::vector<Eigen::Vector4d> vecCadPlane_;
+	};
+
+public:
     TransformOptimize(const std::string& name, const std::string& logStr)
     	: name_(name)
 		, logStr_(logStr)
@@ -49,7 +65,7 @@ public:
 		clear();
     }
 
-    bool run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
+    OptResult run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
 			CADModel &cadModel);
 
 private:
@@ -58,7 +74,8 @@ private:
                     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, 
                     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered);
 
-	bool downSampling(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr);
+	bool downSampling(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
+						std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecSamplingCloud);
 
 	bool convertToPclCloud(CADModel &cadModel, 
 					std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec);
@@ -70,6 +87,9 @@ private:
 	bool getModelPlaneCoeff(
 					std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec,
 					std::vector<Eigen::Vector4d> &modelPlanes);
+
+	double pointToPLaneDist(Eigen::Vector4d &plane,
+                                            pcl::PointXYZ &p);
 
 	double calcCloudToPLaneAveDist(Eigen::Vector4d &plane,
                                 pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
@@ -94,7 +114,15 @@ private:
 					std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
 					Eigen::Matrix4d &finalT);
 
+	pcl::PointXYZRGB getColorPtByDist(pcl::PointXYZ &p, double dist);
+
+	void projectCloudToXOYPlane(Eigen::Vector3d &startPt,
+                pcl::PointCloud<pcl::PointXYZ>::Ptr model,
+				Eigen::Matrix4f &T);
+	
 	bool viewModelAndChangedCloud(
+					std::vector<Eigen::Vector4d> &modePlanes,
+					std::vector<Eigen::Vector4d> &cloudPlanes,
 					std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec,
 					std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr);
 
@@ -103,6 +131,13 @@ private:
 		std::stringstream ss;
 		ss << std::setfill('0') << std::setw(4) << std::to_string((id % 10000));
 		return ss.str();
+	}
+
+	template<typename pointT>
+	void savePCDFile(const std::string &fileName, pcl::PointCloud<pointT> &cloud)
+	{
+		pcl::io::savePCDFileASCII (fileName, cloud);
+		LOG(INFO) << "====Saved " << cloud.size () << " data points to " << fileName;
 	}
 
 private:
