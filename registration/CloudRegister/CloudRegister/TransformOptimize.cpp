@@ -11,6 +11,8 @@
 #include <pcl/sample_consensus/ransac.h>
 #include <pcl/sample_consensus/sac_model_plane.h>
 
+#include <pcl/registration/transformation_estimation_svd.h>
+
 #include <pcl/visualization/pcl_visualizer.h>
 
 namespace CloudReg
