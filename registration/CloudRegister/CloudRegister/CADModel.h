@@ -73,6 +73,8 @@ public:
 	PointCloud::Ptr genTestCloud() const;
 	std::string toString() const;
 
+	void scaleModel(const double scale);
+
 private:
 	using vecItems_t = std::vector<ModelItem>;
 

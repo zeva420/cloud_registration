@@ -28,8 +28,8 @@ namespace CloudReg
 		pcl::PointCloud<pcl::PointXYZ>::Ptr pCADCloud_;
 		CloudItemType type_ = CLOUD_MAX_E;
 		std::size_t parentIndex_ = 9999;
-		Eigen::Vector3d cloudPlane_;
-		Eigen::Vector3d cadPlane_;
+		Eigen::Vector4d cloudPlane_;
+		Eigen::Vector4d cadPlane_;
 		// if type is WALL include windows and door
 		std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> cloudBorder_; 
 		std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> cadBorder_;
@@ -39,6 +39,7 @@ namespace CloudReg
 	using vecItems_t = std::vector<CloudItem>;
 	using pairCloud_t = std::pair<CloudItem*, CloudItem*>;
 
+	class CADModel;
 	class  __declspec(dllexport) CloudRegister
 	{
 	public:
@@ -49,20 +50,22 @@ namespace CloudReg
 		bool run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecCloudPtr,
 			const std::string& CAD_File);
 
-		const std::map<CloudItem, vecItems_t>& 
+		const std::map<CloudItemType, vecItems_t>&
 			getAllCloudPlane() const;
 
+		//value first is 0.3 second 1.5
 		const std::map<pairCloud_t, std::pair<double, double>>&
 			getAllCorner() const;
 
 		pcl::PointCloud<pcl::PointXYZRGB>::Ptr 
 			calcDistError(const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_,
-			const Eigen::Vector3d& plane, const double downRatio= 0.1) const;
+			const Eigen::Vector4d& plane, const double downRatio= 0.1) const;
 
 
 	private:
 		
-		std::map<CloudItem, vecItems_t> mapCloudItem_;
+		void fillRet(CADModel& cad);
+		std::map<CloudItemType, vecItems_t> mapCloudItem_;
 		std::map<pairCloud_t, std::pair<double, double>> mapCorner_;
 
 	};

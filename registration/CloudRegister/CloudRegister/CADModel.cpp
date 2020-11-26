@@ -88,7 +88,8 @@ bool CADModel::initCAD(const std::string& fileName) {
 				const ModelItem& bottom = mapModelItem_[ITEM_BOTTOM_E].front();
 
 
-			} else if (vecSubStr[0] == "W") {
+			} 
+			else if (vecSubStr[0] == "W") {
 				if (mapModelItem_[ITEM_BOTTOM_E].empty()) {
 					LOG(ERROR) << "not found ITEM_BOTTOM_E";
 					return false;
@@ -117,7 +118,8 @@ bool CADModel::initCAD(const std::string& fileName) {
 				vec_item.emplace_back(item);
 				mapModelItem_[ITEM_WALL_E].emplace_back(item);
 
-			} else if (vecSubStr[0] == "H") {
+			} 
+			else if (vecSubStr[0] == "H") {
 				if (mapModelItem_[ITEM_BOTTOM_E].empty() || mapModelItem_[ITEM_WALL_E].empty()) {
 					LOG(ERROR) << "not found ITEM_BOTTOM_E";
 					return false;
@@ -185,8 +187,10 @@ bool CADModel::initCAD(const std::string& fileName) {
 				vec_item.emplace_back(item);
 				mapModelItem_[ITEM_HOLE_E].emplace_back(item);
 
-			} else if (vecSubStr[0] == "L") {
-				ModelItem item(ITEM_BEAM_E);
+			} 
+			else if (vecSubStr[0] == "L") {
+				ModelItem itemFirst(ITEM_BEAM_E);
+				ModelItem itemSecond(ITEM_BEAM_E);
 
 				if (mapModelItem_[ITEM_BOTTOM_E].empty() || mapModelItem_[ITEM_WALL_E].empty()) {
 					LOG(ERROR) << "not found ITEM_BOTTOM_E";
@@ -218,7 +222,7 @@ bool CADModel::initCAD(const std::string& fileName) {
 
 				}
 
-
+				const double other_axis_raw = other_axis;
 				if (centerPt_[other_axis_index] > other_axis)
 					other_axis += thick;
 				else
@@ -235,31 +239,45 @@ bool CADModel::initCAD(const std::string& fileName) {
 						point[1 - other_axis_index] = start_axis - atol(vecSubStr[i].c_str());
 					point[other_axis_index] = other_axis;
 					point[2] = atol(vecSubStr[i + 1].c_str());
-					item.points_.emplace_back(point);
+					itemFirst.points_.emplace_back(point);
 
 					if (point[2] > maxZ) maxZ = point[2];
 					if (point[2] < minZ) minZ = point[2];
+
+					if (itemFirst.points_.size() == 1 
+						|| itemFirst.points_.size() == 4)
+					{
+						itemFirst.points_.emplace_back(point);
+						point[other_axis_index] = other_axis_raw;
+						itemFirst.points_.emplace_back(point);
+
+					}
 
 					i += 2;
 
 				}
 
-				item.parentIndex_ = parent;
-				item.highRange_ = std::make_pair(minZ, maxZ);
-				item.buildSegment();
-				vec_item.emplace_back(item);
-				mapModelItem_[ITEM_BEAM_E].emplace_back(item);
+				itemFirst.parentIndex_ = parent;
+				itemFirst.highRange_ = std::make_pair(minZ, maxZ);
+				itemFirst.buildSegment();
+				vec_item.emplace_back(itemFirst);
+				mapModelItem_[ITEM_BEAM_E].emplace_back(itemFirst);
+
+				itemSecond.parentIndex_ = parent;
+				itemSecond.buildSegment();
+				vec_item.emplace_back(itemSecond);
+				mapModelItem_[ITEM_BEAM_E].emplace_back(itemSecond);
+
+				
 			}
-
-
-
-
 
 		}
 	} else {
 		LOG(ERROR) << "no such file" << fileName;
 		return false;
 	}
+
+	reSortWall();
 
 	//build top
 	const std::vector<ModelItem>& vecWall = mapModelItem_[ITEM_WALL_E];
@@ -272,38 +290,38 @@ bool CADModel::initCAD(const std::string& fileName) {
 		vecPoints.emplace_back(value.points_[3]);
 	}
 
-	for (auto& value : vecBeam)
+	
+	for(std::size_t index = 0; index < vecBeam.size(); index+=2)
 	{
-		std::size_t parent = value.parentIndex_;
+		auto& beam = vecBeam[index];
+		std::size_t parent = beam.parentIndex_;
 		if (parent > vecWall.size() - 1)
 		{
 			LOG(ERROR) << "parent out of range";
 			return false;
 		}
 
-		vecPoints[parent] = value.points_[1];
-		vecPoints[parent+1] = value.points_[2];
+		vecPoints[parent] = beam.points_[1];
+		vecPoints[parent+1] = beam.points_[2];
 
 		if (parent == 0)
 		{
-			vecPoints[vecPoints.size()-1] = value.points_[1];
-			vecPoints[parent + 2] = value.points_[2];
+			vecPoints[vecPoints.size()-1] = beam.points_[1];
+			vecPoints[parent + 2] = beam.points_[2];
 		}
 		else if (parent == vecWall.size()-1)
 		{
-			vecPoints[parent - 1] = value.points_[1];
-			vecPoints[0] = value.points_[2];
+			vecPoints[parent - 1] = beam.points_[1];
+			vecPoints[0] = beam.points_[2];
 		}
 		else
 		{
-			vecPoints[parent-1] = value.points_[1];
-			vecPoints[parent+2] = value.points_[2];
+			vecPoints[parent-1] = beam.points_[1];
+			vecPoints[parent+2] = beam.points_[2];
 
 		}
 		
 	}
-
-	reSortWall();
 
 	ModelItem item(ITEM_TOP_E);
 	for (std::size_t i = 0; i < vecPoints.size(); i += 2)
@@ -317,13 +335,7 @@ bool CADModel::initCAD(const std::string& fileName) {
 
 	// scale to meters
 	//todo: in place
-	for (auto& pr : mapModelItem_) {
-		for (auto& model : pr.second) {
-			for (auto& v : model.points_) v = v * 0.001;
-			for (auto& v : model.segments_) v = ModelItem::ItemPair_t(v.first * 0.001, v.second * 0.001);
-			model.highRange_ = std::make_pair(model.highRange_.first * 0.001, model.highRange_.second * 0.001);
-		}
-	}
+	scaleModel(0.001);
 
 	savePCD("cad_model.pcd", vec_item);
 	return true;
@@ -440,7 +452,32 @@ void CADModel::reSortWall()
 			}
 		}
 
+		auto& vecBeam = mapModelItem_[ITEM_BEAM_E];
+		for (auto& beam : vecBeam)
+		{
+			if (beam.parentIndex_ < vecArea.size())
+			{
+				if (beam.parentIndex_ >= maxIndex)
+					beam.parentIndex_ -= maxIndex;
+				else
+					beam.parentIndex_ += (wall.size() - maxIndex);
+
+			}
+		}
+
 	}
 	
 }
+
+void CADModel::scaleModel(const double scale)
+{
+	for (auto& pr : mapModelItem_) {
+		for (auto& model : pr.second) {
+			for (auto& v : model.points_) v = v * scale;
+			for (auto& v : model.segments_) v = ModelItem::ItemPair_t(v.first * scale, v.second * scale);
+			model.highRange_ = std::make_pair(model.highRange_.first * scale, model.highRange_.second * scale);
+		}
+	}
+}
+
 }

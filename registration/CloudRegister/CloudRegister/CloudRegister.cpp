@@ -42,10 +42,12 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	auto cloud = re.getAllPieces();
 	obj.run(cloud, model);
 
+	fillRet(model);
+
 	return true;
 }
 
-const std::map<CloudItem, vecItems_t>& CloudRegister::getAllCloudPlane() const
+const std::map<CloudItemType, vecItems_t>& CloudRegister::getAllCloudPlane() const
 {
 	return mapCloudItem_;
 }
@@ -57,12 +59,67 @@ const std::map<pairCloud_t, std::pair<double, double>>& CloudRegister::getAllCor
 
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr
 CloudRegister::calcDistError(const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_,
-	const Eigen::Vector3d& plane, const double downRatio) const
+	const Eigen::Vector4d& plane, const double downRatio) const
 {
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloud = nullptr;
 	return pCloud;
 }
 
 
+void CloudRegister::fillRet(CADModel& cad)
+{
+	mapCloudItem_.clear();
+	cad.scaleModel(1000.0);
+
+	{
+		auto Botton = cad.getTypedModelItems(ITEM_BOTTOM_E).front();
+		pcl::PointCloud<pcl::PointXYZ>::Ptr pData = nullptr;
+		CloudItem item(pData);
+		item.type_ = CLOUD_BOTTOM_E;
+		item.cadBorder_.insert(item.cadBorder_.begin(), Botton.segments_.begin(), Botton.segments_.end());
+		mapCloudItem_[CLOUD_BOTTOM_E].emplace_back(item);
+	}
+
+	{
+		auto Top = cad.getTypedModelItems(ITEM_TOP_E).front();
+		pcl::PointCloud<pcl::PointXYZ>::Ptr pData = nullptr;
+		CloudItem item(pData);
+		item.type_ = CLOUD_TOP_E;
+		item.cadBorder_.insert(item.cadBorder_.begin(), Top.segments_.begin(), Top.segments_.end());
+		mapCloudItem_[CLOUD_TOP_E].emplace_back(item);
+	}
+
+	
+	auto vecWall = cad.getTypedModelItems(ITEM_WALL_E);
+	for (auto& wall : vecWall)
+	{
+		pcl::PointCloud<pcl::PointXYZ>::Ptr pData = nullptr;
+		CloudItem item(pData);
+		item.type_ = CLOUD_WALL_E;
+		item.cadBorder_.insert(item.cadBorder_.begin(), wall.segments_.begin(), wall.segments_.end());
+		mapCloudItem_[CLOUD_WALL_E].emplace_back(item);
+	}
+
+	auto vecHole = cad.getTypedModelItems(ITEM_HOLE_E);
+	for (auto& hole : vecHole)
+	{
+		auto& item = mapCloudItem_[CLOUD_WALL_E][hole.parentIndex_];
+		item.cadBorder_.insert(item.cadBorder_.begin(), hole.segments_.begin(), hole.segments_.end());
+	}
+	
+	auto vecBeam = cad.getTypedModelItems(ITEM_BEAM_E);
+	for (auto& beam : vecWall)
+	{
+		pcl::PointCloud<pcl::PointXYZ>::Ptr pData = nullptr;
+		CloudItem item(pData);
+		item.type_ = CLOUD_BEAM_E;
+		item.parentIndex_ = item.parentIndex_;
+		item.cadBorder_.insert(item.cadBorder_.begin(), beam.segments_.begin(), beam.segments_.end());
+		mapCloudItem_[CLOUD_BEAM_E].emplace_back(item);
+	}
+
+
+	
+}
 
 }
