@@ -15,6 +15,8 @@
 
 #include <pcl/visualization/pcl_visualizer.h>
 
+#include <random>
+
 namespace CloudReg
 {
 TransformOptimize::OptResult TransformOptimize::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,

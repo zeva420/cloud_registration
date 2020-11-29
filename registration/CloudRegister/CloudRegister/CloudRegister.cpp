@@ -25,6 +25,8 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	model.initCAD(CAD_File);
 
 	LOG(INFO) << "cad model loaded: " << model.toString() << ". from: " << CAD_File;
+	// scale model to meters
+	model.scaleModel(0.001);
 
 	// wall segmentation: (PointCloud, CADModel)-> [PointCloud]
 
@@ -46,6 +48,10 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 		return false;
 	}
 
+	//rescale model
+	model.scaleModel(1000.0);
+
+	//fill return value
 	fillRet(model);
 
 	return true;
@@ -73,7 +79,7 @@ CloudRegister::calcDistError(const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_,
 void CloudRegister::fillRet(CADModel& cad)
 {
 	mapCloudItem_.clear();
-	cad.scaleModel(1000.0);
+	
 
 	{
 		auto Botton = cad.getTypedModelItems(ITEM_BOTTOM_E).front();

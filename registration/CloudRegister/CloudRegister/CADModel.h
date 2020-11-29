@@ -75,8 +75,19 @@ public:
 
 	void scaleModel(const double scale);
 
-private:
 	using vecItems_t = std::vector<ModelItem>;
+
+	std::tuple<bool, ModelItem> genBottom(const std::vector<std::string>& vecSubStr);
+	std::tuple<bool, ModelItem> genWall(const std::vector<std::string>& vecSubStr);
+	std::tuple<bool, ModelItem> genHole(const std::vector<std::string>& vecSubStr);
+	std::tuple<bool, ModelItem, ModelItem> genBeam(const std::vector<std::string>& vecSubStr);
+	std::tuple<bool, ModelItem> genTop();
+
+	void getAxis(const std::pair<Eigen::Vector3d, Eigen::Vector3d>& segment, 
+		std::size_t& other_axis_index,double& start_axis, double& other_axis, bool& operate);
+
+private:
+	
 
 	bool savePCD(const std::string& name, std::vector<ModelItem>& vec_item);
 	void reSortWall();
