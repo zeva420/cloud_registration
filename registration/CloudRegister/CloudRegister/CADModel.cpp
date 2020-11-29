@@ -276,6 +276,7 @@ std::tuple<bool, ModelItem> CADModel::genHole(const std::vector<std::string>& ve
 	item.parentIndex_ = parent;
 	item.highRange_ = std::make_pair(minZ, maxZ);
 	item.area_ = calcArea(vecOriPts);
+	
 
 
 	item.buildSegment();
@@ -458,8 +459,7 @@ void CADModel::reSortWall()
 		newWall.insert(newWall.end(),wall.begin()+maxIndex, wall.end());
 		newWall.insert(newWall.end(),wall.begin(), wall.begin()+maxIndex);
 		wall.swap(newWall);
-		
-
+	
 		auto& botton = mapModelItem_[ITEM_BOTTOM_E].front().points_;
 		Eigen::vector<Eigen::Vector3d> points;
 		points.insert(points.end(), botton.begin() + maxIndex, botton.end());
@@ -467,31 +467,18 @@ void CADModel::reSortWall()
 		botton.swap(points);
 		mapModelItem_[ITEM_BOTTOM_E].front().buildSegment();
 
-		auto& vecHole = mapModelItem_[ITEM_HOLE_E];
-		for (auto& hole : vecHole)
-		{
-			if (hole.parentIndex_ < vecArea.size())
-			{
-				if (hole.parentIndex_ >= maxIndex)
-					hole.parentIndex_ -= maxIndex;
-				else
-					hole.parentIndex_ += (wall.size() - maxIndex);
-
+		auto function = [&](ModelItem& value) {
+			if (value.parentIndex_ < vecArea.size()) {
+				if (value.parentIndex_ >= maxIndex) value.parentIndex_ -= maxIndex;
+				else value.parentIndex_ += (wall.size() - maxIndex);
 			}
-		}
+		};
+
+		auto& vecHole = mapModelItem_[ITEM_HOLE_E];
+		std::for_each(vecHole.begin(), vecHole.end(),function);
 
 		auto& vecBeam = mapModelItem_[ITEM_BEAM_E];
-		for (auto& beam : vecBeam)
-		{
-			if (beam.parentIndex_ < vecArea.size())
-			{
-				if (beam.parentIndex_ >= maxIndex)
-					beam.parentIndex_ -= maxIndex;
-				else
-					beam.parentIndex_ += (wall.size() - maxIndex);
-
-			}
-		}
+		std::for_each(vecBeam.begin(), vecBeam.end(), function);
 
 	}
 	
