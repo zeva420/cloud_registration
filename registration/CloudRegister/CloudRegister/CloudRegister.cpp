@@ -58,7 +58,7 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	}
 
 	//rescale model
-	model.scaleModel(1000.0);
+	//model.scaleModel(1000.0);
 
 	//fill return value
 	fillRet(model, optRets);
@@ -84,7 +84,15 @@ CloudRegister::calcDistError(const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_,
 	for (auto &p : pCloud_->points)
 	{
 		double dist = pointToPLaneDist(plane, p);
-		pcl::PointXYZRGB p_rgb = getColorPtByDist(p, dist);
+
+		pcl::PointXYZRGB p_rgb;
+		p_rgb.x = p.x;
+		p_rgb.y = p.y;
+		p_rgb.z = p.z;
+		p_rgb.r = dist;
+		p_rgb.g = 0;
+		p_rgb.b = 0;
+
 		pCloud_rgb->push_back(p_rgb);
 	}
 

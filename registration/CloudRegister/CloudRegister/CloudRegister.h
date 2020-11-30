@@ -59,6 +59,7 @@ namespace CloudReg
 		const std::map<pairCloud_t, std::pair<double, double>>&
 			getAllCorner() const;
 
+		//p_rgb.r = distError;
 		pcl::PointCloud<pcl::PointXYZRGB>::Ptr 
 			calcDistError(const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_,
 			const Eigen::Vector4d& plane, const double downRatio= 0.1) const;
