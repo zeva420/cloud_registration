@@ -1,3 +1,8 @@
+#include <vtkAutoInit.h>
+VTK_MODULE_INIT(vtkRenderingOpenGL)
+//VTK_MODULE_INIT(vtkInteractionStyle)
+//VTK_MODULE_INIT(vtkRenderingFreeType)
+
 #include "CoarseMatching.h"
 #include "glog/logging.h"
 
@@ -212,6 +217,7 @@ CoarseMatching::MatchResult CoarseMatching::run(const std::vector<PointCloud::Pt
 
 	// simple visualization
 	pcl::visualization::PCLVisualizer viewer;
+	
 
 	for (auto pr : ll::enumerate(result.walls_)) {
 		auto cloud = *pr.iter;
@@ -220,22 +226,23 @@ CoarseMatching::MatchResult CoarseMatching::run(const std::vector<PointCloud::Pt
 
 		pcl::visualization::PointCloudColorHandlerCustom<Point> color(cloud, r * 255., g * 255., b * 255.);
 		viewer.addPointCloud(cloud, color, "piece" + std::to_string(pr.index));
+		
 	}
-
+	
 	for (auto pr : ll::enumerate(outline)) {
 		const Eigen::Vector2f& v = *pr.iter;
-		Point p(v[0], v[1], 0.f);
-
+		Point p(v[0], v[1], 0.0f);
+		
 		viewer.addSphere(p, 0.1f, "outline" + std::to_string(pr.index));
 		viewer.addText3D(std::to_string(pr.index), Point(p.x, p.y, 0.2f), 0.3f);
 	}
-
+	;
 	{
 		auto cad = cadModel.genTestFrameCloud();
 		pcl::visualization::PointCloudColorHandlerCustom<Point> color(cad, 255., 0., 0.);
 		viewer.addPointCloud(cad, color, "cad");
 	}
-
+	
 	while (!viewer.wasStopped()) {
 		viewer.spinOnce(33);
 	}
