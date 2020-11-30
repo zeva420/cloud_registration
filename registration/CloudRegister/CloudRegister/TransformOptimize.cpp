@@ -1,5 +1,6 @@
 ﻿#include "TransformOptimize.h"
 #include "glog/logging.h"
+#include "funHelper.h"
 
 #include <pcl/common/transforms.h>
 
@@ -19,7 +20,7 @@
 
 namespace CloudReg
 {
-TransformOptimize::optCloudRets TransformOptimize::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
+bool TransformOptimize::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
 			                CADModel &cadModel)
 {
     std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> model_vec;
@@ -28,7 +29,7 @@ TransformOptimize::optCloudRets TransformOptimize::run(std::vector<pcl::PointClo
     {
         LOG(INFO) << "vecCloudPtr size:" << vecCloudPtr.size() 
             << " != model_vec size:" << model_vec.size();
-        return optCloudRets();
+        return false;
     }
 
     //get model plane coeff
@@ -51,13 +52,13 @@ TransformOptimize::optCloudRets TransformOptimize::run(std::vector<pcl::PointClo
     std::vector<Eigen::Vector4d> cloudPlanes;
     getModelPlaneCoeff(vecCloudPtr, cloudPlanes);
 
-    optCloudRets optRets;
-    fillResult(modelPlanes, cloudPlanes, model_vec, vecCloudPtr, optRets);
+    optRets_.clear();
+    fillResult(modelPlanes, cloudPlanes, model_vec, vecCloudPtr, optRets_);
 
     //view Dist with sampling Cloud
     viewModelAndChangedCloud(modelPlanes, cloudPlanes, model_vec, vecSamplingCloud);
 
-    return optRets;
+    return optRets_.empty() ? false : true;
 }
 
 void TransformOptimize::uniformSampling(double radius, 
@@ -90,6 +91,8 @@ bool TransformOptimize::downSampling(std::vector<pcl::PointCloud<pcl::PointXYZ>:
         uniformSampling(0.01, cloud, cloud_sampling);
         vecSamplingCloud.push_back(cloud_sampling);
     }
+
+	return true;
 }
 
 bool TransformOptimize::convertToPclCloud(CADModel &cadModel, 
@@ -160,6 +163,8 @@ bool TransformOptimize::getModelPlaneCoeff(
         Eigen::Vector4d plane(coeff(0), coeff(1), coeff(2), coeff(3));
         modelPlanes.push_back(plane);  
     }
+
+	return true;
 }
 
 double TransformOptimize::pointToPLaneDist(Eigen::Vector4d &plane,
@@ -346,6 +351,8 @@ bool TransformOptimize::transformCloud(
         std::string fileName = "optimized-cloud-" + convertToSimpleIDStr(i)  + ".pcd";
         pcl::io::savePCDFile(fileName, *cloud);   
     }
+
+	return true;
 }
 
 bool TransformOptimize::fillResult(
@@ -390,36 +397,11 @@ bool TransformOptimize::fillResult(
         top.vecCadPlane_.push_back(modePlanes[index]);   
         optRets[TOP_E] = top; 
     }
+
+	return true;
 }
 
-pcl::PointXYZRGB TransformOptimize::getColorPtByDist(pcl::PointXYZ &p, double dist)
-{
-    std::vector<std::tuple<int, int, int>> color;
-    color.push_back(std::make_tuple(0,0,255)); //rgb_blue, [-inf, -0.01]
-    color.push_back(std::make_tuple(0,255,255)); //rgb_cyan, [-0.01, 0]
-    color.push_back(std::make_tuple(0,255,0)); //rgb_green, [0, 0.01]
-    color.push_back(std::make_tuple(255,255,0)); //rgb_yellow, [0.01, 0.02]
-    color.push_back(std::make_tuple(238,134,149)); //rgb_pink, [0.02, 0.03]
-    color.push_back(std::make_tuple(255,0,0)); //rgb_red, [0.03, +inf]
 
-    int size = color.size() - 1;
-    double min = -0.01;
-    double max = 0.04;
-    dist = std::max(min, dist);
-    dist = std::min(max, dist);
-
-    int index = std::ceil(size * (dist - min) / (max - min));
-    std::tuple<int, int, int> rgb = color[index];
-
-    pcl::PointXYZRGB p_rgb;
-    p_rgb.x = p.x;
-    p_rgb.y = p.y;
-    p_rgb.z = p.z;
-    p_rgb.r = std::get<0>(rgb);
-    p_rgb.g = std::get<1>(rgb);
-    p_rgb.b = std::get<2>(rgb);
-    return p_rgb;
-}
 
 void TransformOptimize::projectCloudToXOYPlane(Eigen::Vector3d &startPt,
                 pcl::PointCloud<pcl::PointXYZ>::Ptr model,
@@ -567,6 +549,7 @@ bool TransformOptimize::viewModelAndChangedCloud(
     //     viewer.spinOnce();
     // }
 #endif
+	return true;
 }
 
 } //namespace CloudReg

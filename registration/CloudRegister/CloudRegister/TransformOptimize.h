@@ -76,8 +76,10 @@ public:
 		clear();
     }
 
-    optCloudRets run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
+    bool run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
 			CADModel &cadModel);
+
+	optCloudRets getRet() { return optRets_; }
 
 private:
 
@@ -132,7 +134,6 @@ private:
                 std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
 				optCloudRets &optRets);
 
-	pcl::PointXYZRGB getColorPtByDist(pcl::PointXYZ &p, double dist);
 
 	void projectCloudToXOYPlane(Eigen::Vector3d &startPt,
                 pcl::PointCloud<pcl::PointXYZ>::Ptr model,
@@ -312,6 +313,7 @@ private:
 	std::string logStr_;
     
 	g2o::SparseOptimizer optimizer_;
+	optCloudRets optRets_;
 
     //added Vertex
 	std::map<uint64_t, VertexID_G2O_t>  mapValue2Id_;

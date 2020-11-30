@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-#include "TransformOptimize.h"
+
 
 #include<pcl/point_types.h>
 #include<pcl/io/pcd_io.h>
@@ -42,6 +42,7 @@ namespace CloudReg
 	using pairCloud_t = std::pair<CloudItem*, CloudItem*>;
 
 	class CADModel;
+	class TransformOptimize;
 	class  __declspec(dllexport) CloudRegister
 	{
 	public:
@@ -67,7 +68,7 @@ namespace CloudReg
 
 	private:
 		
-		void fillRet(CADModel& cad, TransformOptimize::optCloudRets &optRets);
+		void fillRet(CADModel& cad, TransformOptimize& optimitor);
 		std::map<CloudItemType, vecItems_t> mapCloudItem_;
 		std::map<pairCloud_t, std::pair<double, double>> mapCorner_;
 

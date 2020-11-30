@@ -100,7 +100,7 @@ namespace CloudReg
 		color.push_back(std::make_tuple(238,134,149)); //rgb_pink, [0.02, 0.03]
 		color.push_back(std::make_tuple(255,0,0)); //rgb_red, [0.03, +inf]
 
-		int size = color.size() - 1;
+		std::size_t size = color.size() - 1;
 		double min = -0.01;
 		double max = 0.04;
 		dist = std::max(min, dist);

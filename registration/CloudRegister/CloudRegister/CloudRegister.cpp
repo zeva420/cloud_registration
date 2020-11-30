@@ -4,7 +4,7 @@
 #include "BaseType.h"
 #include "CADModel.h"
 #include "CoarseMatching.h"
-
+#include "TransformOptimize.h"
 #include "funHelper.h"
 
 #include <pcl/visualization/pcl_visualizer.h>
@@ -51,8 +51,8 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	std::string logStr = "";
 	TransformOptimize obj("refined Transform Opt", logStr);
 	auto cloud = re.getAllPieces();
-	auto optRets = obj.run(cloud, model);
-	if (optRets.empty()) {
+	if(!obj.run(cloud, model))
+	{
 		LOG(INFO) << "transform opt failed.";
 		return false;
 	}
@@ -61,7 +61,7 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	//model.scaleModel(1000.0);
 
 	//fill return value
-	fillRet(model, optRets);
+	fillRet(model, obj);
 
 	return true;
 }
@@ -100,11 +100,11 @@ CloudRegister::calcDistError(const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_,
 }
 
 
-void CloudRegister::fillRet(CADModel& cad, TransformOptimize::optCloudRets &optRets)
+void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 {
 	pcl::visualization::PCLVisualizer viewer("dist");
 	mapCloudItem_.clear();
-	
+	auto optRets = optimitor.getRet();
 
 	if (optRets.count(TransformOptimize::CloudType::BOTTOM_E))
 	{
