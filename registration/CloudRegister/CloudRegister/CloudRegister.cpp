@@ -21,6 +21,12 @@ CloudRegister::~CloudRegister() {
 bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecCloudPtr,
 	const std::string& CAD_File) {
 
+	if (vecCloudPtr.empty())
+	{
+		LOG(ERROR) << "empty cloud input";
+		return false;
+	}
+
 	CADModel model;
 	model.initCAD(CAD_File);
 
