@@ -37,7 +37,15 @@ typedef int32_t VertexID_G2O_t;
 class TransformOptimize
 {
 public:
-	struct OptResult 
+	enum CloudType {
+		BEAM_E,
+		BOTTOM_E,
+		WALL_E,
+		TOP_E,
+		MAX_E
+	};
+
+	struct OptCloud
 	{
 		EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
@@ -47,10 +55,13 @@ public:
 				   && vecCloud_.size() == vecCadPlane_.size(); 
 		}
 
+		CloudType type_;
 		std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> vecCloud_;
 		std::vector<Eigen::Vector4d> vecCloudPlane_;
 		std::vector<Eigen::Vector4d> vecCadPlane_;
 	};
+
+	using optCloudRets = std::map<CloudType, OptCloud>;
 
 public:
     TransformOptimize(const std::string& name, const std::string& logStr)
@@ -65,7 +76,7 @@ public:
 		clear();
     }
 
-    OptResult run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
+    optCloudRets run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
 			CADModel &cadModel);
 
 private:
@@ -113,6 +124,13 @@ private:
 					std::vector<Eigen::Vector4d> &modePlanes,
 					std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
 					Eigen::Matrix4d &finalT);
+
+	bool fillResult(
+                std::vector<Eigen::Vector4d> &modePlanes,
+                std::vector<Eigen::Vector4d> &cloudPlanes,
+                std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec,
+                std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
+				optCloudRets &optRets);
 
 	pcl::PointXYZRGB getColorPtByDist(pcl::PointXYZ &p, double dist);
 
