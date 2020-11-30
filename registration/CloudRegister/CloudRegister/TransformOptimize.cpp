@@ -19,7 +19,7 @@
 
 namespace CloudReg
 {
-TransformOptimize::OptResult TransformOptimize::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
+TransformOptimize::optCloudRets TransformOptimize::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
 			                CADModel &cadModel)
 {
     std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> model_vec;
@@ -28,7 +28,7 @@ TransformOptimize::OptResult TransformOptimize::run(std::vector<pcl::PointCloud<
     {
         LOG(INFO) << "vecCloudPtr size:" << vecCloudPtr.size() 
             << " != model_vec size:" << model_vec.size();
-        return OptResult();
+        return optCloudRets();
     }
 
     //get model plane coeff
@@ -51,15 +51,13 @@ TransformOptimize::OptResult TransformOptimize::run(std::vector<pcl::PointCloud<
     std::vector<Eigen::Vector4d> cloudPlanes;
     getModelPlaneCoeff(vecCloudPtr, cloudPlanes);
 
-    OptResult result;
-    result.vecCloud_ = vecCloudPtr;
-    result.vecCloudPlane_ = cloudPlanes;
-    result.vecCadPlane_ = modelPlanes;
+    optCloudRets optRets;
+    fillResult(modelPlanes, cloudPlanes, model_vec, vecCloudPtr, optRets);
 
     //view Dist with sampling Cloud
     viewModelAndChangedCloud(modelPlanes, cloudPlanes, model_vec, vecSamplingCloud);
 
-    return result;
+    return optRets;
 }
 
 void TransformOptimize::uniformSampling(double radius, 
@@ -350,6 +348,50 @@ bool TransformOptimize::transformCloud(
     }
 }
 
+bool TransformOptimize::fillResult(
+                std::vector<Eigen::Vector4d> &modePlanes,
+                std::vector<Eigen::Vector4d> &cloudPlanes,
+                std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec,
+                std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr, 
+                optCloudRets &optRets)
+{
+    OptCloud walls;
+    walls.type_ = WALL_E;
+    for (int i = 0; i < vecCloudPtr.size() - 2; i++)
+    {
+        auto cloud = vecCloudPtr[i];
+        walls.vecCloud_.push_back(cloud);
+        walls.vecCloudPlane_.push_back(cloudPlanes[i]);
+        walls.vecCadPlane_.push_back(modePlanes[i]);
+
+    }
+    optRets[WALL_E] = walls;
+
+    if (vecCloudPtr.size() > 2)
+    {
+        OptCloud bottom;
+        bottom.type_ = BOTTOM_E;
+        int index = vecCloudPtr.size() - 2;
+        auto cloud  = vecCloudPtr[index];
+        bottom.vecCloud_.push_back(cloud);
+        bottom.vecCloudPlane_.push_back(cloudPlanes[index]);
+        bottom.vecCadPlane_.push_back(modePlanes[index]);   
+        optRets[BOTTOM_E] = bottom; 
+    }
+
+    if (vecCloudPtr.size() > 2)
+    {
+        OptCloud top;
+        top.type_ = TOP_E;
+        int index = vecCloudPtr.size() - 1;
+        auto cloud  = vecCloudPtr[index];
+        top.vecCloud_.push_back(cloud);
+        top.vecCloudPlane_.push_back(cloudPlanes[index]);
+        top.vecCadPlane_.push_back(modePlanes[index]);   
+        optRets[TOP_E] = top; 
+    }
+}
+
 pcl::PointXYZRGB TransformOptimize::getColorPtByDist(pcl::PointXYZ &p, double dist)
 {
     std::vector<std::tuple<int, int, int>> color;
@@ -439,35 +481,37 @@ bool TransformOptimize::viewModelAndChangedCloud(
 {
     LOG(INFO) << "********viewModelAndChangedCloud*******";
 #if 1
-    pcl::visualization::PCLVisualizer viewer("demo");
+    // pcl::visualization::PCLVisualizer viewer("demo");
     std::default_random_engine e;
     std::uniform_real_distribution<double> random(0,1);
 
-    int index = -1;
-    for (auto cloud : model_vec)
-    {
-        index++;
-        for (int i = 0; i < cloud->size()-1 ; i++)
-        {
-            pcl::PointXYZ &p1 = cloud->points[i];
-            pcl::PointXYZ &p2 = cloud->points[i+1];
-            std::string lineName = "wall" + convertToSimpleIDStr(index) 
-                + "-line" + convertToSimpleIDStr(i) + "-" + convertToSimpleIDStr(i+1);
-            viewer.addLine(p1, p2, 255, 255, 255, lineName);
-        }
-        pcl::PointXYZ &p1 = cloud->back();
-        pcl::PointXYZ &p2 = cloud->front();
-        std::string lineName = "wall" + convertToSimpleIDStr(index) + "-line-b-f"; 
-        viewer.addLine(p1, p2, 255, 255, 255, lineName);       
-    }
+    // int index = -1;
+    // for (auto cloud : model_vec)
+    // {
+    //     index++;
+    //     for (int i = 0; i < cloud->size()-1 ; i++)
+    //     {
+    //         pcl::PointXYZ &p1 = cloud->points[i];
+    //         pcl::PointXYZ &p2 = cloud->points[i+1];
+    //         std::string lineName = "wall" + convertToSimpleIDStr(index) 
+    //             + "-line" + convertToSimpleIDStr(i) + "-" + convertToSimpleIDStr(i+1);
+    //         viewer.addLine(p1, p2, 255, 255, 255, lineName);
+    //         viewer.addSphere(p1, 0.3f, std::to_string(index) + std::to_string(i));
+    //     }
+    //     pcl::PointXYZ &p1 = cloud->back();
+    //     pcl::PointXYZ &p2 = cloud->front();
+    //     std::string lineName = "wall" + convertToSimpleIDStr(index) + "-line-b-f"; 
+    //     viewer.addLine(p1, p2, 255, 255, 255, lineName);       
+    //     viewer.addSphere(p1, 0.3f, std::to_string(index) + std::to_string(cloud->size()-1));
+    // }
 
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud3D_dist2Model(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud2D_dist2Model(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud3D_dist2Cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud2D_dist2Cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-    viewer.addText(
-        "[-inf, -0.01]:blue, [-0.01, 0]:cyan, [0, 0.01]:green, [0.01, 0.02]:yellow, [0.02, 0.03]:pink, [0.03, +inf]:red", 
-        0, 0.8);
+    // viewer.addText(
+    //     "[-inf, -0.01]:blue, [-0.01, 0]:cyan, [0, 0.01]:green, [0.01, 0.02]:yellow, [0.02, 0.03]:pink, [0.03, +inf]:red", 
+    //     0, 0.8);
     Eigen::Vector3d startPt(0,0,0);
     for (int i = 0; i < vecCloudPtr.size(); i++)
     {
@@ -505,7 +549,7 @@ bool TransformOptimize::viewModelAndChangedCloud(
             cloud3D_dist2Cloud->insert(cloud3D_dist2Cloud->end(), cloud_rgb->begin(), cloud_rgb->end());
 
             std::string label = "finalT-cloud" + convertToSimpleIDStr(i);
-            viewer.addPointCloud(cloud_rgb, label);
+            // viewer.addPointCloud(cloud_rgb, label);
 
             pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZRGB>());
             pcl::transformPointCloud(*cloud_rgb, *transformed_cloud, T);
@@ -518,10 +562,10 @@ bool TransformOptimize::viewModelAndChangedCloud(
     savePCDFile<pcl::PointXYZRGB>("dist-to-cloudPlane-3D.pcd", *cloud3D_dist2Cloud);
     savePCDFile<pcl::PointXYZRGB>("dist-to-cloudPlane-2D.pcd", *cloud2D_dist2Cloud);
 
-    while (!viewer.wasStopped())
-    {
-        viewer.spinOnce();
-    }
+    // while (!viewer.wasStopped())
+    // {
+    //     viewer.spinOnce();
+    // }
 #endif
 }
 

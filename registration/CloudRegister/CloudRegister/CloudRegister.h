@@ -3,6 +3,8 @@
 #include <string>
 #include <vector>
 
+#include "TransformOptimize.h"
+
 #include<pcl/point_types.h>
 #include<pcl/io/pcd_io.h>
 
@@ -64,7 +66,7 @@ namespace CloudReg
 
 	private:
 		
-		void fillRet(CADModel& cad);
+		void fillRet(CADModel& cad, TransformOptimize::optCloudRets &optRets);
 		std::map<CloudItemType, vecItems_t> mapCloudItem_;
 		std::map<pairCloud_t, std::pair<double, double>> mapCorner_;
 
