@@ -1,6 +1,7 @@
 #include "CADModel.h"
 
 #include "funHelper.h"
+#include "GeometryUtils.h"
 
 namespace CloudReg {
 
@@ -402,7 +403,7 @@ bool CADModel::savePCD(const std::string& name, std::vector<ModelItem>& vec_item
 	return true;
 }
 
-PointCloud::Ptr CADModel::genTestCloud() const {
+PointCloud::Ptr CADModel::genTestFrameCloud() const {
 	PointCloud::Ptr cloud(new PointCloud());
 
 	for (auto& pr : mapModelItem_) {
@@ -417,6 +418,126 @@ PointCloud::Ptr CADModel::genTestCloud() const {
 	cloud->height = cloud->points.size();
 	cloud->width = 1;
 	cloud->is_dense = false;
+
+	return cloud;
+}
+
+PointCloud::Ptr CADModel::genTestFragCloud(double delta) const{
+	PointCloud::Ptr cloud(new PointCloud());
+
+	auto sample_segment = [&](const Eigen::Vector3d& a, const Eigen::Vector3d& b){
+		for(const auto& v: ininterpolateSeg(a, b, delta)) cloud->points.emplace_back(v(0), v(1), v(2));
+	};
+
+	// walls
+	const auto& walls = getTypedModelItems(ITEM_WALL_E);
+	std::vector<std::vector<ModelItem>> wallHoles(walls.size());
+	if(containModels(ITEM_HOLE_E)) {
+		const auto& holes = getTypedModelItems(ITEM_HOLE_E);
+		for(const auto& hole: holes) {
+			if(hole.parentIndex_>=0 && hole.parentIndex_<walls.size()) wallHoles[hole.parentIndex_].push_back(hole);
+			else LOG(WARNING)<<"invalid hole parent index: "<< hole.parentIndex_;
+		}
+	}
+
+	for(std::size_t i=0; i<walls.size(); ++i){
+		const auto& wall = walls[i];
+		const auto& holes = wallHoles[i];
+
+		LOG_IF(WARNING, wall.points_.size()!=4)<<"??? the wall is not a rectangle.";
+		Eigen::Vector3d a = wall.points_[1];
+		Eigen::Vector3d b = wall.points_[2];
+		Eigen::Vector3d c = wall.points_[3];
+		// 0	-- 3(c)
+		// |	   |
+		// 1(a) -- 2(b)
+
+		for(float z= b(2); z< c(2); z+= delta){
+			// test each hole
+			Eigen::vector<Eigen::Vector3d> segends;
+			for(const auto& hole: holes){
+				if(z<hole.highRange_.first || z> hole.highRange_.second) continue;
+
+				Eigen::vector<Eigen::Vector3d> ips;
+				for (const auto& seg : hole.segments_) {
+					auto sii = geo::zIntersectSegment(seg.first, seg.second, z);
+					if (sii.valid()) { //todo: use margin check
+						ips.emplace_back(sii.point_);
+					}
+				}
+
+				if(ips.size()%2!=0)
+					LOG(WARNING) << "intersection points is odd! may intersected with ends."; //todo: may just ignore this line.
+				else segends.insert(segends.end(), ips.begin(), ips.end());
+			}
+
+			Eigen::Vector3d s(a(0), a(1), z), e(b(0), b(1), z);
+
+			if(segends.empty()) sample_segment(s, e);
+			else {
+				// need a simple sort.
+				Eigen::Vector3d n = (e-s).normalized();
+				segends.emplace_back(s);
+				segends.emplace_back(e);
+				
+				// sort by proj len
+				std::sort(segends.begin(), segends.end(), [&](const Eigen::Vector3d& p1, const Eigen::Vector3d& p2){
+					return (p1-s).dot(n)< (p2-s).dot(n); 
+				});
+
+				for(std::size_t i=0; i< segends.size(); i+=2) sample_segment(segends[i], segends[i+1]);
+			}
+		}
+	}
+
+	// roof & floor
+	auto y_intersect_segment = [](const Eigen::Vector3d& a, const Eigen::Vector3d& b, double y){
+		geo::SegmentIntersectInfo sii;
+
+		double dy = b(1)- a(1);
+		if(std::fabs(dy)<1e-6) return sii;
+
+		sii.lambda_ = (y-a(1))/ dy;
+		if(sii.valid()) sii.point_ = a * (1 - sii.lambda_) + b * sii.lambda_;
+
+		return sii;
+	};
+
+	auto sample_hor_shape = [&](const ModelItem& mi){
+		// aabb
+		float z = mi.points_.front()(2);
+		float x1 = ll::min_by([](const Eigen::Vector3d& v){ return v(0); }, mi.points_).second;
+		float x2 = ll::max_by([](const Eigen::Vector3d& v) { return v(0); }, mi.points_).second;
+		float y1 = ll::min_by([](const Eigen::Vector3d& v) { return v(1); }, mi.points_).second;
+		float y2 = ll::max_by([](const Eigen::Vector3d& v) { return v(1); }, mi.points_).second;
+		for(float y=y1; y<=y2; y+=delta){
+			Eigen::vector<Eigen::Vector3d> ips;
+			for (const auto& seg : mi.segments_) {
+				auto sii = y_intersect_segment(seg.first, seg.second, y);
+				if (sii.valid()) { //todo: use margin check
+					ips.emplace_back(sii.point_);
+				}
+			}
+
+			if (ips.size() % 2 != 0)
+				LOG(WARNING) << "intersection points is odd! may intersected with ends.";
+			else{
+				// sort by x
+				std::sort(ips.begin(), ips.end(), [&](const Eigen::Vector3d& p1, const Eigen::Vector3d& p2) { return p1(0)<p2(0); });
+
+				for (std::size_t i = 0; i < ips.size(); i += 2) sample_segment(ips[i], ips[i + 1]);
+			}
+		}
+	};
+
+	for (const auto& mi : getTypedModelItems(ITEM_TOP_E)) sample_hor_shape(mi);
+	for (const auto& mi : getTypedModelItems(ITEM_BOTTOM_E)) sample_hor_shape(mi);
+
+	cloud->height = cloud->points.size();
+	cloud->width = 1;
+	cloud->is_dense = false;
+
+	LOG(INFO)<< "cad fragement model: "<< cloud->size()<< " points.";
 
 	return cloud;
 }

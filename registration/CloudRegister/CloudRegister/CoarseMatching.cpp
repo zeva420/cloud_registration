@@ -40,6 +40,23 @@ CoarseMatching::MatchResult CoarseMatching::run(const std::vector<PointCloud::Pt
 
 	LOG(INFO) << "coarse match " << allPieces.size() << " walls.";
 
+#if 0
+	{
+		pcl::visualization::PCLVisualizer viewer;
+
+		auto frame = cadModel.genTestFrameCloud();
+		auto frag = cadModel.genTestFragCloud(0.01);
+
+		pcl::visualization::PointCloudColorHandlerCustom<Point> red(frame, 255., 0., 0.);
+		viewer.addPointCloud(frame, red, "frame");
+		viewer.addPointCloud(frag, "fragment");
+
+		while (!viewer.wasStopped()) {
+			viewer.spinOnce(33);
+		}
+	}
+#endif
+
 	//0. downsample
 	const auto sparsedPieces = ll::mapf([](PointCloud::Ptr cloud) { return geo::downsampleUniformly(cloud, 0.01f); }, allPieces);
 	// debug write.
@@ -214,7 +231,7 @@ CoarseMatching::MatchResult CoarseMatching::run(const std::vector<PointCloud::Pt
 	}
 
 	{
-		auto cad = cadModel.genTestCloud();
+		auto cad = cadModel.genTestFrameCloud();
 		pcl::visualization::PointCloudColorHandlerCustom<Point> color(cad, 255., 0., 0.);
 		viewer.addPointCloud(cad, color, "cad");
 	}

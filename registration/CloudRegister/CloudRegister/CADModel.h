@@ -70,7 +70,8 @@ public:
 	std::vector<ModelItem> filterModelItems(std::function<bool (const ModelItem&)> func) const;
 
 	// test
-	PointCloud::Ptr genTestCloud() const;
+	PointCloud::Ptr genTestFrameCloud() const;
+	PointCloud::Ptr genTestFragCloud(double delta=0.01) const;
 	std::string toString() const;
 
 	void scaleModel(const double scale);
