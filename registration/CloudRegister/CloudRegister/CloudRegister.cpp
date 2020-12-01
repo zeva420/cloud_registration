@@ -78,7 +78,7 @@ const std::map<pairCloud_t, std::pair<double, double>>& CloudRegister::getAllCor
 
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr
 CloudRegister::calcDistError(const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_,
-	const Eigen::Vector4d& plane, const double downRatio) const
+	const Eigen::Vector4d& plane, const double radius) const
 {
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloud_rgb(new pcl::PointCloud<pcl::PointXYZRGB>());
 	for (auto &p : pCloud_->points)
@@ -105,6 +105,7 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 	pcl::visualization::PCLVisualizer viewer("dist");
 	mapCloudItem_.clear();
 	auto optRets = optimitor.getRet();
+	auto cadCloud = cad.genTestFragCloud();
 
 	if (optRets.count(TransformOptimize::CloudType::BOTTOM_E))
 	{
@@ -113,6 +114,7 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 		auto Botton = cad.getTypedModelItems(ITEM_BOTTOM_E).front();
 		pcl::PointCloud<pcl::PointXYZ>::Ptr pData = ret.vecCloud_.front();
 		CloudItem item(pData);
+		item.pCADCloud_ = cadCloud[ITEM_BOTTOM_E].front();
 		item.type_ = CLOUD_BOTTOM_E;
 		item.cloudPlane_ = ret.vecCloudPlane_.front();
 		item.cadPlane_ = ret.vecCadPlane_.front();
@@ -142,6 +144,7 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 		pcl::PointCloud<pcl::PointXYZ>::Ptr pData = ret.vecCloud_.front();
 		CloudItem item(pData);
 		item.type_ = CLOUD_TOP_E;
+		item.pCADCloud_ = cadCloud[ITEM_TOP_E].front();
 		item.cloudPlane_ = ret.vecCloudPlane_.front();
 		item.cadPlane_ = ret.vecCadPlane_.front();
 		item.cadBorder_.insert(item.cadBorder_.begin(), Top.segments_.begin(), Top.segments_.end());
@@ -175,6 +178,7 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 			pcl::PointCloud<pcl::PointXYZ>::Ptr pData = ret.vecCloud_[i];;
 			CloudItem item(pData);
 			item.type_ = CLOUD_WALL_E;
+			item.pCADCloud_ = cadCloud[ITEM_WALL_E][i];
 			item.cloudPlane_ = ret.vecCloudPlane_[i];
 			item.cadPlane_ = ret.vecCadPlane_[i];
 			item.cadBorder_.insert(item.cadBorder_.begin(), wall.segments_.begin(), wall.segments_.end());
@@ -215,6 +219,7 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 			pcl::PointCloud<pcl::PointXYZ>::Ptr pData = ret.vecCloud_[i];
 			CloudItem item(pData);
 			item.type_ = CLOUD_BEAM_E;
+			item.pCADCloud_ = cadCloud[ITEM_BEAM_E][i];
 			item.parentIndex_ = item.parentIndex_;
 			item.cloudPlane_ = ret.vecCloudPlane_[i];
 			item.cadPlane_ = ret.vecCadPlane_[i];

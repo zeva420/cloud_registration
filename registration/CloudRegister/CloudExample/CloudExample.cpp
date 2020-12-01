@@ -72,7 +72,7 @@ int main()
 				cadPoints.insert(cadPoints.end(), vec_tmp.begin(), vec_tmp.end());
 			}
 
-			const std::string file_name = name + "_" + std::to_string(index) + ".pcd";
+			std::string file_name = name + "_" + std::to_string(index) + ".pcd";
 			pcl::PointCloud<pcl::PointXYZ> cloud;
 			cloud.width = cadPoints.size() + item.pCloud_->size();
 			cloud.height = 1;
@@ -88,8 +88,11 @@ int main()
 				cloud.points[item.pCloud_->size()+i].y = cadPoints[i][1];
 				cloud.points[item.pCloud_->size()+i].z = cadPoints[i][2];
 			}
-			pcl::io::savePCDFile(name, cloud);
+
+			pcl::io::savePCDFile(file_name, cloud);
 			
+			file_name = "cad_"+ file_name;
+			pcl::io::savePCDFile(file_name, *item.pCADCloud_);
 			
 		}
 	}

@@ -422,12 +422,14 @@ PointCloud::Ptr CADModel::genTestFrameCloud() const {
 	return cloud;
 }
 
-PointCloud::Ptr CADModel::genTestFragCloud(double delta) const{
-	PointCloud::Ptr cloud(new PointCloud());
+std::map<ModelItemType, std::vector<PointCloud::Ptr>> CADModel::genTestFragCloud(double delta) const{
+	
 
-	auto sample_segment = [&](const Eigen::Vector3d& a, const Eigen::Vector3d& b){
-		for(const auto& v: ininterpolateSeg(a, b, delta)) cloud->points.emplace_back(v(0), v(1), v(2));
+	auto sample_segment = [&](const Eigen::Vector3d& a, const Eigen::Vector3d& b, PointCloud::Ptr pCloud){
+		for(const auto& v: ininterpolateSeg(a, b, delta)) pCloud->points.emplace_back(v(0), v(1), v(2));
 	};
+
+	std::map<ModelItemType, std::vector<PointCloud::Ptr>> mapCADPoint;
 
 	// walls
 	const auto& walls = getTypedModelItems(ITEM_WALL_E);
@@ -441,6 +443,10 @@ PointCloud::Ptr CADModel::genTestFragCloud(double delta) const{
 	}
 
 	for(std::size_t i=0; i<walls.size(); ++i){
+
+		PointCloud::Ptr pCloud(new PointCloud());
+		
+
 		const auto& wall = walls[i];
 		const auto& holes = wallHoles[i];
 
@@ -473,7 +479,7 @@ PointCloud::Ptr CADModel::genTestFragCloud(double delta) const{
 
 			Eigen::Vector3d s(a(0), a(1), z), e(b(0), b(1), z);
 
-			if(segends.empty()) sample_segment(s, e);
+			if(segends.empty()) sample_segment(s, e, pCloud);
 			else {
 				// need a simple sort.
 				Eigen::Vector3d n = (e-s).normalized();
@@ -485,9 +491,14 @@ PointCloud::Ptr CADModel::genTestFragCloud(double delta) const{
 					return (p1-s).dot(n)< (p2-s).dot(n); 
 				});
 
-				for(std::size_t i=0; i< segends.size(); i+=2) sample_segment(segends[i], segends[i+1]);
+				for(std::size_t i=0; i< segends.size(); i+=2) sample_segment(segends[i], segends[i+1], pCloud);
 			}
 		}
+
+		pCloud->height = pCloud->points.size();
+		pCloud->width = 1;
+		pCloud->is_dense = false;
+		mapCADPoint[ITEM_WALL_E].emplace_back(pCloud);
 	}
 
 	// roof & floor
@@ -503,7 +514,7 @@ PointCloud::Ptr CADModel::genTestFragCloud(double delta) const{
 		return sii;
 	};
 
-	auto sample_hor_shape = [&](const ModelItem& mi){
+	auto sample_hor_shape = [&](const ModelItem& mi, PointCloud::Ptr pCloud){
 		// aabb
 		float z = mi.points_.front()(2);
 		float x1 = ll::min_by([](const Eigen::Vector3d& v){ return v(0); }, mi.points_).second;
@@ -525,21 +536,34 @@ PointCloud::Ptr CADModel::genTestFragCloud(double delta) const{
 				// sort by x
 				std::sort(ips.begin(), ips.end(), [&](const Eigen::Vector3d& p1, const Eigen::Vector3d& p2) { return p1(0)<p2(0); });
 
-				for (std::size_t i = 0; i < ips.size(); i += 2) sample_segment(ips[i], ips[i + 1]);
+				for (std::size_t i = 0; i < ips.size(); i += 2) sample_segment(ips[i], ips[i + 1], pCloud);
 			}
 		}
 	};
 
-	for (const auto& mi : getTypedModelItems(ITEM_TOP_E)) sample_hor_shape(mi);
-	for (const auto& mi : getTypedModelItems(ITEM_BOTTOM_E)) sample_hor_shape(mi);
+	for (const auto& mi : getTypedModelItems(ITEM_TOP_E))
+	{
+		PointCloud::Ptr pCloud(new PointCloud());
+		sample_hor_shape(mi, pCloud);
+		pCloud->height = pCloud->points.size();
+		pCloud->width = 1;
+		pCloud->is_dense = false;
+		mapCADPoint[ITEM_TOP_E].emplace_back(pCloud);
+	}
+	for (const auto& mi : getTypedModelItems(ITEM_BOTTOM_E))
+	{
+		PointCloud::Ptr pCloud(new PointCloud());
+		sample_hor_shape(mi, pCloud);
+		pCloud->height = pCloud->points.size();
+		pCloud->width = 1;
+		pCloud->is_dense = false;
+		mapCADPoint[ITEM_BOTTOM_E].emplace_back(pCloud);
 
-	cloud->height = cloud->points.size();
-	cloud->width = 1;
-	cloud->is_dense = false;
+	}
 
-	LOG(INFO)<< "cad fragement model: "<< cloud->size()<< " points.";
+	
 
-	return cloud;
+	return mapCADPoint;
 }
 
 std::string CADModel::toString() const {

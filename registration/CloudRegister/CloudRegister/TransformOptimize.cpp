@@ -1,4 +1,8 @@
-﻿#include "TransformOptimize.h"
+﻿#include <vtkAutoInit.h>
+VTK_MODULE_INIT(vtkRenderingOpenGL)
+#include <pcl/visualization/pcl_visualizer.h>
+
+#include "TransformOptimize.h"
 #include "glog/logging.h"
 #include "funHelper.h"
 
@@ -11,10 +15,9 @@
 #include <pcl/sample_consensus/model_types.h>
 #include <pcl/sample_consensus/ransac.h>
 #include <pcl/sample_consensus/sac_model_plane.h>
-
 #include <pcl/registration/transformation_estimation_svd.h>
 
-#include <pcl/visualization/pcl_visualizer.h>
+
 
 #include <random>
 

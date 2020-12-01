@@ -71,7 +71,7 @@ public:
 
 	// test
 	PointCloud::Ptr genTestFrameCloud() const;
-	PointCloud::Ptr genTestFragCloud(double delta=0.01) const;
+	std::map<ModelItemType, std::vector<PointCloud::Ptr>> genTestFragCloud(double delta=0.01) const;
 	std::string toString() const;
 
 	void scaleModel(const double scale);
