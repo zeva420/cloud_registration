@@ -3,6 +3,7 @@
 #include <pcl/features/normal_3d.h>
 #include <pcl/features/boundary.h>
 #include <pcl/filters/project_inliers.h>
+#include <pcl/filters/uniform_sampling.h>
 
 namespace CloudReg
 {
@@ -79,6 +80,16 @@ namespace CloudReg
 			
 		}
 		return fabs(0.5* area);
+	}
+
+	void uniformSampling(double radius,
+						pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
+						pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered)
+	{
+		pcl::UniformSampling<pcl::PointXYZ> filter;
+		filter.setInputCloud(cloud);
+		filter.setRadiusSearch(radius);
+		filter.filter(*cloud_filtered);
 	}
 
 	double pointToPLaneDist(const Eigen::Vector4d &plane, const pcl::PointXYZ &p)

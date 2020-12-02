@@ -80,8 +80,11 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr
 CloudRegister::calcDistError(const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_,
 	const Eigen::Vector4d& plane, const double radius) const
 {
+	pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_filtered(new pcl::PointCloud<pcl::PointXYZ>());
+	uniformSampling(radius, pCloud_, pCloud_filtered);
+
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloud_rgb(new pcl::PointCloud<pcl::PointXYZRGB>());
-	for (auto &p : pCloud_->points)
+	for (auto &p : pCloud_filtered->points)
 	{
 		double dist = pointToPLaneDist(plane, p);
 

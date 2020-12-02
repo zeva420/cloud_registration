@@ -17,6 +17,10 @@ namespace CloudReg
 
 	double calcArea(const Eigen::vector<Eigen::Vector2d>& vecPts);
 
+	void uniformSampling(double radius,
+							pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
+							pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered);
+
 	double pointToPLaneDist(const Eigen::Vector4d &plane, const pcl::PointXYZ &p);
 
 	pcl::PointXYZRGB getColorPtByDist(pcl::PointXYZ &p, double dist);

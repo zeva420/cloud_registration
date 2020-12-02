@@ -83,10 +83,6 @@ public:
 
 private:
 
-	void uniformSampling(double radius, 
-                    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, 
-                    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered);
-
 	bool downSampling(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
 						std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecSamplingCloud);
 

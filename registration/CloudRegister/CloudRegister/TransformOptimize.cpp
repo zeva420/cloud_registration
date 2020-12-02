@@ -64,35 +64,19 @@ bool TransformOptimize::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &ve
     return optRets_.empty() ? false : true;
 }
 
-void TransformOptimize::uniformSampling(double radius, 
-                    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, 
-                    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered)
-{
-    int cloudSize = cloud->size();
-
-    pcl::UniformSampling<pcl::PointXYZ> filter;
-    filter.setInputCloud(cloud);
-    filter.setRadiusSearch(radius);
-
-    //pcl::PointCloud<int> keypointIndices;
-    //filter.compute(keypointIndices);
-    //pcl::copyPointCloud(*cloud, keypointIndices.points, *cloud_filtered);
-
-	filter.filter(*cloud_filtered);
-    LOG(INFO) << "uniformSampling, radius:" << radius 
-        << " cloud size before:" << cloudSize 
-        << " after: "<< cloud_filtered->size();
-}
-
 bool TransformOptimize::downSampling(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
                         std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecSamplingCloud)
 {
     LOG(INFO) << "********downSampling*******";
+	double radius = 0.01;
     for (auto cloud : vecCloudPtr)
     {
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_sampling(new pcl::PointCloud<pcl::PointXYZ>);
-        uniformSampling(0.01, cloud, cloud_sampling);
+        uniformSampling(radius, cloud, cloud_sampling);
         vecSamplingCloud.push_back(cloud_sampling);
+		LOG(INFO) << "uniformSampling, radius:" << radius
+			<< " cloud size before:" << cloud->size()
+			<< " after: " << cloud_sampling->size();
     }
 
 	return true;
