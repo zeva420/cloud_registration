@@ -93,7 +93,20 @@ int main()
 			
 			file_name = "cad_"+ file_name;
 			pcl::io::savePCDFile(file_name, *item.pCADCloud_);
-			
+
+			std::vector<Eigen::Vector3d> cloudBorder;
+			for (auto& pt_pair : item.cloudBorder_) {
+				auto vec_tmp = ininterpolateSeg(pt_pair.first, pt_pair.second, 0.5);
+				cloudBorder.insert(cloudBorder.end(), vec_tmp.begin(), vec_tmp.end());
+			}
+			pcl::PointCloud<pcl::PointXYZ>::Ptr pCloudBorder(new pcl::PointCloud<pcl::PointXYZ>());
+			for (size_t i = 0; i < cloudBorder.size(); ++i)
+			{
+				pcl::PointXYZ p(cloudBorder[i](0), cloudBorder[i](1), cloudBorder[i](2));
+				pCloudBorder->push_back(p);
+			}			
+			file_name = "cloudBorder-" + name + "_" + std::to_string(index) + ".pcd";
+			pcl::io::savePCDFile(file_name, *pCloudBorder);
 		}
 	}
 	return 0;

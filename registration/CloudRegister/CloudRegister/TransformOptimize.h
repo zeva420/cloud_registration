@@ -151,8 +151,7 @@ private:
 	template<typename pointT>
 	void savePCDFile(const std::string &fileName, pcl::PointCloud<pointT> &cloud)
 	{
-		pcl::io::savePCDFileASCII (fileName, cloud);
-		LOG(INFO) << "====Saved " << cloud.size () << " data points to " << fileName;
+		pcl::io::savePCDFile(fileName, cloud);
 	}
 
 private:

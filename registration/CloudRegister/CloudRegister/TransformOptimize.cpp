@@ -335,8 +335,6 @@ bool TransformOptimize::transformCloud(
         double aveDist = calcCloudToPLaneAveDist(plane, cloud);
         LOG(INFO) << "cloud to model plane, aveDist:" << aveDist;
 
-        std::string fileName = "optimized-cloud-" + convertToSimpleIDStr(i)  + ".pcd";
-        pcl::io::savePCDFile(fileName, *cloud);   
     }
 
 	return true;
@@ -451,27 +449,14 @@ bool TransformOptimize::viewModelAndChangedCloud(
     LOG(INFO) << "********viewModelAndChangedCloud*******";
 #if 1
     // pcl::visualization::PCLVisualizer viewer("demo");
-    std::default_random_engine e;
-    std::uniform_real_distribution<double> random(0,1);
-
-    // int index = -1;
-    // for (auto cloud : model_vec)
+    // for (int i = 0; i < model_vec.size(); i++)
     // {
-    //     index++;
-    //     for (int i = 0; i < cloud->size()-1 ; i++)
+    //     auto cloud = model_vec[i];
+    //     for (int j = 0; j < cloud->size(); j++)
     //     {
-    //         pcl::PointXYZ &p1 = cloud->points[i];
-    //         pcl::PointXYZ &p2 = cloud->points[i+1];
-    //         std::string lineName = "wall" + convertToSimpleIDStr(index) 
-    //             + "-line" + convertToSimpleIDStr(i) + "-" + convertToSimpleIDStr(i+1);
-    //         viewer.addLine(p1, p2, 255, 255, 255, lineName);
-    //         viewer.addSphere(p1, 0.3f, std::to_string(index) + std::to_string(i));
+    //         auto &p = cloud->points[j];
+    //         viewer.addSphere(p, 0.3f, std::to_string(i) + std::to_string(j));
     //     }
-    //     pcl::PointXYZ &p1 = cloud->back();
-    //     pcl::PointXYZ &p2 = cloud->front();
-    //     std::string lineName = "wall" + convertToSimpleIDStr(index) + "-line-b-f"; 
-    //     viewer.addLine(p1, p2, 255, 255, 255, lineName);       
-    //     viewer.addSphere(p1, 0.3f, std::to_string(index) + std::to_string(cloud->size()-1));
     // }
 
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud3D_dist2Model(new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -530,6 +515,51 @@ bool TransformOptimize::viewModelAndChangedCloud(
     savePCDFile<pcl::PointXYZRGB>("dist-to-modelPlane-2D.pcd", *cloud2D_dist2Model);
     savePCDFile<pcl::PointXYZRGB>("dist-to-cloudPlane-3D.pcd", *cloud3D_dist2Cloud);
     savePCDFile<pcl::PointXYZRGB>("dist-to-cloudPlane-2D.pcd", *cloud2D_dist2Cloud);
+
+    for (int i = 0; i < model_vec.size(); i++)
+    {
+        auto modelCloud = model_vec[i];
+        std::vector<Eigen::Vector3d> modelPoints;
+        for (int j = 0; j < modelCloud->size()-1 ; j++)
+        {
+            pcl::PointXYZ &p1 = modelCloud->points[j];
+            pcl::PointXYZ &p2 = modelCloud->points[j+1];
+
+            auto vec_tmp = ininterpolateSeg(Eigen::Vector3d(p1.x, p1.y, p1.z), 
+                Eigen::Vector3d(p2.x, p2.y, p2.z), 0.5);
+            modelPoints.insert(modelPoints.end(), vec_tmp.begin(), vec_tmp.end());
+        }
+        pcl::PointXYZ &p1 = modelCloud->back();
+        pcl::PointXYZ &p2 = modelCloud->front();
+        auto vec_tmp = ininterpolateSeg(Eigen::Vector3d(p1.x, p1.y, p1.z), 
+            Eigen::Vector3d(p2.x, p2.y, p2.z), 0.5);
+        modelPoints.insert(modelPoints.end(), vec_tmp.begin(), vec_tmp.end());
+
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr optCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+        for (auto &p : modelPoints)
+        {
+            pcl::PointXYZRGB p_rgb;
+            p_rgb.x = p(0);
+            p_rgb.y = p(1);
+            p_rgb.z = p(2);
+            p_rgb.r = 255;
+            p_rgb.g = 0;
+            p_rgb.b = 0;            
+            optCloud->push_back(p_rgb);
+        }
+        for (auto &p : vecCloudPtr[i]->points)
+        {
+            pcl::PointXYZRGB p_rgb;
+            p_rgb.x = p.x;
+            p_rgb.y = p.y;
+            p_rgb.z = p.z;
+            p_rgb.r = 0;
+            p_rgb.g = 255;
+            p_rgb.b = 0; 
+            optCloud->push_back(p_rgb);
+        }
+        savePCDFile<pcl::PointXYZRGB>("optimized-cloud-" + std::to_string(i)  + ".pcd", *optCloud); 
+    }
 
     // while (!viewer.wasStopped())
     // {
