@@ -526,13 +526,13 @@ bool TransformOptimize::viewModelAndChangedCloud(
             pcl::PointXYZ &p2 = modelCloud->points[j+1];
 
             auto vec_tmp = ininterpolateSeg(Eigen::Vector3d(p1.x, p1.y, p1.z), 
-                Eigen::Vector3d(p2.x, p2.y, p2.z), 0.5);
+                Eigen::Vector3d(p2.x, p2.y, p2.z), 0.05);
             modelPoints.insert(modelPoints.end(), vec_tmp.begin(), vec_tmp.end());
         }
         pcl::PointXYZ &p1 = modelCloud->back();
         pcl::PointXYZ &p2 = modelCloud->front();
         auto vec_tmp = ininterpolateSeg(Eigen::Vector3d(p1.x, p1.y, p1.z), 
-            Eigen::Vector3d(p2.x, p2.y, p2.z), 0.5);
+            Eigen::Vector3d(p2.x, p2.y, p2.z), 0.05);
         modelPoints.insert(modelPoints.end(), vec_tmp.begin(), vec_tmp.end());
 
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr optCloud(new pcl::PointCloud<pcl::PointXYZRGB>);

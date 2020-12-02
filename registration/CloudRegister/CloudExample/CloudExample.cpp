@@ -96,7 +96,7 @@ int main()
 
 			std::vector<Eigen::Vector3d> cloudBorder;
 			for (auto& pt_pair : item.cloudBorder_) {
-				auto vec_tmp = ininterpolateSeg(pt_pair.first, pt_pair.second, 0.5);
+				auto vec_tmp = ininterpolateSeg(pt_pair.first, pt_pair.second, 0.05);
 				cloudBorder.insert(cloudBorder.end(), vec_tmp.begin(), vec_tmp.end());
 			}
 			pcl::PointCloud<pcl::PointXYZ>::Ptr pCloudBorder(new pcl::PointCloud<pcl::PointXYZ>());
