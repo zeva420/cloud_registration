@@ -86,6 +86,8 @@ bool CADModel::initCAD(const std::string& fileName) {
 	if (!std::get<0>(ret)) return false;
 	vec_item.emplace_back(std::get<1>(ret));
 
+	// scale model to meters
+	scaleModel(0.001);
 	
 	savePCD("cad_model.pcd", vec_item);
 	return true;

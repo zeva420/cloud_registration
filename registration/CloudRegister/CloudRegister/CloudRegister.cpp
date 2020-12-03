@@ -33,8 +33,7 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	model.initCAD(CAD_File);
 
 	LOG(INFO) << "cad model loaded: " << model.toString() << ". from: " << CAD_File;
-	// scale model to meters
-	model.scaleModel(0.001);
+	
 
 	// wall segmentation: (PointCloud, CADModel)-> [PointCloud]
 

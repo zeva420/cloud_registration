@@ -1,5 +1,4 @@
-#ifndef TRANSFORM_OPTIMIZE_H
-#define TRANSFORM_OPTIMIZE_H
+#pragma once
 
 #include "BaseType.h"
 #include "glog/logging.h"
@@ -57,8 +56,8 @@ public:
 
 		CloudType type_;
 		std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> vecCloud_;
-		std::vector<Eigen::Vector4d> vecCloudPlane_;
-		std::vector<Eigen::Vector4d> vecCadPlane_;
+		Eigen::vector<Eigen::Vector4d> vecCloudPlane_;
+		Eigen::vector<Eigen::Vector4d> vecCadPlane_;
 	};
 
 	using optCloudRets = std::map<CloudType, OptCloud>;
@@ -95,7 +94,7 @@ private:
 
 	bool getModelPlaneCoeff(
 					std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec,
-					std::vector<Eigen::Vector4d> &modelPlanes);
+					Eigen::vector<Eigen::Vector4d> &modelPlanes);
 
 	double pointToPLaneDist(Eigen::Vector4d &plane,
                                             pcl::PointXYZ &p);
@@ -104,28 +103,28 @@ private:
                                 pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
 
 	bool matchCloudToMode(
-                    std::vector<Eigen::Vector4d> &modePlanes,
+                    Eigen::vector<Eigen::Vector4d> &modePlanes,
                     std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr);
 
 	bool optimize(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
-					std::vector<Eigen::Vector4d> &modelPlanes,
+					Eigen::vector<Eigen::Vector4d> &modelPlanes,
 					Eigen::Matrix4d &transform);
 
     bool addWallPointToModelPlaneEdges(
                     std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
-                    std::vector<Eigen::Vector4d> &modelPlanes,
+					Eigen::vector<Eigen::Vector4d> &modelPlanes,
 					Eigen::Matrix4d &transform);
 
     bool getSE3Transfor(Eigen::Matrix4d &transform);
 
 	bool transformCloud(
-					std::vector<Eigen::Vector4d> &modePlanes,
+					Eigen::vector<Eigen::Vector4d> &modePlanes,
 					std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
 					Eigen::Matrix4d &finalT);
 
 	bool fillResult(
-                std::vector<Eigen::Vector4d> &modePlanes,
-                std::vector<Eigen::Vector4d> &cloudPlanes,
+                Eigen::vector<Eigen::Vector4d> &modePlanes,
+                Eigen::vector<Eigen::Vector4d> &cloudPlanes,
                 std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec,
                 std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
 				optCloudRets &optRets);
@@ -136,8 +135,8 @@ private:
 				Eigen::Matrix4f &T);
 	
 	bool viewModelAndChangedCloud(
-					std::vector<Eigen::Vector4d> &modePlanes,
-					std::vector<Eigen::Vector4d> &cloudPlanes,
+					Eigen::vector<Eigen::Vector4d> &modePlanes,
+					Eigen::vector<Eigen::Vector4d> &cloudPlanes,
 					std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec,
 					std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr);
 
@@ -319,4 +318,3 @@ private:
 
 } //namespace CloudReg
 
-#endif // TRANSFORM_OPTIMIZE_H

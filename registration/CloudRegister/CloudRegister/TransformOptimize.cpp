@@ -36,7 +36,7 @@ bool TransformOptimize::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &ve
     }
 
     //get model plane coeff
-    std::vector<Eigen::Vector4d> modelPlanes;
+    Eigen::vector<Eigen::Vector4d> modelPlanes;
     getModelPlaneCoeff(model_vec, modelPlanes);
 
     matchCloudToMode(modelPlanes, vecCloudPtr);
@@ -52,7 +52,7 @@ bool TransformOptimize::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &ve
     transformCloud(modelPlanes, vecCloudPtr, transform);
 
     //get plane coeff with input Cloud
-    std::vector<Eigen::Vector4d> cloudPlanes;
+    Eigen::vector<Eigen::Vector4d> cloudPlanes;
     getModelPlaneCoeff(vecCloudPtr, cloudPlanes);
 
     optRets_.clear();
@@ -136,7 +136,7 @@ void TransformOptimize::planeFitting(double distTh,
 
 bool TransformOptimize::getModelPlaneCoeff(
                     std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec, 
-                    std::vector<Eigen::Vector4d> &modelPlanes)
+                    Eigen::vector<Eigen::Vector4d> &modelPlanes)
 {
     LOG(INFO) << "********get model plane coeff*******";
     int index = -1;
@@ -182,7 +182,7 @@ double TransformOptimize::calcCloudToPLaneAveDist(Eigen::Vector4d &plane,
 }
 
 bool TransformOptimize::matchCloudToMode(
-                    std::vector<Eigen::Vector4d> &modePlanes,
+                    Eigen::vector<Eigen::Vector4d> &modePlanes,
                     std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr)
 {
     LOG(INFO) << "********matchCloudToMode*******";
@@ -234,7 +234,7 @@ bool TransformOptimize::matchCloudToMode(
 }
 
 bool TransformOptimize::optimize(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
-                                std::vector<Eigen::Vector4d> &modelPlanes,
+                                Eigen::vector<Eigen::Vector4d> &modelPlanes,
                                 Eigen::Matrix4d &transform)
 {
     LOG(INFO) << "********optimize*******";
@@ -260,7 +260,7 @@ bool TransformOptimize::optimize(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr
 
 bool TransformOptimize::addWallPointToModelPlaneEdges(
                         std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
-                        std::vector<Eigen::Vector4d> &modelPlanes,
+                        Eigen::vector<Eigen::Vector4d> &modelPlanes,
                         Eigen::Matrix4d &transform)
 {
 	const VertexID_G2O_t id = getVertexID(&transform);
@@ -308,7 +308,7 @@ bool TransformOptimize::getSE3Transfor(Eigen::Matrix4d &transform)
 }
 
 bool TransformOptimize::transformCloud(
-                    std::vector<Eigen::Vector4d> &modePlanes,
+                    Eigen::vector<Eigen::Vector4d> &modePlanes,
                     std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
                     Eigen::Matrix4d &finalT)
 {
@@ -341,8 +341,8 @@ bool TransformOptimize::transformCloud(
 }
 
 bool TransformOptimize::fillResult(
-                std::vector<Eigen::Vector4d> &modePlanes,
-                std::vector<Eigen::Vector4d> &cloudPlanes,
+                Eigen::vector<Eigen::Vector4d> &modePlanes,
+                Eigen::vector<Eigen::Vector4d> &cloudPlanes,
                 std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec,
                 std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr, 
                 optCloudRets &optRets)
@@ -441,8 +441,8 @@ void TransformOptimize::projectCloudToXOYPlane(Eigen::Vector3d &startPt,
 }
 
 bool TransformOptimize::viewModelAndChangedCloud(
-                std::vector<Eigen::Vector4d> &modePlanes,
-                std::vector<Eigen::Vector4d> &cloudPlanes,
+                Eigen::vector<Eigen::Vector4d> &modePlanes,
+                Eigen::vector<Eigen::Vector4d> &cloudPlanes,
                 std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec,
                 std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr)
 {

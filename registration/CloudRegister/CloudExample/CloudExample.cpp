@@ -2,7 +2,6 @@
 //
 
 #include <iostream>
-
 #include "FileHelper.h"
 #include "CloudRegister.h"
 
