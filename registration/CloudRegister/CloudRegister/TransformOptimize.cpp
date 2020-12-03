@@ -275,7 +275,12 @@ bool TransformOptimize::addWallPointToModelPlaneEdges(
         Eigen::Vector4d plane = modelPlanes[i];
         auto cloud = vecCloudPtr[i];
 
-        double weight = 10000.0 / double(cloud->size());
+        // double weight = 10000.0 / double(cloud->size());
+        double weight = 1.0;
+        if (i == (vecCloudPtr.size()-2))
+        {
+            weight = 70.0;
+        }
         for (auto &v : cloud->points)
         {
             Eigen::Vector3d pt(v.x, v.y, v.z);

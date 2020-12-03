@@ -4,6 +4,10 @@
 #include <pcl/features/boundary.h>
 #include <pcl/filters/project_inliers.h>
 #include <pcl/filters/uniform_sampling.h>
+#include <pcl/keypoints/impl/uniform_sampling.hpp>
+#include <pcl/filters/radius_outlier_removal.h>
+#include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/segmentation/extract_clusters.h>
 
 namespace CloudReg
 {
@@ -185,20 +189,109 @@ namespace CloudReg
 		}
 	}
 
-	pcl::PointCloud<pcl::PointXYZ>::Ptr calcCloudBorder(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
+	pcl::PointCloud<pcl::PointXYZ>::Ptr calcCloudBorder(const std::string &name, 
+			pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
 			Eigen::Vector4d &cloudPlane,
 			std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &cadBorder,
 			std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &cloudBorder)
 	{
-		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filter(new pcl::PointCloud<pcl::PointXYZ>);
+		LOG(INFO) << "*******************calcCloudBorder*********************";
+		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filter(new pcl::PointCloud<pcl::PointXYZ>());
         projectionToPlane(cloudPlane, cloud, cloud_filter);
 
 		std::vector<int> boundIndices;
 		searchBoundaries(cloud, boundIndices);
 		auto boundPoints = geo::getSubSet(cloud, boundIndices, false);
+		pcl::PointCloud<pcl::PointXYZ>::Ptr inputPoints(new pcl::PointCloud<pcl::PointXYZ>());
+		pcl::copyPointCloud(*boundPoints, *inputPoints);
+
+		float disthresh = 0.03;
+		float connect_thresh = 0.1;
+		float radius = 0.1;
+		std::vector<Eigen::VectorXf> lineCoeffs;
+		std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> linePoints;
+		std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> lineSegs;
+		while (inputPoints->size() > 10)
+		{
+			std::vector<int> indices;
+			Eigen::VectorXf params;
+			std::tie(indices, params) = geo::detectOneLineRansac(inputPoints, disthresh);
+
+			auto inliers = geo::getSubSet(inputPoints, indices, false);
+			pcl::PointCloud<pcl::PointXYZ>::Ptr inlierPoints(new pcl::PointCloud<pcl::PointXYZ>());
+			pcl::copyPointCloud(*inliers, *inlierPoints);
+
+			while (inlierPoints->size() > 10)
+			{
+				std::vector<int> segIndex = clusterMainStructure(inlierPoints, connect_thresh);
+				auto segInliers = geo::getSubSet(inlierPoints, segIndex, false);
+
+				std::pair<Eigen::Vector3d, Eigen::Vector3d> segment;
+				if (true == detectLineEndPoints(segInliers, params, radius, segment))
+				{
+					lineSegs.push_back(segment);
+					lineCoeffs.push_back(params);
+					linePoints.push_back(inliers);
+				}
+
+				auto tmpLeft = geo::getSubSet(inlierPoints, segIndex, true);
+				inlierPoints->swap(*tmpLeft);				
+			}
+			
+			auto tmpLeft = geo::getSubSet(inputPoints, indices, true);
+			inputPoints->swap(*tmpLeft);
+		}
+		LOG(INFO) << "cadBorder:" << cadBorder.size() << ", lineSegs:" << lineSegs.size();
 
 		for (auto &seg1 : cadBorder)
 		{
+			if ((seg1.second - seg1.first).norm() < 0.000001) continue;
+			LOG(INFO) << "*****************seg1 len:" 
+					<< (seg1.second - seg1.first).norm() 
+					<<"***********************";
+			std::map<double, int> mapDist2Idx;
+			for (int i = 0; i < lineSegs.size(); i++)
+			{
+				auto &seg2 = lineSegs[i];
+				double dotProduct = (seg1.second - seg1.first).normalized().dot((seg2.second - seg2.first).normalized());
+				double lenDiff = std::fabs((seg1.second - seg1.first).norm() - (seg2.second - seg2.first).norm());
+				if (std::fabs(dotProduct) < 0.98) continue;
+
+				double dist1 = distToLine(seg2.first, seg1.first, seg1.second);
+				double dist2 = distToLine(seg2.second, seg1.first, seg1.second);
+				double aveDist = (dist1 + dist2) / 2.0;
+				LOG(INFO) << "idx:" << i << " seg2:" << (seg2.second - seg2.first).norm()
+					<< ", dot:" << dotProduct << " lenDiff:" << lenDiff
+					<< ", dist1:" << dist1 << " dist2:" << dist2 << " aveDist:" << aveDist;
+				if (aveDist > 0.3) continue;
+
+				mapDist2Idx[aveDist] = i;		
+			}
+
+			LOG(INFO) << "mapDist2Idx:" << mapDist2Idx.size();
+			if (!mapDist2Idx.empty())
+			{
+				LOG(INFO) << "+++first one, aveDist:" << mapDist2Idx.begin()->first 
+					<< ", idx:" << mapDist2Idx.begin()->second;
+				auto &seg2 = lineSegs[mapDist2Idx.begin()->second];
+				double dotProduct = (seg1.second - seg1.first).normalized().dot((seg2.second - seg2.first).normalized());
+				LOG(INFO) << "dotProduct:" << dotProduct;
+				if (dotProduct > 0)
+				{
+					cloudBorder.push_back(std::make_pair(seg2.first, seg2.second));
+				}
+				else
+				{
+					cloudBorder.push_back(std::make_pair(seg2.second, seg2.first));
+				}
+				
+				continue;
+			}
+			else
+			{
+				LOG(INFO) << "+++empty, to find nearest pt"; 
+			}
+
 			Eigen::Vector3d nearestS;
 			Eigen::Vector3d nearestE;
 			double minDistS = 2000.0;
@@ -219,11 +312,150 @@ namespace CloudReg
 					nearestE = p;
 				}
 			}
+
 			cloudBorder.push_back(std::make_pair(nearestS, nearestE));
 		}
 
+//debug files		
+#if 1
+		{	
+			std::default_random_engine e;
+    		std::uniform_real_distribution<double> random(0,1);
+			pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloudBorder(new pcl::PointCloud<pcl::PointXYZRGB>());
+			for (size_t i = 0; i < linePoints.size(); ++i)
+			{
+				auto cloud = linePoints[i];
+				int r = int(random(e)*255);
+				int g = int(random(e)*255);
+				int b = int(random(e)*255);
+				for (auto &p1 : cloud->points)
+				{
+					pcl::PointXYZRGB p2;
+					p2.x = p1.x;
+					p2.y = p1.y;
+					p2.z = p1.z;
+					p2.r = r;
+					p2.g = g;
+					p2.b = b;
+					pCloudBorder->push_back(p2);
+				}	
+			}
+			std::string file_name = "findLine-" + name + ".pcd";
+			pcl::io::savePCDFile(file_name, *pCloudBorder);				
+		}
+		{
+			std::default_random_engine e;
+    		std::uniform_real_distribution<double> random(0,1);
+
+			pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloudBorder(new pcl::PointCloud<pcl::PointXYZRGB>());
+			for (auto &seg : lineSegs)
+			{
+				int r = int(random(e)*255);
+				int g = int(random(e)*255);
+				int b = int(random(e)*255);
+				auto vec_tmp = ininterpolateSeg(seg.first, seg.second, 0.05);
+				for (auto &p1 : vec_tmp)
+				{
+					pcl::PointXYZRGB p2;
+					p2.x = p1(0);
+					p2.y = p1(1);
+					p2.z = p1(2);
+					p2.r = r;
+					p2.g = g;
+					p2.b = b;
+					pCloudBorder->push_back(p2);
+				}
+			}
+		
+			std::string file_name = "lineSegs-" + name + ".pcd";
+			pcl::io::savePCDFile(file_name, *pCloudBorder);	
+		}
+		{
+			std::vector<Eigen::Vector3d> cloudBorder;
+			for (auto& pt_pair : cadBorder) {
+				auto vec_tmp = ininterpolateSeg(pt_pair.first, pt_pair.second, 0.05);
+				cloudBorder.insert(cloudBorder.end(), vec_tmp.begin(), vec_tmp.end());
+			}
+			pcl::PointCloud<pcl::PointXYZ>::Ptr pCloudBorder(new pcl::PointCloud<pcl::PointXYZ>());
+			for (size_t i = 0; i < cloudBorder.size(); ++i)
+			{
+				pcl::PointXYZ p(cloudBorder[i](0), cloudBorder[i](1), cloudBorder[i](2));
+				pCloudBorder->push_back(p);
+			}			
+			std::string file_name = "cadSegs-" + name + ".pcd";
+			pcl::io::savePCDFile(file_name, *pCloudBorder);	
+		}
+#endif
+
 		return boundPoints;
 	}
-	
+
+	double distToLine(const Eigen::Vector3d& p, const Eigen::Vector3d& s, const Eigen::Vector3d& e) 
+	{
+		Eigen::Vector3d sp = p - s;
+		Eigen::Vector3d se = e - s;
+		double se2 = se.squaredNorm();
+		if (se2 < 1e-8) return sp.norm();
+
+		double t = sp.dot(se) / se2;
+		if (t < 0.f || t > 1.f) return std::min(sp.norm(), (p - e).norm());
+		// if (t > 1.f) return (p - e).norm();
+
+		return std::fabs(sp.cross(se).norm() / std::sqrt(se2));
+	}		
+
+	std::vector<int> clusterMainStructure(PointCloud::Ptr cloud, float distance) 
+	{
+		pcl::search::KdTree<Point>::Ptr tree(new pcl::search::KdTree<Point>);
+		tree->setInputCloud(cloud);
+
+		std::vector<pcl::PointIndices> clusters;
+		pcl::EuclideanClusterExtraction<Point> ece;
+		ece.setClusterTolerance(distance);
+		ece.setSearchMethod(tree);
+		ece.setInputCloud(cloud);
+		ece.extract(clusters);
+
+		pcl::PointIndices mainIdx = clusters.front();
+		std::vector<int> index;
+		for (auto &idx : mainIdx.indices)
+		{
+			index.push_back(idx);
+		}
+		return index;
+	}
+
+	bool detectLineEndPoints(PointCloud::Ptr inliers, Eigen::VectorXf &params,
+						double radius, 
+						std::pair<Eigen::Vector3d, Eigen::Vector3d> &segment) 
+	{
+		PointCloud::Ptr body(new PointCloud());
+		{
+			pcl::RadiusOutlierRemoval<Point> ror;
+			ror.setInputCloud(inliers);
+			ror.setRadiusSearch(radius);
+			ror.setMinNeighborsInRadius(10);
+			ror.filter(*body);
+		}
+		LOG(INFO) << "get segment cloud: " << inliers->size() << " -> " << body->size();
+		if (body->size() < 10)
+		{
+			return false;
+		}
+
+		// we now get ends
+		Point p = geo::P_(params.block<3, 1>(0, 0));
+		Point n = geo::P_(params.block<3, 1>(3, 0));
+
+		auto projlens = ll::mapf([p, n](const Point& q) {return geo::dot(q - p, n); }, body->points);
+		auto pr = std::minmax_element(projlens.begin(), projlens.end());
+		std::size_t i = std::distance(projlens.begin(), pr.first);
+		std::size_t j = std::distance(projlens.begin(), pr.second);
+
+		Eigen::Vector3d s(body->points[i].x, body->points[i].y, body->points[i].z);
+		Eigen::Vector3d e(body->points[j].x, body->points[j].y, body->points[j].z);
+		segment = std::make_pair(s, e);
+		return true;
+	}
 
 }

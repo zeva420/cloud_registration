@@ -32,10 +32,22 @@ namespace CloudReg
 	void searchBoundaries(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud,
 							std::vector<int> &boundIndices);
 
-	pcl::PointCloud<pcl::PointXYZ>::Ptr calcCloudBorder(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
+	pcl::PointCloud<pcl::PointXYZ>::Ptr calcCloudBorder(
+			const std::string &name,
+			pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
 			Eigen::Vector4d &cloudPlane,
 			std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &cadBorder,
-			std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &cloudBorder);						
+			std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &cloudBorder);	
+
+	double distToLine(const Eigen::Vector3d& p, 
+						const Eigen::Vector3d& s, const Eigen::Vector3d& e);
+
+	std::vector<int> clusterMainStructure(PointCloud::Ptr cloud, float distance) ;
+
+	bool detectLineEndPoints(PointCloud::Ptr inliers, 
+						Eigen::VectorXf &params,
+						double radius, 
+						std::pair<Eigen::Vector3d, Eigen::Vector3d> &segment);				
 }
 
 

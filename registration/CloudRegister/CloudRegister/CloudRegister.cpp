@@ -118,7 +118,9 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 		item.cloudPlane_ = ret.vecCloudPlane_.front();
 		item.cadPlane_ = ret.vecCadPlane_.front();
 		item.cadBorder_.insert(item.cadBorder_.begin(), Botton.segments_.begin(), Botton.segments_.end());
-		auto boundPoints = calcCloudBorder(pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
+		LOG(INFO) << "*********************bottom************************";
+		auto boundPoints = calcCloudBorder("bottom",
+				pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
 		mapCloudItem_[CLOUD_BOTTOM_E].emplace_back(item);
 		pcl::io::savePCDFile("boundPoints-bottom.pcd", *boundPoints);
 	}
@@ -134,7 +136,9 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 		item.cloudPlane_ = ret.vecCloudPlane_.front();
 		item.cadPlane_ = ret.vecCadPlane_.front();
 		item.cadBorder_.insert(item.cadBorder_.begin(), Top.segments_.begin(), Top.segments_.end());
-		auto boundPoints = calcCloudBorder(pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
+		LOG(INFO) << "*********************top************************";
+		auto boundPoints = calcCloudBorder("top",
+				pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
 		mapCloudItem_[CLOUD_TOP_E].emplace_back(item);
 		pcl::io::savePCDFile("boundPoints-top.pcd", *boundPoints);
 	}
@@ -158,9 +162,11 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 			for (auto& hole : vecHole)
 			{
 				if (i != hole.parentIndex_) continue;
-				item.cadBorder_.insert(item.cadBorder_.begin(), hole.segments_.begin(), hole.segments_.end());
+				item.cadBorder_.insert(item.cadBorder_.end(), hole.segments_.begin(), hole.segments_.end());
 			}	
-			auto boundPoints = calcCloudBorder(pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
+			LOG(INFO) << "*********************wall:" << i << "************************";
+			auto boundPoints = calcCloudBorder("wall-" + std::to_string(i),
+					pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
 			mapCloudItem_[CLOUD_WALL_E].emplace_back(item);		
 			pcl::io::savePCDFile("boundPoints-wall-" + std::to_string(i) + ".pcd", *boundPoints);
 		}
@@ -182,7 +188,9 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 			item.cloudPlane_ = ret.vecCloudPlane_[i];
 			item.cadPlane_ = ret.vecCadPlane_[i];
 			item.cadBorder_.insert(item.cadBorder_.begin(), beam.segments_.begin(), beam.segments_.end());
-			auto boundPoints = calcCloudBorder(pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
+			LOG(INFO) << "*********************beam:" << i << "************************";
+			auto boundPoints = calcCloudBorder("beam-" + std::to_string(i),
+					pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
 			mapCloudItem_[CLOUD_BEAM_E].emplace_back(item);
 			pcl::io::savePCDFile("boundPoints-beam-" + std::to_string(i) + ".pcd", *boundPoints);
 		}
