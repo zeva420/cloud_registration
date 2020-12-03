@@ -269,8 +269,6 @@ std::tuple<bool, ModelItem> CADModel::genHole(const std::vector<std::string>& ve
 		vecOriPts.emplace_back(Eigen::Vector2d(atol(vecSubStr[i].c_str()), atol(vecSubStr[i + 1].c_str())));
 		item.points_.emplace_back(point);
 
-		item.points_.emplace_back(point);
-
 		if (point[2] > maxZ) maxZ = point[2];
 		if (point[2] < minZ) minZ = point[2];
 
