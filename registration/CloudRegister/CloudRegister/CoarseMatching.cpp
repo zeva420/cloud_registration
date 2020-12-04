@@ -16,6 +16,8 @@ VTK_MODULE_INIT(vtkRenderingOpenGL)
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/filters/radius_outlier_removal.h>
 
+// #define VISUALIZATION_ENABLED
+
 namespace CloudReg {
 
 ///
@@ -215,6 +217,7 @@ CoarseMatching::MatchResult CoarseMatching::run(const std::vector<PointCloud::Pt
 
 	LOG(INFO) << result.toString();
 
+#ifdef VISUALIZATION_ENABLED
 	// simple visualization
 	pcl::visualization::PCLVisualizer viewer;
 	
@@ -246,6 +249,7 @@ CoarseMatching::MatchResult CoarseMatching::run(const std::vector<PointCloud::Pt
 	while (!viewer.wasStopped()) {
 		viewer.spinOnce(33);
 	}
+#endif
 
 	return result;
 }
