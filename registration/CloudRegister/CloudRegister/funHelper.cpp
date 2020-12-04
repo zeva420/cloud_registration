@@ -258,10 +258,14 @@ namespace CloudReg
 
 				double dist1 = distToLine(seg2.first, seg1.first, seg1.second);
 				double dist2 = distToLine(seg2.second, seg1.first, seg1.second);
-				double aveDist = (dist1 + dist2) / 2.0;
+				double dist3 = distToLine(seg1.second, seg2.first, seg2.second);
+				double dist4 = distToLine(seg1.second, seg2.first, seg2.second);
+				double aveDist = (dist1 + dist2 + dist3 + dist4) / 4.0;
 				LOG(INFO) << "idx:" << i << " seg2:" << (seg2.second - seg2.first).norm()
-					<< ", dot:" << dotProduct << " lenDiff:" << lenDiff
-					<< ", dist1:" << dist1 << " dist2:" << dist2 << " aveDist:" << aveDist;
+					/*<< " dot:" << dotProduct*/ << " lenDiff:" << lenDiff
+					<< " dist1:" << dist1 << " dist2:" << dist2 
+					<< " dist3:" << dist3 << " dist4:" << dist4
+					<< " aveDist:" << aveDist;
 				if (aveDist > 0.3) continue;
 
 				mapDist2Idx[aveDist] = i;		
