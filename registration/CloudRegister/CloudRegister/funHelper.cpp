@@ -4,7 +4,6 @@
 #include <pcl/features/boundary.h>
 #include <pcl/filters/project_inliers.h>
 #include <pcl/filters/uniform_sampling.h>
-#include <pcl/keypoints/impl/uniform_sampling.hpp>
 #include <pcl/filters/radius_outlier_removal.h>
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/segmentation/extract_clusters.h>
