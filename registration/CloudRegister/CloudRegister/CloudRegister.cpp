@@ -55,9 +55,6 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 		return false;
 	}
 
-	//rescale model
-	//model.scaleModel(1000.0);
-
 	//fill return value
 	fillRet(model, obj);
 
@@ -117,7 +114,7 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 		item.type_ = CLOUD_BOTTOM_E;
 		item.cloudPlane_ = ret.vecCloudPlane_.front();
 		item.cadPlane_ = ret.vecCadPlane_.front();
-		item.cadBorder_.insert(item.cadBorder_.begin(), Botton.segments_.begin(), Botton.segments_.end());
+		item.cadBorder_.insert(item.cadBorder_.end(), Botton.segments_.begin(), Botton.segments_.end());
 		LOG(INFO) << "*********************bottom************************";
 		auto boundPoints = calcCloudBorder("bottom",
 				pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
@@ -135,7 +132,7 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 		item.pCADCloud_ = cadCloud[ITEM_TOP_E].front();
 		item.cloudPlane_ = ret.vecCloudPlane_.front();
 		item.cadPlane_ = ret.vecCadPlane_.front();
-		item.cadBorder_.insert(item.cadBorder_.begin(), Top.segments_.begin(), Top.segments_.end());
+		item.cadBorder_.insert(item.cadBorder_.end(), Top.segments_.begin(), Top.segments_.end());
 		LOG(INFO) << "*********************top************************";
 		auto boundPoints = calcCloudBorder("top",
 				pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
@@ -158,7 +155,7 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 			item.pCADCloud_ = cadCloud[ITEM_WALL_E][i];
 			item.cloudPlane_ = ret.vecCloudPlane_[i];
 			item.cadPlane_ = ret.vecCadPlane_[i];
-			item.cadBorder_.insert(item.cadBorder_.begin(), wall.segments_.begin(), wall.segments_.end());
+			item.cadBorder_.insert(item.cadBorder_.end(), wall.segments_.begin(), wall.segments_.end());
 			for (auto& hole : vecHole)
 			{
 				if (i != hole.parentIndex_) continue;
@@ -187,7 +184,7 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 			item.parentIndex_ = item.parentIndex_;
 			item.cloudPlane_ = ret.vecCloudPlane_[i];
 			item.cadPlane_ = ret.vecCadPlane_[i];
-			item.cadBorder_.insert(item.cadBorder_.begin(), beam.segments_.begin(), beam.segments_.end());
+			item.cadBorder_.insert(item.cadBorder_.end(), beam.segments_.begin(), beam.segments_.end());
 			LOG(INFO) << "*********************beam:" << i << "************************";
 			auto boundPoints = calcCloudBorder("beam-" + std::to_string(i),
 					pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
