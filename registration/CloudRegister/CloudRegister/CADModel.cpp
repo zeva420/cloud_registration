@@ -57,24 +57,19 @@ bool CADModel::initCAD(const std::string& fileName) {
 
 		if (vecSubStr[0] == "B") {	
 			auto ret = genBottom(vecSubStr);
-			if (!std::get<0>(ret)) return false;
-			vec_item.emplace_back(std::get<1>(ret));
+			if (!std::get<0>(ret)) return false;			
 		} 
 		else if (vecSubStr[0] == "W") {
 			auto ret = genWall(vecSubStr);
-			if (!std::get<0>(ret)) return false;
-			vec_item.emplace_back(std::get<1>(ret));
+			if (!std::get<0>(ret)) return false;			
 		} 
 		else if (vecSubStr[0] == "H") {
 			auto ret = genHole(vecSubStr);
-			if (!std::get<0>(ret)) return false;
-			vec_item.emplace_back(std::get<1>(ret));
+			if (!std::get<0>(ret)) return false;			
 		} 
 		else if (vecSubStr[0] == "L") {
 			auto ret = genBeam(vecSubStr);
 			if (!std::get<0>(ret)) return false;
-			vec_item.emplace_back(std::get<1>(ret));
-			vec_item.emplace_back(std::get<2>(ret));
 		}
 
 	}
@@ -88,7 +83,9 @@ bool CADModel::initCAD(const std::string& fileName) {
 
 	// scale model to meters
 	scaleModel(0.001);
-	
+	for (auto& item : mapModelItem_)
+		vec_item.insert(vec_item.end(), item.second.begin(), item.second.end());
+
 	savePCD("cad_model.pcd", vec_item);
 	return true;
 
