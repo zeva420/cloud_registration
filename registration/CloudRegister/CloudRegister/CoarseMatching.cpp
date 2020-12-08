@@ -67,9 +67,10 @@ CoarseMatching::MatchResult CoarseMatching::run(const std::vector<PointCloud::Pt
 	//0. downsample
 	const auto sparsedPieces = ll::mapf([](PointCloud::Ptr cloud) { return geo::downsampleUniformly(cloud, 0.01f); }, allPieces);
 	// debug write.
+#ifdef VISUALIZATION_ENABLED		
 	for (auto pr : ll::enumerate(sparsedPieces))
 		pcl::io::savePCDFile(ll::unsafe_format("coarse-wall-%d.pcd", pr.index), *(*pr.iter), true);
-
+#endif
 	//1. basically, we use walls to do coarse matching.
 	std::vector<std::pair<PointCloud::Ptr, Segment>> wallPieces;
 	wallPieces.reserve(sparsedPieces.size()); // may -2
