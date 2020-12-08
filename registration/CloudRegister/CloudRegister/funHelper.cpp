@@ -320,7 +320,7 @@ namespace CloudReg
 		}
 
 //debug files		
-#if 1
+#if VISUALIZATION_ENABLED
 		{	
 			std::default_random_engine e;
     		std::uniform_real_distribution<double> random(0,1);
