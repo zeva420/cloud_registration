@@ -451,7 +451,7 @@ bool TransformOptimize::viewModelAndChangedCloud(
                 std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr)
 {
     LOG(INFO) << "********viewModelAndChangedCloud*******";
-#if 1
+#if VISUALIZATION_ENABLED
     // pcl::visualization::PCLVisualizer viewer("demo");
     // for (int i = 0; i < model_vec.size(); i++)
     // {

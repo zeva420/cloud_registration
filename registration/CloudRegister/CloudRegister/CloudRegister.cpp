@@ -11,9 +11,10 @@
 namespace CloudReg {
 CloudRegister::CloudRegister() {
 	google::InitGoogleLogging("Cloud");
-	FLAGS_log_dir = "./log";
-
+	FLAGS_log_dir = "./";
+#ifdef VISUALIZATION_ENABLED
 	google::LogToStderr();
+#endif
 }
 
 CloudRegister::~CloudRegister() {
@@ -199,7 +200,9 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 		auto boundPoints = calcCloudBorder("bottom",
 				pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
 		mapCloudItem_[CLOUD_BOTTOM_E].emplace_back(item);
+#ifdef VISUALIZATION_ENABLED
 		pcl::io::savePCDFile("boundPoints-bottom.pcd", *boundPoints);
+#endif
 	}
 
 	if (optRets.count(TransformOptimize::CloudType::TOP_E))
@@ -217,7 +220,9 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 		auto boundPoints = calcCloudBorder("top",
 				pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
 		mapCloudItem_[CLOUD_TOP_E].emplace_back(item);
+#ifdef VISUALIZATION_ENABLED
 		pcl::io::savePCDFile("boundPoints-top.pcd", *boundPoints);
+#endif
 	}
 
 	auto vecWall = cad.getTypedModelItems(ITEM_WALL_E);
@@ -245,7 +250,9 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 			auto boundPoints = calcCloudBorder("wall-" + std::to_string(i),
 					pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
 			mapCloudItem_[CLOUD_WALL_E].emplace_back(item);		
+#ifdef VISUALIZATION_ENABLED
 			pcl::io::savePCDFile("boundPoints-wall-" + std::to_string(i) + ".pcd", *boundPoints);
+#endif
 		}
 	}
 	
@@ -269,7 +276,9 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 			auto boundPoints = calcCloudBorder("beam-" + std::to_string(i),
 					pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
 			mapCloudItem_[CLOUD_BEAM_E].emplace_back(item);
+#ifdef VISUALIZATION_ENABLED
 			pcl::io::savePCDFile("boundPoints-beam-" + std::to_string(i) + ".pcd", *boundPoints);
+#endif
 		}
 	}
 }
