@@ -58,6 +58,8 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	//fill return value
 	fillRet(model, obj);
 
+	calcAllCorner(model);
+
 	return true;
 }
 
@@ -71,25 +73,103 @@ const std::map<pairCloud_t, std::pair<double, double>>& CloudRegister::getAllCor
 	return mapCorner_;
 }
 
-pcl::PointCloud<pcl::PointXYZRGB>::Ptr
+bool CloudRegister::findSameSegment(
+				const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &segments1,
+				const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &segments2,
+				std::pair<int, int> &idxPair)
+{
+	for (std::size_t i = 0; i < segments1.size(); i++)
+	{
+		const Eigen::Vector3d &s1 = segments1[i].first;
+		const Eigen::Vector3d &e1 = segments1[i].second;
+		for (std::size_t j = 0; j < segments2.size(); j++)
+		{
+			const Eigen::Vector3d &s2 = segments2[j].first;
+			const Eigen::Vector3d &e2 = segments2[j].second;
+			if ((s1 - s2).norm() < 0.0001 && (e1 - e2).norm() < 0.0001)
+			{
+				idxPair = std::make_pair(i, j);
+				return true;
+			}
+			if ((s1 - e2).norm() < 0.0001 && (e1 - s2).norm() < 0.0001)
+			{
+				idxPair = std::make_pair(i, j);
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+void CloudRegister::calcAllCorner(CADModel& cad)
+{
+	const auto &mapCloud = getAllCloudPlane();
+	const auto &it1 = mapCloud.find(CLOUD_BOTTOM_E);
+	const vecItems_t &cloudbottoms = it1->second;
+	double floorZ = cloudbottoms.front().pCloud_->front().z;
+
+	auto cadWalls = cad.getTypedModelItems(ITEM_WALL_E);
+	const auto &it2 = mapCloud.find(CLOUD_WALL_E);
+	const vecItems_t &cloudWalls = it2->second;
+	std::vector<std::pair<int, int>> wallIdxPairs;
+	for (std::size_t i = 0; i < cloudWalls.size()-1; i++)
+	{
+		wallIdxPairs.push_back(std::make_pair(i, i+1));
+	}
+	wallIdxPairs.push_back(std::make_pair(cloudWalls.size()-1, 0));
+
+	std::vector<std::pair<double, double>> cornerPairs;
+	for (auto &it : wallIdxPairs)
+	{
+		int i = it.first;
+		int j = it.second;
+		LOG(INFO) << "---------wall pair:" << i << "-" << j;
+		const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &segments1 = cloudWalls[i].cadBorder_;
+		const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &segments2 = cloudWalls[j].cadBorder_;
+		std::pair<int, int> idxPair;
+		if (false == findSameSegment(segments1, segments2, idxPair))
+		{
+			LOG(INFO) << "can not find same segment";
+			continue;
+		}
+		
+		const Eigen::Vector3d &s1 = segments1[idxPair.first].first;
+		const Eigen::Vector3d &e1 = segments1[idxPair.first].second;
+		const Eigen::Vector3d floorPt = (s1(2) < e1(2)) ? s1 : e1;
+		double v1 = calcCloudPairCorner(std::to_string(i) + "-" + std::to_string(j) + "-0.3m", 
+					cloudWalls[i].pCloud_, cloudWalls[j].pCloud_, floorPt, floorZ, 0.3);
+		double v2 = calcCloudPairCorner(std::to_string(i) + "-" + std::to_string(j) + "-1.5m",
+					cloudWalls[i].pCloud_, cloudWalls[j].pCloud_, floorPt, floorZ, 1.5);
+		cornerPairs.push_back(std::make_pair(v1, v2));
+	}
+
+	for (std::size_t i = 0; i < cornerPairs.size(); i++)
+	{
+		int idx1 = wallIdxPairs[i].first;
+		int idx2 = wallIdxPairs[i].second;
+		LOG(INFO) << "*****wall pair:" << idx1 << "-" << idx2 
+			<< ", 0.3m-1.5m: " << cornerPairs[i].first << " " << cornerPairs[i].second;
+	}
+}
+
+pcl::PointCloud<pcl::PointXYZI>::Ptr
 CloudRegister::calcDistError(const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_,
 	const Eigen::Vector4d& plane, const double radius) const
 {
 	pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_filtered(new pcl::PointCloud<pcl::PointXYZ>());
 	uniformSampling(radius, pCloud_, pCloud_filtered);
 
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloud_rgb(new pcl::PointCloud<pcl::PointXYZRGB>());
+	pcl::PointCloud<pcl::PointXYZI>::Ptr pCloud_rgb(new pcl::PointCloud<pcl::PointXYZI>());
 	for (auto &p : pCloud_filtered->points)
 	{
 		double dist = pointToPLaneDist(plane, p);
 
-		pcl::PointXYZRGB p_rgb;
+		pcl::PointXYZI p_rgb;
 		p_rgb.x = p.x;
 		p_rgb.y = p.y;
 		p_rgb.z = p.z;
-		p_rgb.r = dist;
-		p_rgb.g = 0;
-		p_rgb.b = 0;
+		p_rgb.intensity = dist;
 
 		pCloud_rgb->push_back(p_rgb);
 	}

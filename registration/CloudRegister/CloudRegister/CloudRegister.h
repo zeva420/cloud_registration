@@ -61,7 +61,7 @@ namespace CloudReg
 			getAllCorner() const;
 
 		//p_rgb.r = distError; radius = 0.05m
-		pcl::PointCloud<pcl::PointXYZRGB>::Ptr 
+		pcl::PointCloud<pcl::PointXYZI>::Ptr 
 			calcDistError(const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_,
 			const Eigen::Vector4d& plane, const double radius = 0.05) const;
 
@@ -69,6 +69,12 @@ namespace CloudReg
 	private:
 		
 		void fillRet(CADModel& cad, TransformOptimize& optimitor);
+		void calcAllCorner(CADModel& cad);
+		bool findSameSegment(
+				const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &segments1,
+				const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &segments2,
+				std::pair<int, int> &idxPair);
+
 		std::map<CloudItemType, vecItems_t> mapCloudItem_;
 		std::map<pairCloud_t, std::pair<double, double>> mapCorner_;
 

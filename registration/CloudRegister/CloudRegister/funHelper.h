@@ -47,7 +47,18 @@ namespace CloudReg
 	bool detectLineEndPoints(PointCloud::Ptr inliers, 
 						Eigen::VectorXf &params,
 						double radius, 
-						std::pair<Eigen::Vector3d, Eigen::Vector3d> &segment);				
+						std::pair<Eigen::Vector3d, Eigen::Vector3d> &segment);		
+
+	void planeFitting(float distTh, 
+					pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, 
+					Eigen::VectorXf &coeff, std::vector<int> &inlierIdxs);
+
+	double calcCorner(const Eigen::Vector3d &n1, const Eigen::Vector3d &n2);
+
+	double calcCloudPairCorner(const std::string &name,
+						const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud1,
+						const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud2,
+						const Eigen::Vector3d &floorPt, double floorZ, double height);	
 }
 
 

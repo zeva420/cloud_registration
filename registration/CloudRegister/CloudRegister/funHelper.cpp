@@ -8,6 +8,13 @@
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/segmentation/extract_clusters.h>
 
+#include <pcl/sample_consensus/method_types.h>
+#include <pcl/sample_consensus/model_types.h>
+#include <pcl/sample_consensus/ransac.h>
+#include <pcl/sample_consensus/sac_model_plane.h>
+
+#include <pcl/filters/passthrough.h>
+
 namespace CloudReg
 {
 	Eigen::vector<Eigen::Vector3d> ininterpolateSeg(const Eigen::Vector3d& sPoint, const Eigen::Vector3d& ePoint, const double step)
@@ -258,7 +265,7 @@ namespace CloudReg
 
 				double dist1 = distToLine(seg2.first, seg1.first, seg1.second);
 				double dist2 = distToLine(seg2.second, seg1.first, seg1.second);
-				double dist3 = distToLine(seg1.second, seg2.first, seg2.second);
+				double dist3 = distToLine(seg1.first, seg2.first, seg2.second);
 				double dist4 = distToLine(seg1.second, seg2.first, seg2.second);
 				double aveDist = (dist1 + dist2 + dist3 + dist4) / 4.0;
 				LOG(INFO) << "idx:" << i << " seg2:" << (seg2.second - seg2.first).norm()
@@ -459,6 +466,157 @@ namespace CloudReg
 		Eigen::Vector3d e(body->points[j].x, body->points[j].y, body->points[j].z);
 		segment = std::make_pair(s, e);
 		return true;
+	}
+
+	// double calcCorner(const pairCloud_t &cloudPair)
+	double calcCorner(const Eigen::Vector3d &n1, const Eigen::Vector3d &n2)
+	{
+		const double weightTh = 130;//mm
+		double angle = std::acos(n1.dot(n2));
+		double v1 = std::sin(angle) * weightTh;
+		
+		double diffAngle = std::fabs(3.1415/2.0 - angle);
+		double v2 = std::sin(diffAngle) * weightTh;
+
+		LOG(INFO) << "angle:" << angle << "->" << (angle * 180.0 / 3.14) 
+			<< " sin:" << std::sin(angle) <<" v1:" << v1;
+		LOG(INFO) << "diffAngle:" << diffAngle << "->" << (diffAngle * 180.0 / 3.14)
+			<< " sin:" << std::sin(diffAngle) <<" v2:" << v2;
+		LOG(INFO) << "sin90:"<< std::sin(3.1415/2.0);
+
+		return v2;
+	}
+
+	void planeFitting(float distTh, 
+					pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, 
+					Eigen::VectorXf &coeff, std::vector<int> &inlierIdxs)
+	{
+		pcl::SampleConsensusModelPlane<pcl::PointXYZ>::Ptr model(
+							new pcl::SampleConsensusModelPlane<pcl::PointXYZ>(cloud));
+		pcl::RandomSampleConsensus<pcl::PointXYZ> ransac(model);
+		ransac.setDistanceThreshold(distTh);
+		ransac.computeModel();
+		ransac.getInliers(inlierIdxs);
+		
+		//ax+by_cz_d=0，coeff: a,b,c,d
+		ransac.getModelCoefficients(coeff);
+		LOG(INFO) << "plane coeff " << coeff[0] << " " <<coeff[1] 
+			<< " " << coeff[2] << " " << coeff[3] 
+			<< ", inlierRate:" << 100.0 * double(inlierIdxs.size()) / double(cloud->size()) << "%";
+	}
+
+	double calcCloudPairCorner(const std::string &name,
+						const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud1,
+						const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud2,
+						const Eigen::Vector3d &floorPt, double floorZ, double height)
+	{
+		LOG(INFO) << "===height:" << height << " floorZ:" << floorZ << " floorPt.z:" << floorPt(2);
+		const double distTh = 0.2;//m
+		Eigen::Vector3d centerPt = floorPt;
+		centerPt(2) += height;
+
+		pcl::PointCloud<pcl::PointXYZ>::Ptr subSet1(new pcl::PointCloud<pcl::PointXYZ>());
+		// for (auto &p : pCloud1->points)
+		// {
+		// 	Eigen::Vector3d v(p.x, p.y, p.z);
+		// 	if ((v - centerPt).norm() < distTh)
+		// 	{
+		// 		subSet1->push_back(p);
+		// 	}
+		// }
+		pcl::PassThrough<pcl::PointXYZ> pass;
+		pass.setInputCloud (pCloud1);
+		pass.setFilterFieldName ("z");
+		pass.setFilterLimits (floorZ+height-distTh, floorZ+height+distTh);
+		pass.filter (*subSet1);
+
+		pcl::PointCloud<pcl::PointXYZ>::Ptr subSet2(new pcl::PointCloud<pcl::PointXYZ>());
+		// for (auto &p : pCloud2->points)
+		// {
+		// 	Eigen::Vector3d v(p.x, p.y, p.z);
+		// 	if ((v - centerPt).norm() < distTh)
+		// 	{
+		// 		subSet2->push_back(p);
+		// 	}
+		// }
+		pass.setInputCloud (pCloud2);
+		pass.setFilterFieldName ("z");
+		pass.setFilterLimits (floorZ+height-distTh, floorZ+height+distTh);
+		pass.filter (*subSet2);
+
+		LOG(INFO) << "subSet1:" << subSet1->size() << " subSet2:" << subSet2->size();
+		if (subSet1->size() < 50)
+		{
+			subSet1->clear();
+			subSet1 = pCloud1;
+		}
+		if (subSet2->size() < 50)
+		{
+			subSet2->clear();
+			subSet2 = pCloud2;
+		}
+
+		pcl::PointCloud<pcl::PointXYZ>::Ptr filterdCLoud(new pcl::PointCloud<pcl::PointXYZ>());
+		uniformSampling(0.002, subSet1, filterdCLoud);
+		LOG(INFO) << "subSet1:" << subSet1->size() << " after uniform:" << filterdCLoud->size();
+		subSet1->swap(*filterdCLoud);
+		filterdCLoud->clear();
+
+		uniformSampling(0.002, subSet2, filterdCLoud);
+		LOG(INFO) << "subSet2:" << subSet2->size() << " after uniform:" << filterdCLoud->size();
+		subSet2->swap(*filterdCLoud);
+
+        Eigen::VectorXf coeff1;
+        std::vector<int> inlierIdxs1;
+        planeFitting(0.02, subSet1, coeff1, inlierIdxs1);
+
+        Eigen::VectorXf coeff2;
+        std::vector<int> inlierIdxs2;
+        planeFitting(0.02, subSet2, coeff2, inlierIdxs2);
+
+		Eigen::Vector4d plane1(coeff1(0), coeff1(1), coeff1(2), coeff1(3));
+		Eigen::Vector4d plane2(coeff2(0), coeff2(1), coeff2(2), coeff2(3));
+		Eigen::Vector3d n1 = plane1.block<3,1>(0,0);
+		Eigen::Vector3d n2 = plane2.block<3,1>(0,0);
+		Eigen::Vector3d p1(subSet1->front().x, subSet1->front().y, subSet1->front().z);
+		Eigen::Vector3d p2(subSet2->front().x, subSet2->front().y, subSet2->front().z);
+		n1 = (n1.dot(p1) > 0) ? n1 : (-1.0 * n1);
+		n2 = (n2.dot(p2) > 0) ? n2 : (-1.0 * n2);
+		LOG(INFO) << "n1:" << n1(0) << "," << n1(1) << "," << n1(2);
+		LOG(INFO) << "n2:" << n2(0) << "," << n2(1) << "," << n2(2);
+		double v = calcCorner(n1, n2);
+
+//debug file
+		{
+			pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloudBorder(new pcl::PointCloud<pcl::PointXYZRGB>());
+			for (auto &p1 : subSet1->points)
+			{
+				pcl::PointXYZRGB p2;
+				p2.x = p1.x;
+				p2.y = p1.y;
+				p2.z = p1.z;
+				p2.r = 255;
+				p2.g = 0;
+				p2.b = 0;
+				pCloudBorder->push_back(p2);
+			}
+
+			for (auto &p1 : subSet2->points)
+			{
+				pcl::PointXYZRGB p2;
+				p2.x = p1.x;
+				p2.y = p1.y;
+				p2.z = p1.z;
+				p2.r = 0;
+				p2.g = 255;
+				p2.b = 0;
+				pCloudBorder->push_back(p2);
+			}
+			std::string file_name = "corner-" + name + ".pcd";
+			pcl::io::savePCDFile(file_name, *pCloudBorder);	
+		}
+
+		return v;
 	}
 
 }
