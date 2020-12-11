@@ -25,6 +25,8 @@ namespace CloudReg
 
 	pcl::PointXYZRGB getColorPtByDist(pcl::PointXYZ &p, double dist);
 	
+	void getWallColor(float dis, unsigned int & r, unsigned int & g, unsigned int & b);
+	
 	void projectionToPlane(Eigen::Vector4d &plane,
 							pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, 
 							pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_projected);
@@ -52,6 +54,8 @@ namespace CloudReg
 	void planeFitting(float distTh, 
 					pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, 
 					Eigen::VectorXf &coeff, std::vector<int> &inlierIdxs);
+					
+	Eigen::Vector4d calcPlaneParam(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
 
 	double calcCorner(const Eigen::Vector3d &n1, const Eigen::Vector3d &n2);
 

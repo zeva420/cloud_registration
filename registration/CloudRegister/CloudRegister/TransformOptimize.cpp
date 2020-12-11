@@ -59,7 +59,7 @@ bool TransformOptimize::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &ve
     fillResult(modelPlanes, cloudPlanes, model_vec, vecCloudPtr, optRets_);
 
     //view Dist with sampling Cloud
-    viewModelAndChangedCloud(modelPlanes, cloudPlanes, model_vec, vecSamplingCloud);
+    viewModelAndChangedCloud(modelPlanes, cloudPlanes, model_vec, vecCloudPtr);
 
     return optRets_.empty() ? false : true;
 }
@@ -146,22 +146,20 @@ bool TransformOptimize::getModelPlaneCoeff(
         pcl::PointCloud<pcl::PointXYZ>::Ptr ground_inliers(new pcl::PointCloud<pcl::PointXYZ>);
         Eigen::VectorXf coeff;
         std::vector<int> inlierIdxs;
-        planeFitting(0.05, cloud, coeff, inlierIdxs);
+        planeFitting(0.01, cloud, coeff, inlierIdxs);
+        // auto inliers = geo::getSubSet(cloud, inlierIdxs, false);
+        // Eigen::Vector4d plane = calcPlaneParam(inliers);
+
         Eigen::Vector4d plane(coeff(0), coeff(1), coeff(2), coeff(3));
+
+		Eigen::Vector3d n = plane.block<3,1>(0,0);
+		Eigen::Vector3d p(cloud->front().x, cloud->front().y, cloud->front().z);
+		double flag = (n.dot(p) > 0) ? (-1.0) : 1.0;  
+        plane = flag * plane;     
         modelPlanes.push_back(plane);  
     }
 
 	return true;
-}
-
-double TransformOptimize::pointToPLaneDist(Eigen::Vector4d &plane,
-                                            pcl::PointXYZ &p)
-{
-    Eigen::Vector3d n = plane.block<3,1>(0,0);
-    double d  = plane(3);
-    Eigen::Vector3d point(p.x, p.y, p.z);
-    double dist = std::abs(n.dot(point) + d) / n.norm();    
-    return dist;
 }
 
 double TransformOptimize::calcCloudToPLaneAveDist(Eigen::Vector4d &plane,

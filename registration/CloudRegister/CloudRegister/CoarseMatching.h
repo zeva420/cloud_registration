@@ -43,7 +43,7 @@ public:
 	MatchResult run(const std::vector<PointCloud::Ptr>& allPieces, const CADModel& cadModel);
 
 private:
-	static constexpr double PLANE_REFINE_DISTANCE = 0.02;
+	static constexpr double PLANE_REFINE_DISTANCE = 0.05;
 	static constexpr double LINE_DETECT_DIS_THRESH = 0.02;
 	static constexpr double LINE_DETECT_CONNECT_THRESH = 0.05;
 

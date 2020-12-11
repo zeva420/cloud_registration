@@ -107,37 +107,92 @@ namespace CloudReg
 		Eigen::Vector3d n = plane.block<3,1>(0,0);
 		double d  = plane(3);
 		Eigen::Vector3d point(p.x, p.y, p.z);
-		double dist = std::abs(n.dot(point) + d) / n.norm();    
+		double dist = (n.dot(point) + d) / n.norm();    
 		return dist;
 	}
 
 	pcl::PointXYZRGB getColorPtByDist(pcl::PointXYZ &p, double dist)
 	{
-		std::vector<std::tuple<int, int, int>> color;
-		color.push_back(std::make_tuple(0,0,255)); //rgb_blue, [-inf, -0.01]
-		color.push_back(std::make_tuple(0,255,255)); //rgb_cyan, [-0.01, 0]
-		color.push_back(std::make_tuple(0,255,0)); //rgb_green, [0, 0.01]
-		color.push_back(std::make_tuple(255,255,0)); //rgb_yellow, [0.01, 0.02]
-		color.push_back(std::make_tuple(238,134,149)); //rgb_pink, [0.02, 0.03]
-		color.push_back(std::make_tuple(255,0,0)); //rgb_red, [0.03, +inf]
-
-		std::size_t size = color.size() - 1;
-		double min = -0.01;
-		double max = 0.04;
-		dist = std::max(min, dist);
-		dist = std::min(max, dist);
-
-		int index = std::ceil(size * (dist - min) / (max - min));
-		std::tuple<int, int, int> rgb = color[index];
+		unsigned int r = 255;
+		unsigned int g = 255; 
+		unsigned int b = 255;
+		getWallColor(dist, r, g, b);
 
 		pcl::PointXYZRGB p_rgb;
 		p_rgb.x = p.x;
 		p_rgb.y = p.y;
 		p_rgb.z = p.z;
-		p_rgb.r = std::get<0>(rgb);
-		p_rgb.g = std::get<1>(rgb);
-		p_rgb.b = std::get<2>(rgb);
+		p_rgb.r = r;
+		p_rgb.g = g;
+		p_rgb.b = b;
 		return p_rgb;
+	}
+
+ 	void getWallColor(float dis, unsigned int & r, unsigned int & g, unsigned int & b)
+	{
+		float rf = 0.0f;
+		float gf = 0.0f;
+		float bf = 0.0f;
+		float factor = 0.004f;//颜色刻度因子
+
+		#pragma region MyRegion 新色谱方案(以蓝色为主色调)
+		//色系组成为红色（255,0,0）—凹、紫色（255,0,255）—凹、蓝色（0,0,255）—平、绿色（0,255,0）—凸、黄色（255,255,0）—凸
+		if (dis < 0)
+		{
+			if (dis > -factor) //介于紫色和蓝色之间
+			{
+				rf = 1.0f - (dis + factor) / factor;
+				gf = 0.0f;
+				bf = 1.0f;
+			}
+			else if (dis > (-factor * 1.5))
+			{
+				rf = 1.0f;
+				gf = 0.0f;
+				bf = 1.0f - (dis + factor) / dis;
+			}
+			else //介于红色和紫色之间
+			{
+				rf = 1.0f;
+				gf = 0.0f;
+				bf = 1.0f - (dis + factor) / dis - 0.15;  //减去0.15作为颜色补偿
+			}
+		}
+		else if (dis == 0) //蓝色
+		{
+			rf = 0.0f;
+			gf = 0.0f;
+			bf = 1.0f;
+		}
+		else //介于蓝色和紫色之间
+		{
+			if (dis <= factor) //介于蓝色和绿色之间
+			{
+				rf = 0.0f;
+				gf = dis / factor;
+				bf = (factor - dis) / factor;
+			}
+			else //介于绿色和黄色之间
+			{
+				rf = (dis - factor) / dis + 0.4;  //增加0.4作为颜色补偿
+				gf = 1.0f;
+				bf = 0.0f;
+			}
+		}
+
+		#pragma endregion
+
+		rf = rf > 1.0 ? 1.0 : rf;
+		gf = gf > 1.0 ? 1.0 : gf;
+		bf = bf > 1.0 ? 1.0 : bf;
+
+		rf = rf < 0.0 ? 0.0 : rf;
+		gf = gf < 0.0 ? 0.0 : gf;
+		bf = bf < 0.0 ? 0.0 : bf;
+
+		r = (unsigned int)(rf*255.0);
+		g = (unsigned int)(gf*255.0);
+		b = (unsigned int)(bf*255.0);
 	}
 
 	void projectionToPlane(Eigen::Vector4d &plane,
@@ -206,8 +261,8 @@ namespace CloudReg
         projectionToPlane(cloudPlane, cloud, cloud_filter);
 
 		std::vector<int> boundIndices;
-		searchBoundaries(cloud, boundIndices);
-		auto boundPoints = geo::getSubSet(cloud, boundIndices, false);
+		searchBoundaries(cloud_filter, boundIndices);
+		auto boundPoints = geo::getSubSet(cloud_filter, boundIndices, false);
 		pcl::PointCloud<pcl::PointXYZ>::Ptr inputPoints(new pcl::PointCloud<pcl::PointXYZ>());
 		pcl::copyPointCloud(*boundPoints, *inputPoints);
 
@@ -468,23 +523,18 @@ namespace CloudReg
 		return true;
 	}
 
-	// double calcCorner(const pairCloud_t &cloudPair)
 	double calcCorner(const Eigen::Vector3d &n1, const Eigen::Vector3d &n2)
 	{
-		const double weightTh = 130;//mm
+		const double weightTh = 130.0;//mm
 		double angle = std::acos(n1.dot(n2));
-		double v1 = std::sin(angle) * weightTh;
-		
 		double diffAngle = std::fabs(3.1415/2.0 - angle);
-		double v2 = std::sin(diffAngle) * weightTh;
+		double v = std::fabs(n1.dot(n2)) * weightTh;
 
-		LOG(INFO) << "angle:" << angle << "->" << (angle * 180.0 / 3.14) 
-			<< " sin:" << std::sin(angle) <<" v1:" << v1;
+		LOG(INFO) << "angle:" << angle << "->" << (angle * 180.0 / 3.14);
 		LOG(INFO) << "diffAngle:" << diffAngle << "->" << (diffAngle * 180.0 / 3.14)
-			<< " sin:" << std::sin(diffAngle) <<" v2:" << v2;
-		LOG(INFO) << "sin90:"<< std::sin(3.1415/2.0);
+			<< " sin:" << std::sin(diffAngle) <<" v:" << v;
 
-		return v2;
+		return v;
 	}
 
 	void planeFitting(float distTh, 
@@ -505,6 +555,34 @@ namespace CloudReg
 			<< ", inlierRate:" << 100.0 * double(inlierIdxs.size()) / double(cloud->size()) << "%";
 	}
 
+	Eigen::Vector4d calcPlaneParam(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud)
+	{
+		Eigen::MatrixXd A(cloud->size(), 3);
+		for (std::size_t r = 0; r < cloud->size(); r++)
+		{
+			const auto &p = cloud->points[r];
+			A(r, 0) = p.x;
+			A(r, 1) = p.y;
+			A(r, 2) = p.z;
+		}
+
+		Eigen::VectorXd b(cloud->size());
+		b.fill(-1.);
+
+		Eigen::MatrixXd ATA = A.transpose() * A;
+		Eigen::VectorXd ATb = A.transpose() * b;
+
+		Eigen::VectorXd n = ATA.ldlt().solve(ATb);
+
+		double len = n.norm();
+		Eigen::Vector4d abcd;
+		abcd.block<3,1>(0, 0) = n / len;
+		abcd(3) = 1 / len;
+
+		return abcd;
+	}
+
+	//not finish
 	double calcCloudPairCorner(const std::string &name,
 						const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud1,
 						const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud2,
@@ -516,33 +594,37 @@ namespace CloudReg
 		centerPt(2) += height;
 
 		pcl::PointCloud<pcl::PointXYZ>::Ptr subSet1(new pcl::PointCloud<pcl::PointXYZ>());
-		// for (auto &p : pCloud1->points)
-		// {
-		// 	Eigen::Vector3d v(p.x, p.y, p.z);
-		// 	if ((v - centerPt).norm() < distTh)
-		// 	{
-		// 		subSet1->push_back(p);
-		// 	}
-		// }
+		for (auto &p : pCloud1->points)
+		{
+			Eigen::Vector3d v(p.x, p.y, p.z);
+			if ((v - centerPt).norm() < distTh)
+			{
+				subSet1->push_back(p);
+			}
+		}
+		pcl::PointCloud<pcl::PointXYZ>::Ptr filteredCloud(new pcl::PointCloud<pcl::PointXYZ>());
 		pcl::PassThrough<pcl::PointXYZ> pass;
-		pass.setInputCloud (pCloud1);
+		pass.setInputCloud (subSet1);
 		pass.setFilterFieldName ("z");
-		pass.setFilterLimits (floorZ+height-distTh, floorZ+height+distTh);
-		pass.filter (*subSet1);
+		pass.setFilterLimits (centerPt(2)-0.1, centerPt(2)+0.1);
+		pass.filter (*filteredCloud);
+		subSet1->swap(*filteredCloud);
 
 		pcl::PointCloud<pcl::PointXYZ>::Ptr subSet2(new pcl::PointCloud<pcl::PointXYZ>());
-		// for (auto &p : pCloud2->points)
-		// {
-		// 	Eigen::Vector3d v(p.x, p.y, p.z);
-		// 	if ((v - centerPt).norm() < distTh)
-		// 	{
-		// 		subSet2->push_back(p);
-		// 	}
-		// }
-		pass.setInputCloud (pCloud2);
+		for (auto &p : pCloud2->points)
+		{
+			Eigen::Vector3d v(p.x, p.y, p.z);
+			if ((v - centerPt).norm() < distTh)
+			{
+				subSet2->push_back(p);
+			}
+		}
+		filteredCloud->clear();
+		pass.setInputCloud (subSet2);
 		pass.setFilterFieldName ("z");
-		pass.setFilterLimits (floorZ+height-distTh, floorZ+height+distTh);
-		pass.filter (*subSet2);
+		pass.setFilterLimits (centerPt(2)-0.1, centerPt(2)+0.1);
+		pass.filter (*filteredCloud);
+		subSet2->swap(*filteredCloud);
 
 		LOG(INFO) << "subSet1:" << subSet1->size() << " subSet2:" << subSet2->size();
 		if (subSet1->size() < 50)
@@ -556,37 +638,68 @@ namespace CloudReg
 			subSet2 = pCloud2;
 		}
 
-		pcl::PointCloud<pcl::PointXYZ>::Ptr filterdCLoud(new pcl::PointCloud<pcl::PointXYZ>());
-		uniformSampling(0.002, subSet1, filterdCLoud);
-		LOG(INFO) << "subSet1:" << subSet1->size() << " after uniform:" << filterdCLoud->size();
-		subSet1->swap(*filterdCLoud);
-		filterdCLoud->clear();
-
-		uniformSampling(0.002, subSet2, filterdCLoud);
-		LOG(INFO) << "subSet2:" << subSet2->size() << " after uniform:" << filterdCLoud->size();
-		subSet2->swap(*filterdCLoud);
-
-        Eigen::VectorXf coeff1;
-        std::vector<int> inlierIdxs1;
-        planeFitting(0.02, subSet1, coeff1, inlierIdxs1);
+		pcl::PointCloud<pcl::PointXYZ>::Ptr subSetMerged(new pcl::PointCloud<pcl::PointXYZ>());
+		subSetMerged->insert(subSetMerged->end(), subSet1->begin(), subSet1->end());
+		subSetMerged->insert(subSetMerged->end(), subSet2->begin(), subSet2->end());
+		
+		Eigen::VectorXf coeff1;
+		std::vector<int> inlierIdxs1;
+		planeFitting(0.002, subSetMerged, coeff1, inlierIdxs1);
+		auto left1 = geo::getSubSet(subSetMerged, inlierIdxs1, true);
 
         Eigen::VectorXf coeff2;
         std::vector<int> inlierIdxs2;
-        planeFitting(0.02, subSet2, coeff2, inlierIdxs2);
+        planeFitting(0.002, left1, coeff2, inlierIdxs2);
+		auto left2 = geo::getSubSet(left1, inlierIdxs2, true);
 
-		Eigen::Vector4d plane1(coeff1(0), coeff1(1), coeff1(2), coeff1(3));
-		Eigen::Vector4d plane2(coeff2(0), coeff2(1), coeff2(2), coeff2(3));
+		auto orig_inliers1 = geo::getSubSet(subSetMerged, inlierIdxs1, false);
+		auto orig_inliers2 = geo::getSubSet(left1, inlierIdxs2, false);
+
+		auto dist_to_plane = [](Eigen::Vector3f &p, Eigen::VectorXf &plane)->float {
+			Eigen::Vector3f n = plane.block<3,1>(0,0);
+			float d  = plane(3);
+			float dist = std::abs(n.dot(p) + d) / n.norm(); 
+			return dist;
+		};
+		for (auto &it : left2->points)
+		{
+			Eigen::Vector3f p(it.x, it.y, it.z);
+			float dist1 = dist_to_plane(p, coeff1);
+			float dist2 = dist_to_plane(p, coeff2);
+			auto tmpPtr = (dist1 < dist2) ? orig_inliers1 : orig_inliers2;
+			tmpPtr->push_back(it);
+		}
+
+		pcl::PointCloud<pcl::PointXYZ>::Ptr inliers1(new pcl::PointCloud<pcl::PointXYZ>());
+		pcl::PointCloud<pcl::PointXYZ>::Ptr inliers2(new pcl::PointCloud<pcl::PointXYZ>());
+		{
+			Eigen::VectorXf coeff1;
+			std::vector<int> inlierIdxs1;
+			planeFitting(0.0025, orig_inliers1, coeff1, inlierIdxs1);
+
+			Eigen::VectorXf coeff2;
+			std::vector<int> inlierIdxs2;
+			planeFitting(0.0025, orig_inliers2, coeff2, inlierIdxs2);
+			inliers1 = geo::getSubSet(orig_inliers1, inlierIdxs1, false);
+			inliers2 = geo::getSubSet(orig_inliers2, inlierIdxs2, false);
+		}
+
+		Eigen::Vector4d plane1 = calcPlaneParam(inliers1);
+		Eigen::Vector4d plane2 = calcPlaneParam(inliers2);
+		
+		//投影到ＸＯＹ平面，通过检测线来获取方向，并获取最内侧的线？？
+		
 		Eigen::Vector3d n1 = plane1.block<3,1>(0,0);
 		Eigen::Vector3d n2 = plane2.block<3,1>(0,0);
-		Eigen::Vector3d p1(subSet1->front().x, subSet1->front().y, subSet1->front().z);
-		Eigen::Vector3d p2(subSet2->front().x, subSet2->front().y, subSet2->front().z);
+		Eigen::Vector3d p1(inliers1->front().x, inliers1->front().y, inliers1->front().z);
+		Eigen::Vector3d p2(inliers2->front().x, inliers2->front().y, inliers2->front().z);
 		n1 = (n1.dot(p1) > 0) ? n1 : (-1.0 * n1);
 		n2 = (n2.dot(p2) > 0) ? n2 : (-1.0 * n2);
 		LOG(INFO) << "n1:" << n1(0) << "," << n1(1) << "," << n1(2);
 		LOG(INFO) << "n2:" << n2(0) << "," << n2(1) << "," << n2(2);
 		double v = calcCorner(n1, n2);
 
-//debug file
+#if VISUALIZATION_ENABLED
 		{
 			pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloudBorder(new pcl::PointCloud<pcl::PointXYZRGB>());
 			for (auto &p1 : subSet1->points)
@@ -616,6 +729,35 @@ namespace CloudReg
 			pcl::io::savePCDFile(file_name, *pCloudBorder);	
 		}
 
+		{
+			pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloudBorder(new pcl::PointCloud<pcl::PointXYZRGB>());
+			for (auto &p1 : inliers1->points)
+			{
+				pcl::PointXYZRGB p2;
+				p2.x = p1.x;
+				p2.y = p1.y;
+				p2.z = p1.z;
+				p2.r = 255;
+				p2.g = 0;
+				p2.b = 0;
+				pCloudBorder->push_back(p2);
+			}
+
+			for (auto &p1 : inliers2->points)
+			{
+				pcl::PointXYZRGB p2;
+				p2.x = p1.x;
+				p2.y = p1.y;
+				p2.z = p1.z;
+				p2.r = 0;
+				p2.g = 255;
+				p2.b = 0;
+				pCloudBorder->push_back(p2);
+			}
+			std::string file_name = "inliers-" + name + ".pcd";
+			pcl::io::savePCDFile(file_name, *pCloudBorder);	
+		}
+#endif
 		return v;
 	}
 

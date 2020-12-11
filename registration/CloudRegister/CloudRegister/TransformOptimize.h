@@ -96,9 +96,6 @@ private:
 					std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec,
 					Eigen::vector<Eigen::Vector4d> &modelPlanes);
 
-	double pointToPLaneDist(Eigen::Vector4d &plane,
-                                            pcl::PointXYZ &p);
-
 	double calcCloudToPLaneAveDist(Eigen::Vector4d &plane,
                                 pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
 
