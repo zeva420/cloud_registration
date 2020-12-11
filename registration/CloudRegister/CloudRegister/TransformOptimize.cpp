@@ -21,6 +21,7 @@ VTK_MODULE_INIT(vtkRenderingOpenGL)
 
 #include <random>
 
+
 namespace CloudReg
 {
 bool TransformOptimize::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
@@ -146,7 +147,7 @@ bool TransformOptimize::getModelPlaneCoeff(
         pcl::PointCloud<pcl::PointXYZ>::Ptr ground_inliers(new pcl::PointCloud<pcl::PointXYZ>);
         Eigen::VectorXf coeff;
         std::vector<int> inlierIdxs;
-        planeFitting(0.01, cloud, coeff, inlierIdxs);
+        planeFitting(0.03, cloud, coeff, inlierIdxs);
         // auto inliers = geo::getSubSet(cloud, inlierIdxs, false);
         // Eigen::Vector4d plane = calcPlaneParam(inliers);
 
@@ -449,7 +450,7 @@ bool TransformOptimize::viewModelAndChangedCloud(
                 std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr)
 {
     LOG(INFO) << "********viewModelAndChangedCloud*******";
-#if VISUALIZATION_ENABLED
+#ifdef VISUALIZATION_ENABLED
     // pcl::visualization::PCLVisualizer viewer("demo");
     // for (int i = 0; i < model_vec.size(); i++)
     // {

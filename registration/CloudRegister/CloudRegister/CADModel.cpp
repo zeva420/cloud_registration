@@ -85,7 +85,7 @@ bool CADModel::initCAD(const std::string& fileName) {
 	scaleModel(0.001);
 	for (auto& item : mapModelItem_)
 		vec_item.insert(vec_item.end(), item.second.begin(), item.second.end());
-#if VISUALIZATION_ENABLED
+#ifdef VISUALIZATION_ENABLED
 	savePCD("cad_model.pcd", vec_item);
 #endif
 	return true;

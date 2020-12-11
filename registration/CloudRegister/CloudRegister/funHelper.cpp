@@ -382,7 +382,7 @@ namespace CloudReg
 		}
 
 //debug files		
-#if VISUALIZATION_ENABLED
+#ifdef VISUALIZATION_ENABLED
 		{	
 			std::default_random_engine e;
     		std::uniform_real_distribution<double> random(0,1);
@@ -699,7 +699,7 @@ namespace CloudReg
 		LOG(INFO) << "n2:" << n2(0) << "," << n2(1) << "," << n2(2);
 		double v = calcCorner(n1, n2);
 
-#if VISUALIZATION_ENABLED
+#ifdef VISUALIZATION_ENABLED
 		{
 			pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloudBorder(new pcl::PointCloud<pcl::PointXYZRGB>());
 			for (auto &p1 : subSet1->points)
