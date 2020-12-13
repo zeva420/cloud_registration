@@ -38,7 +38,7 @@ bool TransformOptimize::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &ve
 
     //get model plane coeff
     Eigen::vector<Eigen::Vector4d> modelPlanes;
-    getModelPlaneCoeff(model_vec, modelPlanes);
+    getModelPlaneCoeff(model_vec, modelPlanes, center);
 
     matchCloudToMode(modelPlanes, vecCloudPtr);
 
