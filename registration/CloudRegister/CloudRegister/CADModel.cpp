@@ -79,13 +79,15 @@ bool CADModel::initCAD(const std::string& fileName) {
 	//build top
 	auto ret = genTop();
 	if (!std::get<0>(ret)) return false;
-	vec_item.emplace_back(std::get<1>(ret));
+	
 
 	// scale model to meters
 	scaleModel(0.001);
+	
+#ifdef VISUALIZATION_ENABLED
 	for (auto& item : mapModelItem_)
 		vec_item.insert(vec_item.end(), item.second.begin(), item.second.end());
-#ifdef VISUALIZATION_ENABLED
+
 	savePCD("cad_model.pcd", vec_item);
 #endif
 	return true;
