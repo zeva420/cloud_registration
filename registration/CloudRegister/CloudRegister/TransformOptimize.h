@@ -58,6 +58,8 @@ public:
 		std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> vecCloud_;
 		Eigen::vector<Eigen::Vector4d> vecCloudPlane_;
 		Eigen::vector<Eigen::Vector4d> vecCadPlane_;
+
+		Eigen::Matrix4d T_;
 	};
 
 	using optCloudRets = std::map<CloudType, OptCloud>;
@@ -76,7 +78,7 @@ public:
     }
 
     bool run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
-			CADModel &cadModel);
+			CADModel &cadModel, Eigen::Vector3d &center);
 
 	optCloudRets getRet() { return optRets_; }
 
@@ -88,13 +90,10 @@ private:
 	bool convertToPclCloud(CADModel &cadModel, 
 					std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec);
 
-	void planeFitting(double distTh, 
-					pcl::PointCloud<pcl::PointXYZ>::Ptr ground, 
-					Eigen::VectorXf &coeff, std::vector<int> &inlierIdxs);
-
 	bool getModelPlaneCoeff(
 					std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec,
-					Eigen::vector<Eigen::Vector4d> &modelPlanes);
+					Eigen::vector<Eigen::Vector4d> &modelPlanes,
+					Eigen::Vector3d center = Eigen::Vector3d(0,0,0));
 
 	double calcCloudToPLaneAveDist(Eigen::Vector4d &plane,
                                 pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
@@ -124,6 +123,7 @@ private:
                 Eigen::vector<Eigen::Vector4d> &cloudPlanes,
                 std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec,
                 std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
+				Eigen::Matrix4d &finalT,
 				optCloudRets &optRets);
 
 

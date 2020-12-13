@@ -25,7 +25,7 @@ VTK_MODULE_INIT(vtkRenderingOpenGL)
 namespace CloudReg
 {
 bool TransformOptimize::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
-			                CADModel &cadModel)
+			                CADModel &cadModel, Eigen::Vector3d &center)
 {
     std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> model_vec;
     convertToPclCloud(cadModel, model_vec);
@@ -53,11 +53,12 @@ bool TransformOptimize::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &ve
     transformCloud(modelPlanes, vecCloudPtr, transform);
 
     //get plane coeff with input Cloud
+    Eigen::Vector3d newCenter = transform.block<3,3>(0,0) * center + transform.block<3,1>(0,3);
     Eigen::vector<Eigen::Vector4d> cloudPlanes;
-    getModelPlaneCoeff(vecCloudPtr, cloudPlanes);
+    getModelPlaneCoeff(vecCloudPtr, cloudPlanes, newCenter);
 
     optRets_.clear();
-    fillResult(modelPlanes, cloudPlanes, model_vec, vecCloudPtr, optRets_);
+    fillResult(modelPlanes, cloudPlanes, model_vec, vecCloudPtr, transform, optRets_);
 
     //view Dist with sampling Cloud
     viewModelAndChangedCloud(modelPlanes, cloudPlanes, model_vec, vecCloudPtr);
@@ -117,27 +118,10 @@ bool TransformOptimize::convertToPclCloud(CADModel &cadModel,
     return true;
 }
 
-void TransformOptimize::planeFitting(double distTh, 
-                pcl::PointCloud<pcl::PointXYZ>::Ptr ground, 
-                Eigen::VectorXf &coeff, std::vector<int> &inlierIdxs)
-{
-    pcl::SampleConsensusModelPlane<pcl::PointXYZ>::Ptr model(
-                        new pcl::SampleConsensusModelPlane<pcl::PointXYZ>(ground));
-    pcl::RandomSampleConsensus<pcl::PointXYZ> ransac(model);
-    ransac.setDistanceThreshold(distTh);
-    ransac.computeModel();
-    ransac.getInliers(inlierIdxs);
-    
-    //ax+by_cz_d=0，coeff: a,b,c,d
-    ransac.getModelCoefficients(coeff);
-    LOG(INFO) << "plane coeff " << coeff[0] << " " <<coeff[1] 
-        << " " << coeff[2] << " " << coeff[3] 
-        << ", inlierRate:" << 100.0 * double(inlierIdxs.size()) / double(ground->size()) << "%";
-}
-
 bool TransformOptimize::getModelPlaneCoeff(
                     std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec, 
-                    Eigen::vector<Eigen::Vector4d> &modelPlanes)
+                    Eigen::vector<Eigen::Vector4d> &modelPlanes,
+                    Eigen::Vector3d center)
 {
     LOG(INFO) << "********get model plane coeff*******";
     int index = -1;
@@ -152,11 +136,14 @@ bool TransformOptimize::getModelPlaneCoeff(
         // Eigen::Vector4d plane = calcPlaneParam(inliers);
 
         Eigen::Vector4d plane(coeff(0), coeff(1), coeff(2), coeff(3));
-
 		Eigen::Vector3d n = plane.block<3,1>(0,0);
-		Eigen::Vector3d p(cloud->front().x, cloud->front().y, cloud->front().z);
-		double flag = (n.dot(p) > 0) ? (-1.0) : 1.0;  
+        double d = plane(3);
+		double flag = ((n.dot(center) + d) > 0) ? 1.0 : -1.0;  
         plane = flag * plane;     
+        LOG(INFO) << "plane coeff " << plane[0] << " " <<plane[1] 
+        << " " << plane[2] << " " << plane[3] 
+        << ", inlierRate:" << 100.0 * double(inlierIdxs.size()) / double(cloud->size()) << "%";
+
         modelPlanes.push_back(plane);  
     }
 
@@ -348,6 +335,7 @@ bool TransformOptimize::fillResult(
                 Eigen::vector<Eigen::Vector4d> &cloudPlanes,
                 std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec,
                 std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr, 
+                Eigen::Matrix4d &finalT,
                 optCloudRets &optRets)
 {
     OptCloud walls;
@@ -358,7 +346,7 @@ bool TransformOptimize::fillResult(
         walls.vecCloud_.push_back(cloud);
         walls.vecCloudPlane_.push_back(cloudPlanes[i]);
         walls.vecCadPlane_.push_back(modePlanes[i]);
-
+        walls.T_ = finalT;
     }
     optRets[WALL_E] = walls;
 
@@ -371,6 +359,7 @@ bool TransformOptimize::fillResult(
         bottom.vecCloud_.push_back(cloud);
         bottom.vecCloudPlane_.push_back(cloudPlanes[index]);
         bottom.vecCadPlane_.push_back(modePlanes[index]);   
+        bottom.T_ = finalT;
         optRets[BOTTOM_E] = bottom; 
     }
 
@@ -382,7 +371,8 @@ bool TransformOptimize::fillResult(
         auto cloud  = vecCloudPtr[index];
         top.vecCloud_.push_back(cloud);
         top.vecCloudPlane_.push_back(cloudPlanes[index]);
-        top.vecCadPlane_.push_back(modePlanes[index]);   
+        top.vecCadPlane_.push_back(modePlanes[index]);  
+        top.T_ = finalT; 
         optRets[TOP_E] = top; 
     }
 
@@ -451,6 +441,20 @@ bool TransformOptimize::viewModelAndChangedCloud(
 {
     LOG(INFO) << "********viewModelAndChangedCloud*******";
 #ifdef VISUALIZATION_ENABLED
+    for (int i = 0; i < modePlanes.size(); i++)
+    {
+        Eigen::Vector4d &model_plane = modePlanes[i];
+        Eigen::Vector4d &cloud_plane = cloudPlanes[i];
+        Eigen::Vector3d n1 = model_plane.block<3,1>(0,0);
+        Eigen::Vector3d n2 = cloud_plane.block<3,1>(0,0);
+        double d1 = model_plane(3);
+        double d2 = cloud_plane(3);
+        double dot = n1.dot(n2);
+        double angle = std::acos(std::fabs(dot)) * 180.0 / 3.1415;
+        LOG(INFO) << "i:" << i << " dot:" << dot << " angle:" << angle 
+            << " d1:" << d1 << " d2:" << d2 << " diff:" << std::fabs(d1-d2);
+    }
+
     // pcl::visualization::PCLVisualizer viewer("demo");
     // for (int i = 0; i < model_vec.size(); i++)
     // {

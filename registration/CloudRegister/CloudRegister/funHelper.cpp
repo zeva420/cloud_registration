@@ -548,11 +548,8 @@ namespace CloudReg
 		ransac.computeModel();
 		ransac.getInliers(inlierIdxs);
 		
-		//ax+by_cz_d=0，coeff: a,b,c,d
+		//ax+by+cz+d=0，coeff: a,b,c,d
 		ransac.getModelCoefficients(coeff);
-		LOG(INFO) << "plane coeff " << coeff[0] << " " <<coeff[1] 
-			<< " " << coeff[2] << " " << coeff[3] 
-			<< ", inlierRate:" << 100.0 * double(inlierIdxs.size()) / double(cloud->size()) << "%";
 	}
 
 	Eigen::Vector4d calcPlaneParam(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud)

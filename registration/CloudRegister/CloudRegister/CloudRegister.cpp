@@ -50,7 +50,9 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	std::string logStr = "";
 	TransformOptimize obj("refined Transform Opt", logStr);
 	auto cloud = re.getAllPieces();
-	if(!obj.run(cloud, model))
+    Eigen::Vector3f tmpPt = re.T_.block<3,3>(0,0) * Eigen::Vector3f(0,0,0) + re.T_.block<3,1>(0,3);
+    Eigen::Vector3d center(tmpPt(0), tmpPt(1), tmpPt(2));
+	if(!obj.run(cloud, model, center))
 	{
 		LOG(INFO) << "transform opt failed.";
 		return false;
@@ -59,7 +61,7 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	//fill return value
 	fillRet(model, obj);
 
-	calcAllCorner(model);
+	// calcAllCorner(model);
 
 	return true;
 }
