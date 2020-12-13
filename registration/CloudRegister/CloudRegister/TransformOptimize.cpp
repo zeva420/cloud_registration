@@ -131,7 +131,7 @@ bool TransformOptimize::getModelPlaneCoeff(
         pcl::PointCloud<pcl::PointXYZ>::Ptr ground_inliers(new pcl::PointCloud<pcl::PointXYZ>);
         Eigen::VectorXf coeff;
         std::vector<int> inlierIdxs;
-        planeFitting(0.03, cloud, coeff, inlierIdxs);
+        planeFitting(0.003, cloud, coeff, inlierIdxs);
         // auto inliers = geo::getSubSet(cloud, inlierIdxs, false);
         // Eigen::Vector4d plane = calcPlaneParam(inliers);
 
