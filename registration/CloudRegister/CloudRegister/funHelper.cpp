@@ -554,29 +554,24 @@ namespace CloudReg
 
 	Eigen::Vector4d calcPlaneParam(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud)
 	{
-		Eigen::MatrixXd A(cloud->size(), 3);
-		for (std::size_t r = 0; r < cloud->size(); r++)
-		{
-			const auto &p = cloud->points[r];
+		Eigen::MatrixXd A(cloud->size(), 4);
+		for (std::size_t r = 0; r < cloud->size(); r++) {
+			const auto& p = cloud->points[r];
 			A(r, 0) = p.x;
 			A(r, 1) = p.y;
 			A(r, 2) = p.z;
+			A(r, 3) = 1.;
 		}
 
-		Eigen::VectorXd b(cloud->size());
-		b.fill(-1.);
-
-		Eigen::MatrixXd ATA = A.transpose() * A;
-		Eigen::VectorXd ATb = A.transpose() * b;
-
-		Eigen::VectorXd n = ATA.ldlt().solve(ATb);
-
+		// then solve Ax = 0
+		Eigen::MatrixXd ATA = A.transpose()* A;
+		//todo: assert that ATA must be full rank
+		Eigen::Vector4d x = ATA.jacobiSvd(Eigen::ComputeFullV).matrixV().col(ATA.rows()-1);
+		Eigen::Vector3d n = x.block<3, 1>(0, 0);
 		double len = n.norm();
-		Eigen::Vector4d abcd;
-		abcd.block<3,1>(0, 0) = n / len;
-		abcd(3) = 1 / len;
+		x *= 1./len;
 
-		return abcd;
+		return x;
 	}
 
 	//not finish
