@@ -580,16 +580,14 @@ void CADModel::reSortWall()
 	double maxArea = 0;
 	const auto& vecHole = mapModelItem_[ITEM_HOLE_E];
 	
-	std::vector<double> vecArea(mapModelItem_[ITEM_WALL_E].size(), 0);
 
 	for (auto& hole : vecHole)
 	{
-		if (hole.parentIndex_ < vecArea.size())
+		if (hole.parentIndex_ < mapModelItem_[ITEM_WALL_E].size())
 		{
-			vecArea[hole.parentIndex_] += hole.area_;
-			if (vecArea[hole.parentIndex_] > maxArea)
+			if (hole.area_ > maxArea)
 			{
-				maxArea = vecArea[hole.parentIndex_];
+				maxArea = hole.area_;
 				maxIndex = hole.parentIndex_;
 			}
 		}
@@ -611,7 +609,7 @@ void CADModel::reSortWall()
 		mapModelItem_[ITEM_BOTTOM_E].front().buildSegment();
 
 		auto function = [&](ModelItem& value) {
-			if (value.parentIndex_ < vecArea.size()) {
+			if (value.parentIndex_ < mapModelItem_[ITEM_WALL_E].size()) {
 				if (value.parentIndex_ >= maxIndex) value.parentIndex_ -= maxIndex;
 				else value.parentIndex_ += (wall.size() - maxIndex);
 			}
