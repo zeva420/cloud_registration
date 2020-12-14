@@ -158,6 +158,7 @@ CoarseMatching::MatchResult CoarseMatching::run(const std::vector<PointCloud::Pt
 	Eigen::vector<Eigen::Vector2f> blueprint(blueprint3d.points_.size());
 	std::transform(blueprint3d.points_.begin(), blueprint3d.points_.end(), blueprint.begin(),
 		[](const Eigen::Vector3d& v) { return Eigen::Vector2f(v(0, 0), v(1, 0)); });
+	std::reverse(blueprint.begin(), blueprint.end()); // to counterclockwise
 
 	Eigen::Matrix4f T = Eigen::Matrix4f::Identity();
 	{
