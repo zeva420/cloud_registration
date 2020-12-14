@@ -530,7 +530,7 @@ namespace CloudReg
 		double diffAngle = std::fabs(3.1415/2.0 - angle);
 		double v = std::fabs(n1.dot(n2)) * weightTh;
 
-		LOG(INFO) << "angle:" << angle << "->" << (angle * 180.0 / 3.14);
+		//LOG(INFO) << "angle:" << angle << "->" << (angle * 180.0 / 3.14);
 		LOG(INFO) << "diffAngle:" << diffAngle << "->" << (diffAngle * 180.0 / 3.14)
 			<< " sin:" << std::sin(diffAngle) <<" v:" << v;
 
@@ -574,14 +574,98 @@ namespace CloudReg
 		return x;
 	}
 
+	bool interSectionOfLineToPlane(const Eigen::VectorXd &line, 
+					const Eigen::Vector4d &plane, Eigen::Vector3d &interSectionPt)
+	{
+		Eigen::Vector3d p1 = line.block<3, 1>(0, 0);
+		Eigen::Vector3d n1 = line.block<3, 1>(3, 0);
+		Eigen::Vector3d n2 = plane.block<3, 1>(0, 0);
+		double d2 = plane(3);
+		if (n1.norm() < 0.000001 || n2.norm() < 0.000001)
+		{
+			return false;
+		}
+		
+		double dot = n1.dot(n2);
+		if (std::fabs(dot) < 0.000001)
+		{
+			return false;
+		}
+		double dist = n2.dot(p1) + d2;
+		double t = (-dist / dot);
+		
+		interSectionPt = p1 + t * n1;
+		double distToPlane = n2.dot(interSectionPt) + d2;
+		//LOG(INFO) << "interSectionPt:" << interSectionPt(0) << " " << interSectionPt(1) << " " << interSectionPt(2);
+		LOG(INFO) << "p1 to plane dist:" << dist << ", interSectionPt To plane dist:" << distToPlane;
+		if (std::fabs(distToPlane) > 0.000001)
+		{
+			return false;
+		}
+		return true;
+	}
+
+	bool interSectionOfPlaneToPlane(const Eigen::Vector4d &plane1, 
+					const Eigen::Vector4d &plane2, Eigen::VectorXd &interSectionLine)
+	{
+		Eigen::Vector3d n1 = plane1.block<3, 1>(0, 0);
+		Eigen::Vector3d n2 = plane2.block<3, 1>(0, 0);
+		double d1 = plane1(3);
+		Eigen::Vector3d n = n1.cross(n2);
+		if (n1.norm() < 0.000001 || n2.norm() < 0.000001 || n.norm() < 0.00001)
+		{
+			return false;
+		}
+		
+		std::vector<double> valueVec;
+		valueVec.push_back(std::fabs(n1(0)));
+		valueVec.push_back(std::fabs(n1(1)));
+		valueVec.push_back(std::fabs(n1(2)));
+		auto maxItor = std::max_element(valueVec.begin(), valueVec.end());
+		auto maxIdx = std::distance(valueVec.begin(), maxItor);
+
+		Eigen::Vector3d pt_random; // take a random point in plane1
+		double tmp = 0;
+		for (int i = 0; i < pt_random.size(); i++)
+		{
+			if (i == maxIdx) continue;
+			pt_random(i) = 1.0;
+			tmp += n1(i) * pt_random(i);
+		}
+		pt_random(maxIdx) = (-d1 - tmp) / n1(maxIdx);
+
+		double dist = n1.dot(pt_random) + d1;
+		//LOG(INFO) << "pt_random:" << pt_random(0) << "," << pt_random(1) << "," << pt_random(2);
+		LOG(INFO) << "pt_random to plane1 dist:" << dist;
+		if (std::fabs(dist) > 0.000001)
+		{
+			return false;
+		}
+
+		//lineA is in plane1, go through pt_random,and is perpendicular to interSectionLine
+		Eigen::VectorXd lineA(6);
+		Eigen::Vector3d dir_lineA = n.cross(n1);
+		lineA << pt_random(0), pt_random(1), pt_random(2), dir_lineA(0), dir_lineA(1), dir_lineA(2);
+
+		Eigen::Vector3d pt;
+		if (false == interSectionOfLineToPlane(lineA, plane2, pt))
+		{
+			return false;
+		}
+		interSectionLine << pt(0), pt(1), pt(2), n(0), n(1), n(2);
+		return true;
+	}
+
 	//not finish
 	double calcCloudPairCorner(const std::string &name,
 						const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud1,
 						const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud2,
-						const Eigen::Vector3d &floorPt, double floorZ, double height)
+						const Eigen::Vector3d &floorPt, double height,
+						Eigen::Vector3d center, Eigen::Vector4d bottomPlane)
 	{
-		LOG(INFO) << "===height:" << height << " floorZ:" << floorZ << " floorPt.z:" << floorPt(2);
+		LOG(INFO) << "===height:" << height << " floorPt.z:" << floorPt(2);
 		const double distTh = 0.2;//m
+		const double halfLen = 0.025;
 		Eigen::Vector3d centerPt = floorPt;
 		centerPt(2) += height;
 
@@ -598,7 +682,7 @@ namespace CloudReg
 		pcl::PassThrough<pcl::PointXYZ> pass;
 		pass.setInputCloud (subSet1);
 		pass.setFilterFieldName ("z");
-		pass.setFilterLimits (centerPt(2)-0.1, centerPt(2)+0.1);
+		pass.setFilterLimits (centerPt(2)- halfLen, centerPt(2)+ halfLen);
 		pass.filter (*filteredCloud);
 		subSet1->swap(*filteredCloud);
 
@@ -614,22 +698,17 @@ namespace CloudReg
 		filteredCloud->clear();
 		pass.setInputCloud (subSet2);
 		pass.setFilterFieldName ("z");
-		pass.setFilterLimits (centerPt(2)-0.1, centerPt(2)+0.1);
+		pass.setFilterLimits (centerPt(2)- halfLen, centerPt(2)+ halfLen);
 		pass.filter (*filteredCloud);
 		subSet2->swap(*filteredCloud);
 
 		LOG(INFO) << "subSet1:" << subSet1->size() << " subSet2:" << subSet2->size();
-		if (subSet1->size() < 50)
+		if (subSet1->size() < 50 || subSet2->size() < 50)
 		{
-			subSet1->clear();
-			subSet1 = pCloud1;
-		}
-		if (subSet2->size() < 50)
-		{
-			subSet2->clear();
-			subSet2 = pCloud2;
+			return 0.0;
 		}
 
+		//重新分割两个平面
 		pcl::PointCloud<pcl::PointXYZ>::Ptr subSetMerged(new pcl::PointCloud<pcl::PointXYZ>());
 		subSetMerged->insert(subSetMerged->end(), subSet1->begin(), subSet1->end());
 		subSetMerged->insert(subSetMerged->end(), subSet2->begin(), subSet2->end());
@@ -664,32 +743,64 @@ namespace CloudReg
 
 		pcl::PointCloud<pcl::PointXYZ>::Ptr inliers1(new pcl::PointCloud<pcl::PointXYZ>());
 		pcl::PointCloud<pcl::PointXYZ>::Ptr inliers2(new pcl::PointCloud<pcl::PointXYZ>());
-		{
-			Eigen::VectorXf coeff1;
-			std::vector<int> inlierIdxs1;
-			planeFitting(0.0025, orig_inliers1, coeff1, inlierIdxs1);
-
-			Eigen::VectorXf coeff2;
-			std::vector<int> inlierIdxs2;
-			planeFitting(0.0025, orig_inliers2, coeff2, inlierIdxs2);
-			inliers1 = geo::getSubSet(orig_inliers1, inlierIdxs1, false);
-			inliers2 = geo::getSubSet(orig_inliers2, inlierIdxs2, false);
-		}
-
+#if 1
+		//平面法向求夹角
+		inliers1 = orig_inliers1;
+		inliers2 = orig_inliers2;
 		Eigen::Vector4d plane1 = calcPlaneParam(inliers1);
 		Eigen::Vector4d plane2 = calcPlaneParam(inliers2);
-		
-		//投影到ＸＯＹ平面，通过检测线来获取方向，并获取最内侧的线？？
-		
 		Eigen::Vector3d n1 = plane1.block<3,1>(0,0);
 		Eigen::Vector3d n2 = plane2.block<3,1>(0,0);
 		Eigen::Vector3d p1(inliers1->front().x, inliers1->front().y, inliers1->front().z);
 		Eigen::Vector3d p2(inliers2->front().x, inliers2->front().y, inliers2->front().z);
+		p1 = p1 - center;
+		p2 = p2 - center;
 		n1 = (n1.dot(p1) > 0) ? n1 : (-1.0 * n1);
 		n2 = (n2.dot(p2) > 0) ? n2 : (-1.0 * n2);
-		LOG(INFO) << "n1:" << n1(0) << "," << n1(1) << "," << n1(2);
-		LOG(INFO) << "n2:" << n2(0) << "," << n2(1) << "," << n2(2);
+		//LOG(INFO) << "n1:" << n1(0) << "," << n1(1) << "," << n1(2);
+		//LOG(INFO) << "n2:" << n2(0) << "," << n2(1) << "," << n2(2);
 		double v = calcCorner(n1, n2);
+#else
+		//投影到ＸＯＹ平面，通过检测线来获取方向，线方向求夹角
+		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filter(new pcl::PointCloud<pcl::PointXYZ>());
+		projectionToPlane(bottomPlane, orig_inliers1, cloud_filter);
+		orig_inliers1->swap(*cloud_filter);
+
+		cloud_filter->clear();
+		projectionToPlane(bottomPlane, orig_inliers2, cloud_filter);
+		orig_inliers2->swap(*cloud_filter);
+
+		Eigen::Vector3d n1;
+		{
+			std::vector<int> indices;
+			Eigen::VectorXf params;
+			std::tie(indices, params) = geo::detectOneLineRansac(orig_inliers1, 0.002);
+			Eigen::Vector3f tmp = params.block<3, 1>(3, 0);
+			n1 = Eigen::Vector3d(tmp(0), tmp(1), tmp(2));
+			inliers1 = geo::getSubSet(orig_inliers1, indices, false);
+		}
+		Eigen::Vector3d n2;
+		{
+			std::vector<int> indices;
+			Eigen::VectorXf params;
+			std::tie(indices, params) = geo::detectOneLineRansac(orig_inliers2, 0.002);
+			Eigen::Vector3f tmp = params.block<3, 1>(3, 0);
+			n2 = Eigen::Vector3d(tmp(0), tmp(1), tmp(2));
+			inliers2 = geo::getSubSet(orig_inliers2, indices, false);
+		}
+		LOG(INFO) << "line1 inlierRate:" << 100.0 * (float)inliers1->size() / (float)orig_inliers2->size()
+			<< ", line2 inlierRate:" << 100.0 * (float)inliers2->size() / (float)orig_inliers2->size();
+
+		Eigen::Vector3d p1(inliers1->front().x, inliers1->front().y, inliers1->front().z);
+		Eigen::Vector3d p2(inliers2->front().x, inliers2->front().y, inliers2->front().z);
+		p1 = p1 - Eigen::Vector3d(center(0), center(1), floorPt(2));
+		p2 = p2 - Eigen::Vector3d(center(0), center(1), floorPt(2));
+		n1 = (n1.dot(p1) > 0) ? n1 : (-1.0 * n1);
+		n2 = (n2.dot(p2) > 0) ? n2 : (-1.0 * n2);
+		//LOG(INFO) << "n1:" << n1(0) << "," << n1(1) << "," << n1(2);
+		//LOG(INFO) << "n2:" << n2(0) << "," << n2(1) << "," << n2(2);
+		double v = calcCorner(n1, n2);
+#endif
 
 #ifdef VISUALIZATION_ENABLED
 		{

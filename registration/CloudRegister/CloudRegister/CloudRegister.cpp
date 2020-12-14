@@ -7,6 +7,7 @@
 #include "TransformOptimize.h"
 #include "funHelper.h"
 
+#include <pcl/common/transforms.h>
 
 namespace CloudReg {
 CloudRegister::CloudRegister() {
@@ -28,6 +29,15 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	{
 		LOG(ERROR) << "empty cloud input";
 		return false;
+	}
+
+	//for calc corner
+	std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> vecOrigCloud;
+	for (auto cloud1 : vecCloudPtr)
+	{
+		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud2(new pcl::PointCloud<pcl::PointXYZ>());
+		pcl::copyPointCloud(*cloud1, *cloud2);
+		vecOrigCloud.push_back(cloud2);
 	}
 
 	CADModel model;
@@ -61,7 +71,24 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	//fill return value
 	fillRet(model, obj);
 
-	// calcAllCorner(model);
+	//calc corner
+	auto optRets = obj.getRet();
+	if (optRets.count(TransformOptimize::CloudType::BOTTOM_E))
+	{
+		auto &ret = optRets[TransformOptimize::BOTTOM_E];
+		for (auto cloud : vecOrigCloud)
+		{
+			pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>());
+			pcl::transformPointCloud(*cloud, *transformed_cloud, re.T_);
+			cloud->swap(*transformed_cloud);
+			transformed_cloud->clear();
+			pcl::transformPointCloud(*cloud, *transformed_cloud, ret.T_);
+			cloud->swap(*transformed_cloud);
+		}
+
+		center = ret.T_.block<3, 3>(0, 0) * center + ret.T_.block<3, 1>(0, 3);
+		calcAllCorner(model, center, vecOrigCloud);
+	}
 
 	return true;
 }
@@ -105,12 +132,41 @@ bool CloudRegister::findSameSegment(
 	return false;
 }
 
-void CloudRegister::calcAllCorner(CADModel& cad)
+int CloudRegister::findMatchCloud(const Eigen::Vector4d &plane,
+		std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecOrigCloud)
+{
+	double min = 20000;
+	int bestIdx = -1;
+	for (int i = 0; i < vecOrigCloud.size(); i++)
+	{
+		auto origCloud = vecOrigCloud[i];
+		double aveDist = 0.0;
+		for (auto &p : origCloud->points)
+		{
+			double dist = pointToPLaneDist(plane, p);
+			aveDist += std::fabs(dist);
+		}
+		if (origCloud->size() > 0)
+		{
+			aveDist /= origCloud->size();
+		}
+		if (aveDist < min)
+		{
+			min = aveDist;
+			bestIdx = i;
+		}
+	}
+	return bestIdx;
+}
+
+void CloudRegister::calcAllCorner(CADModel& cad, Eigen::Vector3d center,
+	std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecOrigCloud)
 {
 	const auto &mapCloud = getAllCloudPlane();
 	const auto &it1 = mapCloud.find(CLOUD_BOTTOM_E);
 	const vecItems_t &cloudbottoms = it1->second;
 	double floorZ = cloudbottoms.front().pCloud_->front().z;
+	Eigen::Vector4d bottomPlane = cloudbottoms.front().cloudPlane_;
 
 	auto cadWalls = cad.getTypedModelItems(ITEM_WALL_E);
 	const auto &it2 = mapCloud.find(CLOUD_WALL_E);
@@ -123,36 +179,48 @@ void CloudRegister::calcAllCorner(CADModel& cad)
 	wallIdxPairs.push_back(std::make_pair(cloudWalls.size()-1, 0));
 
 	std::vector<std::pair<double, double>> cornerPairs;
+	std::vector<std::pair<double, double>> cornerPairs2;
 	for (auto &it : wallIdxPairs)
 	{
 		int i = it.first;
 		int j = it.second;
 		LOG(INFO) << "---------wall pair:" << i << "-" << j;
-		const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &segments1 = cloudWalls[i].cadBorder_;
-		const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &segments2 = cloudWalls[j].cadBorder_;
-		std::pair<int, int> idxPair;
-		if (false == findSameSegment(segments1, segments2, idxPair))
-		{
-			LOG(INFO) << "can not find same segment";
-			continue;
-		}
-		
-		const Eigen::Vector3d &s1 = segments1[idxPair.first].first;
-		const Eigen::Vector3d &e1 = segments1[idxPair.first].second;
-		const Eigen::Vector3d floorPt = (s1(2) < e1(2)) ? s1 : e1;
-		double v1 = calcCloudPairCorner(std::to_string(i) + "-" + std::to_string(j) + "-0.3m", 
-					cloudWalls[i].pCloud_, cloudWalls[j].pCloud_, floorPt, floorZ, 0.3);
+		Eigen::VectorXd interSectionLine(6);
+		if (false == interSectionOfPlaneToPlane(cloudWalls[i].cloudPlane_,
+			cloudWalls[j].cloudPlane_, interSectionLine)) continue;
+
+		Eigen::Vector3d floorPt;
+		if (false == interSectionOfLineToPlane(interSectionLine,
+			bottomPlane, floorPt)) continue;
+
+		/*double v1 = calcCloudPairCorner(std::to_string(i) + "-" + std::to_string(j) + "-0.3m",
+			cloudWalls[i].pCloud_, cloudWalls[j].pCloud_, floorPt, 0.3, center, bottomPlane);
 		double v2 = calcCloudPairCorner(std::to_string(i) + "-" + std::to_string(j) + "-1.5m",
-					cloudWalls[i].pCloud_, cloudWalls[j].pCloud_, floorPt, floorZ, 1.5);
+			cloudWalls[i].pCloud_, cloudWalls[j].pCloud_, floorPt, 1.5, center, bottomPlane);
 		cornerPairs.push_back(std::make_pair(v1, v2));
+		*/
+		int matchIdx1 = findMatchCloud(cloudWalls[i].cadPlane_, vecOrigCloud);
+		int matchIdx2 = findMatchCloud(cloudWalls[j].cadPlane_, vecOrigCloud);
+		double v3 = calcCloudPairCorner(std::to_string(i) + "-" + std::to_string(j) + "-0.3m-orig",
+			vecOrigCloud[matchIdx1], vecOrigCloud[matchIdx2], floorPt, 0.3, center, bottomPlane);
+		double v4 = calcCloudPairCorner(std::to_string(i) + "-" + std::to_string(j) + "-1.5m-orig",
+			vecOrigCloud[matchIdx1], vecOrigCloud[matchIdx2], floorPt, 1.5, center, bottomPlane);
+		cornerPairs2.push_back(std::make_pair(v3, v4));
 	}
 
-	for (std::size_t i = 0; i < cornerPairs.size(); i++)
+	/*for (std::size_t i = 0; i < cornerPairs.size(); i++)
 	{
 		int idx1 = wallIdxPairs[i].first;
 		int idx2 = wallIdxPairs[i].second;
-		LOG(INFO) << "*****wall pair:" << idx1 << "-" << idx2 
+		LOG(INFO) << "*****wall pair:" << idx1 << "-" << idx2
 			<< ", 0.3m-1.5m: " << cornerPairs[i].first << " " << cornerPairs[i].second;
+	}*/
+	for (std::size_t i = 0; i < cornerPairs2.size(); i++)
+	{
+		int idx1 = wallIdxPairs[i].first;
+		int idx2 = wallIdxPairs[i].second;
+		LOG(INFO) << "*****wall pair:" << idx1 << "-" << idx2
+			<< ", 0.3m-1.5m: " << cornerPairs2[i].first << " " << cornerPairs2[i].second;
 	}
 }
 

@@ -57,12 +57,19 @@ namespace CloudReg
 					
 	Eigen::Vector4d calcPlaneParam(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
 
+	bool interSectionOfLineToPlane(const Eigen::VectorXd &line,
+		const Eigen::Vector4d &plane, Eigen::Vector3d &interSectionPt);
+
+	bool interSectionOfPlaneToPlane(const Eigen::Vector4d &plane1,
+		const Eigen::Vector4d &plane2, Eigen::VectorXd &interSectionLine);
+
 	double calcCorner(const Eigen::Vector3d &n1, const Eigen::Vector3d &n2);
 
 	double calcCloudPairCorner(const std::string &name,
 						const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud1,
 						const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud2,
-						const Eigen::Vector3d &floorPt, double floorZ, double height);	
+						const Eigen::Vector3d &floorPt, double height,
+						Eigen::Vector3d center, Eigen::Vector4d bottomPlane);
 }
 
 
