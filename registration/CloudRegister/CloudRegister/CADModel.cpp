@@ -73,7 +73,8 @@ bool CADModel::initCAD(const std::string& fileName) {
 		}
 
 	}
-	
+	cutWallByBeam();
+
 	reSortWall();
 
 	//build top
@@ -87,12 +88,164 @@ bool CADModel::initCAD(const std::string& fileName) {
 	for (auto& item : mapModelItem_)
 	{
 		//if (item.first != ITEM_BOTTOM_E && item.first != ITEM_TOP_E) continue;
+		if (item.first != ITEM_BEAM_E && item.first != ITEM_WALL_E) continue;
 		vec_item.insert(vec_item.end(), item.second.begin(), item.second.end());
 	}
 	savePCD("cad_model.pcd", vec_item);
 #endif
 	return true;
 
+}
+void CADModel::cutWallByBeam()
+{
+	//counter clockwise
+	auto& vecBeam = mapModelItem_[ITEM_BEAM_E];
+	const auto& vecWall = mapModelItem_[ITEM_WALL_E];
+	std::vector<int> BeamIdx(vecBeam.size()/2,-1);
+	for (std::size_t i = 2; i < vecBeam.size(); i+=2)
+	{
+		if (vecBeam[i].parentIndex_ - vecBeam[i - 2].parentIndex_ == 1)
+			BeamIdx[i%2] = i;
+		
+		
+
+		if (i == vecBeam.size() - 1 && 
+			vecBeam[i].parentIndex_ == vecWall.size()-1 && 
+			vecBeam[0].parentIndex_ == 0)
+		{
+			BeamIdx[i%2] = 0;
+		}
+		
+		
+	}
+	
+	auto cutFunA = [](const ModelItem& target, const ModelItem& objA,const ModelItem& objB)
+		->Eigen::vector<Eigen::Vector3d> {
+		
+		Eigen::vector<Eigen::Vector3d> newPoints;
+		newPoints.emplace_back(target.points_[0]);
+
+		newPoints.emplace_back(objB.points_[objB.points_.size() - 1]);
+		newPoints.emplace_back(objB.points_[objB.points_.size() - 2]);
+		newPoints.emplace_back(objA.points_[objA.points_.size() - 2]);
+
+
+		newPoints.insert(newPoints.end(), target.points_.begin()+2, target.points_.end());
+		return newPoints;
+		
+	};
+
+
+	auto cutFunB = [](const ModelItem& target, const ModelItem& objA, const ModelItem& objB)
+		->Eigen::vector<Eigen::Vector3d> {
+
+		Eigen::vector<Eigen::Vector3d> newPoints;
+		newPoints.emplace_back(target.points_[0]);
+		newPoints.emplace_back(target.points_[1]);
+
+		newPoints.emplace_back(objA.points_[1]);
+		newPoints.emplace_back(objA.points_[0]);
+		newPoints.emplace_back(objB.points_[0]);
+
+		newPoints.insert(newPoints.end(), target.points_.begin() + 3, target.points_.end());
+		return newPoints;
+
+		
+	};
+
+	auto cutFunC = [](const ModelItem& target, const ModelItem& obj)
+		->Eigen::vector<Eigen::Vector3d> {
+
+		Eigen::vector<Eigen::Vector3d> newPoints;
+
+		newPoints.emplace_back(obj.points_[3]);
+		newPoints.emplace_back(obj.points_[2]);
+		newPoints.emplace_back(target.points_[2]);
+		newPoints.emplace_back(target.points_[3]);
+
+		return newPoints;
+	};
+
+	for (std::size_t i = 1; i < vecBeam.size(); i += 2)
+	{
+		if (BeamIdx[i / 2] >= 0)
+		{
+
+			auto& beamA1 = vecBeam[i - 1];
+			auto& beamA2 = vecBeam[i];
+
+			auto& beamB1 = vecBeam[i + 1];
+			auto& beamB2 = vecBeam[i + 2];
+			if (beamA1.highRange_.first < beamB1.highRange_.first)
+			{
+				auto newBeamPt = cutFunA(beamA1, beamB1, beamB2);
+				beamA1.points_.swap(newBeamPt);
+				beamA1.buildSegment();
+			}
+			else if (beamA1.highRange_.first > beamB1.highRange_.first)
+			{
+				auto newBeamPt = cutFunB(beamB1, beamA1, beamA2);
+				beamA1.points_.swap(newBeamPt);
+				beamA1.buildSegment();
+			}
+			else
+			{
+				auto newBeamPtA1 = cutFunC(beamA1, beamB1);
+				auto newBeamPtA2 = cutFunC(beamA2, beamB2);
+
+				beamA1.points_.swap(newBeamPtA1);
+				beamA1.buildSegment();
+
+				beamA2.points_.swap(newBeamPtA2);
+				beamA2.buildSegment();
+			}
+
+
+		}
+	}
+	
+	
+	for (std::size_t i = 1; i < vecBeam.size(); i += 2)
+	{
+			auto& beamA1 = vecBeam[i - 1];
+			auto& beamA2 = vecBeam[i];
+
+			auto parent = vecBeam[i].parentIndex_;
+
+			std::size_t preWallIndex = parent > 0 ?
+				parent - 1 : mapModelItem_[ITEM_WALL_E].size() - 1;
+			std::size_t nextWallIndex = parent != mapModelItem_[ITEM_WALL_E].size() - 1 ?
+				parent + 1 : 0;
+
+
+			//std::cout <<  i << " "<<parent << " nextWallIndex:" << nextWallIndex << " preWallIndex:" << preWallIndex << std::endl;
+
+			{
+				auto& wall = mapModelItem_[ITEM_WALL_E][nextWallIndex];
+				if (wall.highRange_.second > beamA1.highRange_.first)
+				{
+					auto newWallPt = cutFunB(wall, beamA1, beamA2);
+					wall.points_.swap(newWallPt);
+					wall.buildSegment();
+				}
+				
+			}
+			
+			{
+				auto& wall = mapModelItem_[ITEM_WALL_E][preWallIndex];
+				if (wall.highRange_.second > beamA1.highRange_.first)
+				{
+					auto newWallPt = cutFunA(wall, beamA1, beamA2);
+					wall.points_.swap(newWallPt);
+					wall.buildSegment();
+				}
+				
+				
+			}			
+
+	}
+		
+	
 }
 
 std::tuple<bool, ModelItem> CADModel::genTop()
@@ -230,43 +383,9 @@ std::tuple<bool, ModelItem, ModelItem> CADModel::genBeam(const std::vector<std::
 	auto& wall = mapModelItem_[ITEM_WALL_E][parent];
 	wall.points_[1][2] = itemFirst.points_[0][2];
 	wall.points_[2][2] = itemFirst.points_[0][2];
+	wall.highRange_.second = minZ;
 	wall.buildSegment();
-#if 0
-	//pre wall
-	{
-		std::size_t preWallIndex = parent > 0 ?
-			parent - 1 : mapModelItem_[ITEM_WALL_E].size() - 1;
 
-		auto& wall = mapModelItem_[ITEM_WALL_E][preWallIndex];
-		Eigen::vector<Eigen::Vector3d> newPoints;
-		newPoints.emplace_back(wall.points_[0]);	
-		newPoints.emplace_back(itemSecond.points_[3]);
-		newPoints.emplace_back(itemSecond.points_[2]);
-		newPoints.emplace_back(itemFirst.points_[2]);
-		newPoints.emplace_back(wall.points_[2]);
-		newPoints.emplace_back(wall.points_[3]);
-				
-		wall.points_.swap(newPoints);
-		wall.buildSegment();
-	}
-
-	//next wall
-	
-	{
-		std::size_t nextWallIndex = parent != mapModelItem_[ITEM_WALL_E].size() - 1 ?
-			parent + 1 : 0;
-		auto& wall = mapModelItem_[ITEM_WALL_E][nextWallIndex];
-		Eigen::vector<Eigen::Vector3d> newPoints;
-		newPoints.emplace_back(wall.points_[0]);
-		newPoints.emplace_back(wall.points_[1]);
-		newPoints.emplace_back(itemFirst.points_[1]);
-		newPoints.emplace_back(itemFirst.points_[0]);
-		newPoints.emplace_back(itemSecond.points_[0]);	
-		newPoints.emplace_back(wall.points_[3]);
-		wall.points_.swap(newPoints);
-		wall.buildSegment();
-	}
-#endif
 
 
 	itemFirst.parentIndex_ = parent;

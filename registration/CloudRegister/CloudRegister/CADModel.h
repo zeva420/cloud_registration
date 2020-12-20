@@ -92,6 +92,7 @@ private:
 
 	bool savePCD(const std::string& name, std::vector<ModelItem>& vec_item);
 	void reSortWall();
+	void cutWallByBeam();
 
 	std::map<ModelItemType, vecItems_t> mapModelItem_;
 	Eigen::Vector3d centerPt_ = Eigen::Vector3d(0, 0, 0);
