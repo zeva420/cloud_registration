@@ -80,14 +80,15 @@ bool CADModel::initCAD(const std::string& fileName) {
 	auto ret = genTop();
 	if (!std::get<0>(ret)) return false;
 	
-
 	// scale model to meters
 	scaleModel(0.001);
-	
+
 #ifdef VISUALIZATION_ENABLED
 	for (auto& item : mapModelItem_)
+	{
+		//if (item.first != ITEM_BOTTOM_E && item.first != ITEM_TOP_E) continue;
 		vec_item.insert(vec_item.end(), item.second.begin(), item.second.end());
-
+	}
 	savePCD("cad_model.pcd", vec_item);
 #endif
 	return true;
@@ -103,11 +104,11 @@ std::tuple<bool, ModelItem> CADModel::genTop()
 	Eigen::vector<Eigen::Vector3d> vecPoints;
 	for (auto& value : vecWall)
 	{
-		vecPoints.emplace_back(value.points_[0]);
-		vecPoints.emplace_back(value.points_[3]);
+		vecPoints.emplace_back(value.points_[1]);
+		vecPoints.emplace_back(value.points_[2]);
 	}
 
-
+	//wall is clockwise
 	for (std::size_t index = 0; index < vecBeam.size(); index += 2)
 	{
 		auto& beam = vecBeam[index];
@@ -117,24 +118,24 @@ std::tuple<bool, ModelItem> CADModel::genTop()
 			LOG(ERROR) << "parent out of range";
 			return std::tuple<bool, ModelItem>(false, ModelItem(ITEM_MAX_E));
 		}
-
-		vecPoints[parent] = beam.points_[1];
-		vecPoints[parent + 1] = beam.points_[2];
+		
+		vecPoints[parent*2] = beam.points_[1];
+		vecPoints[parent*2 + 1] = beam.points_[2];
 
 		if (parent == 0)
 		{
 			vecPoints[vecPoints.size() - 1] = beam.points_[1];
-			vecPoints[parent + 2] = beam.points_[2];
+			vecPoints[parent*2 + 2] = beam.points_[2];
 		}
 		else if (parent == vecWall.size() - 1)
 		{
-			vecPoints[parent - 1] = beam.points_[1];
+			vecPoints[parent*2 - 1] = beam.points_[1];
 			vecPoints[0] = beam.points_[2];
 		}
 		else
 		{
-			vecPoints[parent - 1] = beam.points_[1];
-			vecPoints[parent + 2] = beam.points_[2];
+			vecPoints[parent*2 - 1] = beam.points_[1];
+			vecPoints[parent*2 + 2] = beam.points_[2];
 
 		}
 
@@ -142,9 +143,9 @@ std::tuple<bool, ModelItem> CADModel::genTop()
 
 	ModelItem item(ITEM_TOP_E);
 	for (std::size_t i = 0; i < vecPoints.size(); i += 2)
-	{
 		item.points_.emplace_back(vecPoints[i]);
-	}
+	
+
 	item.buildSegment();
 	mapModelItem_[ITEM_TOP_E].emplace_back(item);
 
@@ -153,6 +154,7 @@ std::tuple<bool, ModelItem> CADModel::genTop()
 
 std::tuple<bool, ModelItem, ModelItem> CADModel::genBeam(const std::vector<std::string>& vecSubStr)
 {
+	
 
 	if (mapModelItem_[ITEM_BOTTOM_E].empty() || mapModelItem_[ITEM_WALL_E].empty()) {
 		LOG(ERROR) << "not found ITEM_BOTTOM_E";
@@ -188,7 +190,10 @@ std::tuple<bool, ModelItem, ModelItem> CADModel::genBeam(const std::vector<std::
 		other_axis -= thick;
 
 
-
+	/* first 1---2  second 1 --- 2
+	*		 |   |		   |     |
+	*		 0---3   (wall)0 --- 3  */
+	
 	double minZ = 999999, maxZ = 0;
 	for (std::size_t i = 4; i < number * 2 + 3; i += 2) {
 		Eigen::Vector3d point;
@@ -203,16 +208,66 @@ std::tuple<bool, ModelItem, ModelItem> CADModel::genBeam(const std::vector<std::
 		if (point[2] > maxZ) maxZ = point[2];
 		if (point[2] < minZ) minZ = point[2];
 
-		if (itemFirst.points_.size() == 1
-			|| itemFirst.points_.size() == 4)
+		if (itemFirst.points_.size() == 4)
 		{
-			itemFirst.points_.emplace_back(point);
+			itemSecond.points_.emplace_back(point);
 			point[other_axis_index] = other_axis_raw;
-			itemFirst.points_.emplace_back(point);
+			itemSecond.points_.emplace_back(point);
+
+		}else if (itemFirst.points_.size() == 1)
+		{
+			auto tmpPt = point;
+			point[other_axis_index] = other_axis_raw;
+			itemSecond.points_.emplace_back(point);
+			itemSecond.points_.emplace_back(tmpPt);
 
 		}
 
+
 	}
+
+	//wall	
+	auto& wall = mapModelItem_[ITEM_WALL_E][parent];
+	wall.points_[1][2] = itemFirst.points_[0][2];
+	wall.points_[2][2] = itemFirst.points_[0][2];
+	wall.buildSegment();
+#if 0
+	//pre wall
+	{
+		std::size_t preWallIndex = parent > 0 ?
+			parent - 1 : mapModelItem_[ITEM_WALL_E].size() - 1;
+
+		auto& wall = mapModelItem_[ITEM_WALL_E][preWallIndex];
+		Eigen::vector<Eigen::Vector3d> newPoints;
+		newPoints.emplace_back(wall.points_[0]);	
+		newPoints.emplace_back(itemSecond.points_[3]);
+		newPoints.emplace_back(itemSecond.points_[2]);
+		newPoints.emplace_back(itemFirst.points_[2]);
+		newPoints.emplace_back(wall.points_[2]);
+		newPoints.emplace_back(wall.points_[3]);
+				
+		wall.points_.swap(newPoints);
+		wall.buildSegment();
+	}
+
+	//next wall
+	
+	{
+		std::size_t nextWallIndex = parent != mapModelItem_[ITEM_WALL_E].size() - 1 ?
+			parent + 1 : 0;
+		auto& wall = mapModelItem_[ITEM_WALL_E][nextWallIndex];
+		Eigen::vector<Eigen::Vector3d> newPoints;
+		newPoints.emplace_back(wall.points_[0]);
+		newPoints.emplace_back(wall.points_[1]);
+		newPoints.emplace_back(itemFirst.points_[1]);
+		newPoints.emplace_back(itemFirst.points_[0]);
+		newPoints.emplace_back(itemSecond.points_[0]);	
+		newPoints.emplace_back(wall.points_[3]);
+		wall.points_.swap(newPoints);
+		wall.buildSegment();
+	}
+#endif
+
 
 	itemFirst.parentIndex_ = parent;
 	itemFirst.highRange_ = std::make_pair(minZ, maxZ);
@@ -305,12 +360,15 @@ std::tuple<bool, ModelItem> CADModel::genWall(const std::vector<std::string>& ve
 	Eigen::Vector3d ptB = bottom.segments_[parent].second;
 	Eigen::Vector3d ptBB = ptB + Eigen::Vector3d(0, 0, high);
 
+	/* 1---2
+	*  |   |
+	*  0---3 */
 
-	item.points_.emplace_back(ptAA);
-	item.points_.emplace_back(ptA);
 	item.points_.emplace_back(ptB);
 	item.points_.emplace_back(ptBB);
-
+	item.points_.emplace_back(ptAA);
+	item.points_.emplace_back(ptA);
+	
 	item.highRange_ = std::make_pair(0, high);
 	item.buildSegment();
 	mapModelItem_[ITEM_WALL_E].emplace_back(item);
@@ -394,7 +452,7 @@ bool CADModel::savePCD(const std::string& name, std::vector<ModelItem>& vec_item
 	Eigen::vector<Eigen::Vector3d> vecPoints;
 	for (auto& item : vec_item) {
 		for (auto& pt_pair : item.segments_) {
-			auto vec_tmp = ininterpolateSeg(pt_pair.first, pt_pair.second, .1);
+			auto vec_tmp = ininterpolateSeg(pt_pair.first, pt_pair.second, .01);
 			vecPoints.insert(vecPoints.end(), vec_tmp.begin(), vec_tmp.end());
 		}
 	}
@@ -441,7 +499,7 @@ std::map<ModelItemType, std::vector<PointCloud::Ptr>> CADModel::genTestFragCloud
 			else LOG(WARNING)<<"invalid hole parent index: "<< hole.parentIndex_;
 		}
 	}
-
+	
 	for(std::size_t i=0; i<walls.size(); ++i){
 
 		PointCloud::Ptr pCloud(new PointCloud());
@@ -451,9 +509,9 @@ std::map<ModelItemType, std::vector<PointCloud::Ptr>> CADModel::genTestFragCloud
 		const auto& holes = wallHoles[i];
 
 		LOG_IF(WARNING, wall.points_.size()!=4)<<"??? the wall is not a rectangle.";
-		Eigen::Vector3d a = wall.points_[1];
-		Eigen::Vector3d b = wall.points_[2];
-		Eigen::Vector3d c = wall.points_[3];
+		Eigen::Vector3d a = wall.points_[0];
+		Eigen::Vector3d b = wall.points_[3];
+		Eigen::Vector3d c = wall.points_[2];
 		// 0	-- 3(c)
 		// |	   |
 		// 1(a) -- 2(b)

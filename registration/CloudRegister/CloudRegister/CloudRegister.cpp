@@ -13,6 +13,7 @@ namespace CloudReg {
 CloudRegister::CloudRegister() {
 	google::InitGoogleLogging("Cloud");
 	FLAGS_log_dir = "./";
+	
 #ifdef VISUALIZATION_ENABLED
 	google::LogToStderr();
 #endif
@@ -30,7 +31,7 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 		LOG(ERROR) << "empty cloud input";
 		return false;
 	}
-
+#if 0
 	//for calc corner
 	std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> vecOrigCloud;
 	for (auto cloud1 : vecCloudPtr)
@@ -39,13 +40,12 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 		pcl::copyPointCloud(*cloud1, *cloud2);
 		vecOrigCloud.push_back(cloud2);
 	}
-
+#endif
 	CADModel model;
 	model.initCAD(CAD_File);
 
 	LOG(INFO) << "cad model loaded: " << model.toString() << ". from: " << CAD_File;
 	
-
 	// wall segmentation: (PointCloud, CADModel)-> [PointCloud]
 
 	// coarse match: ([PointCloud], CADModel)-> ([transformed & filtered PointCloud])
@@ -72,6 +72,7 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	fillRet(model, obj);
 
 	//calc corner
+#if 0
 	auto optRets = obj.getRet();
 	if (optRets.count(TransformOptimize::CloudType::BOTTOM_E))
 	{
@@ -89,7 +90,7 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 		center = ret.T_.block<3, 3>(0, 0) * center + ret.T_.block<3, 1>(0, 3);
 		calcAllCorner(model, center, vecOrigCloud);
 	}
-
+#endif
 	return true;
 }
 

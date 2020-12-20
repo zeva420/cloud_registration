@@ -43,7 +43,7 @@ std::string CoarseMatching::MatchResult::toString() const {
 CoarseMatching::CoarseMatching() {}
 
 CoarseMatching::MatchResult CoarseMatching::run(const std::vector<PointCloud::Ptr>& allPieces, const CADModel& cadModel) {
-	constexpr float HOR_CHECK_EPS = 0.01f;
+	constexpr float HOR_CHECK_EPS = 0.1f;
 
 	LOG(INFO) << "coarse match " << allPieces.size() << " walls.";
 
