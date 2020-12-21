@@ -28,7 +28,6 @@ CADModel::~CADModel() {
 }
 
 
-
 bool CADModel::initCAD(const std::string& fileName) {
 	mapModelItem_.clear();
 
@@ -83,12 +82,11 @@ bool CADModel::initCAD(const std::string& fileName) {
 	
 	// scale model to meters
 	scaleModel(0.001);
-
 #ifdef VISUALIZATION_ENABLED
 	for (auto& item : mapModelItem_)
 	{
 		//if (item.first != ITEM_BOTTOM_E && item.first != ITEM_TOP_E) continue;
-		if (item.first != ITEM_BEAM_E && item.first != ITEM_WALL_E) continue;
+		//if (item.first != ITEM_BEAM_E && item.first != ITEM_WALL_E && item.first != ITEM_HOLE_E) continue;
 		vec_item.insert(vec_item.end(), item.second.begin(), item.second.end());
 	}
 	savePCD("cad_model.pcd", vec_item);
@@ -102,18 +100,19 @@ void CADModel::cutWallByBeam()
 	auto& vecBeam = mapModelItem_[ITEM_BEAM_E];
 	const auto& vecWall = mapModelItem_[ITEM_WALL_E];
 	std::vector<int> BeamIdx(vecBeam.size()/2,-1);
-	for (std::size_t i = 2; i < vecBeam.size(); i+=2)
+	for (std::size_t i = 0; i < vecBeam.size(); i+=2)
 	{
-		if (vecBeam[i].parentIndex_ - vecBeam[i - 2].parentIndex_ == 1)
-			BeamIdx[i%2] = i;
 		
-		
+		if (i + 2 < vecBeam.size() && 
+			vecBeam[i+2].parentIndex_ - vecBeam[i].parentIndex_ == 1)
+			BeamIdx[i/2] = i;
+				
 
-		if (i == vecBeam.size() - 1 && 
+		if (i == vecBeam.size() - 2 && 
 			vecBeam[i].parentIndex_ == vecWall.size()-1 && 
 			vecBeam[0].parentIndex_ == 0)
 		{
-			BeamIdx[i%2] = 0;
+			BeamIdx[i/2] = 0;
 		}
 		
 		
@@ -123,7 +122,7 @@ void CADModel::cutWallByBeam()
 		->Eigen::vector<Eigen::Vector3d> {
 		
 		Eigen::vector<Eigen::Vector3d> newPoints;
-		newPoints.emplace_back(target.points_[0]);
+		newPoints.emplace_back(target.points_.front());
 
 		newPoints.emplace_back(objB.points_[objB.points_.size() - 1]);
 		newPoints.emplace_back(objB.points_[objB.points_.size() - 2]);
@@ -140,14 +139,15 @@ void CADModel::cutWallByBeam()
 		->Eigen::vector<Eigen::Vector3d> {
 
 		Eigen::vector<Eigen::Vector3d> newPoints;
-		newPoints.emplace_back(target.points_[0]);
-		newPoints.emplace_back(target.points_[1]);
+		newPoints.insert(newPoints.end(),target.points_.begin(), target.points_.end()-2);
+		
+		
 
 		newPoints.emplace_back(objA.points_[1]);
 		newPoints.emplace_back(objA.points_[0]);
 		newPoints.emplace_back(objB.points_[0]);
 
-		newPoints.insert(newPoints.end(), target.points_.begin() + 3, target.points_.end());
+		newPoints.emplace_back(target.points_.back());
 		return newPoints;
 
 		
@@ -168,9 +168,10 @@ void CADModel::cutWallByBeam()
 
 	for (std::size_t i = 1; i < vecBeam.size(); i += 2)
 	{
+		
 		if (BeamIdx[i / 2] >= 0)
 		{
-
+			//std::cout << "enter:" << (i - 1) << "---" << (i + 1) / 2 << std::endl;
 			auto& beamA1 = vecBeam[i - 1];
 			auto& beamA2 = vecBeam[i];
 
@@ -185,8 +186,8 @@ void CADModel::cutWallByBeam()
 			else if (beamA1.highRange_.first > beamB1.highRange_.first)
 			{
 				auto newBeamPt = cutFunB(beamB1, beamA1, beamA2);
-				beamA1.points_.swap(newBeamPt);
-				beamA1.buildSegment();
+				beamB1.points_.swap(newBeamPt);
+				beamB1.buildSegment();
 			}
 			else
 			{
@@ -271,24 +272,38 @@ std::tuple<bool, ModelItem> CADModel::genTop()
 			LOG(ERROR) << "parent out of range";
 			return std::tuple<bool, ModelItem>(false, ModelItem(ITEM_MAX_E));
 		}
-		
-		vecPoints[parent*2] = beam.points_[1];
-		vecPoints[parent*2 + 1] = beam.points_[2];
 
+		auto getTopPt = [](const ModelItem& beam)->Eigen::vector<Eigen::Vector3d> {
+			Eigen::vector<Eigen::Vector3d> vecPt;
+			double topHigh = beam.highRange_.second;
+			for (auto& pt : beam.points_)
+			{
+				if (std::fabs(pt[2] - topHigh) < 0.00001)
+					vecPt.emplace_back(pt);
+			}
+			return vecPt;
+		};
+
+		auto vecPt = getTopPt(beam);
+		//self modify
+		vecPoints[parent*2] = vecPt[0];
+		vecPoints[parent*2 + 1] = vecPt[1];
+
+		//neighbor modify
 		if (parent == 0)
 		{
-			vecPoints[vecPoints.size() - 1] = beam.points_[1];
-			vecPoints[parent*2 + 2] = beam.points_[2];
+			vecPoints[vecPoints.size() - 1] = vecPt[0];
+			vecPoints[parent*2 + 2] = vecPt[1];;
 		}
 		else if (parent == vecWall.size() - 1)
 		{
-			vecPoints[parent*2 - 1] = beam.points_[1];
-			vecPoints[0] = beam.points_[2];
+			vecPoints[parent*2 - 1] = vecPt[0];;
+			vecPoints[0] = vecPt[1];;
 		}
 		else
 		{
-			vecPoints[parent*2 - 1] = beam.points_[1];
-			vecPoints[parent*2 + 2] = beam.points_[2];
+			vecPoints[parent*2 - 1] = vecPt[0];;
+			vecPoints[parent*2 + 2] = vecPt[1];;
 
 		}
 
