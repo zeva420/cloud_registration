@@ -160,9 +160,7 @@ void CADModel::cutWallByBeam()
 
 		newPoints.emplace_back(obj.points_[3]);
 		newPoints.emplace_back(obj.points_[2]);
-		newPoints.emplace_back(target.points_[2]);
-		newPoints.emplace_back(target.points_[3]);
-
+		newPoints.insert(newPoints.end(), target.points_.begin()+2, target.points_.end());		
 		return newPoints;
 	};
 
