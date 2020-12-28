@@ -150,21 +150,39 @@ bool TransformOptimize::getModelPlaneCoeff(
 	return true;
 }
 
-double TransformOptimize::calcCloudToPLaneAveDist(Eigen::Vector4d &plane,
+std::pair<double,double> TransformOptimize::calcCloudToPLaneAveDist(Eigen::Vector4d &plane,
                                 pcl::PointCloud<pcl::PointXYZ>::Ptr cloud)
 {
     double aveDist = 0.0;
+	double medianDist = 0.0;
+	std::vector<double> vecDist;
     for (auto &p : cloud->points)
     {
-        double dist = pointToPLaneDist(plane, p);
-        aveDist += std::abs(dist);
+        double dist = std::abs(pointToPLaneDist(plane, p));
+        aveDist += dist;
+		vecDist.emplace_back(dist);
     }
     if (0 < cloud->size())
     {
         aveDist /= double(cloud->size());
+
+		if (vecDist.size() > 1)
+		{
+			std::sort(vecDist.begin(), vecDist.end());
+			if (vecDist.size() % 2 == 1)
+			{
+				medianDist = vecDist[vecDist.size() / 2 - 1];
+			}
+			else
+			{
+				medianDist = 0.5 *(vecDist[vecDist.size() / 2 - 1] + vecDist[vecDist.size() / 2]);
+
+			}
+		}
+
     }
 
-    return aveDist;
+    return std::make_pair(aveDist, medianDist);
 }
 
 bool TransformOptimize::matchCloudToMode(
@@ -186,8 +204,8 @@ bool TransformOptimize::matchCloudToMode(
         double d  = plane(3);
         for (int j = 0; j < vecCloudPtr.size(); j++)
         {
-            double aveDist = calcCloudToPLaneAveDist(plane, vecCloudPtr[j]);
-            model2CloudDists[i][aveDist] = j;
+            auto aveDist = calcCloudToPLaneAveDist(plane, vecCloudPtr[j]);
+            model2CloudDists[i][aveDist.first] = j;
         }
     }
 
@@ -258,14 +276,18 @@ bool TransformOptimize::addWallPointToModelPlaneEdges(
 
     for (int i = 0; i < vecCloudPtr.size(); i++)
     {
+		if (i == (vecCloudPtr.size() - 2))
+		{
+			continue;
+		}
+
         Eigen::Vector4d plane = modelPlanes[i];
         auto cloud = vecCloudPtr[i];
 
-        double weight = 10000.0 / double(cloud->size());
-        if (i == (vecCloudPtr.size()-2))
-        {
+        double weight = 10000.0 / double(cloud->size());        		
+		if (i == (vecCloudPtr.size() - 1))
 			weight = 700000.0 / double(cloud->size());
-        }
+
         for (auto &v : cloud->points)
         {
             Eigen::Vector3d pt(v.x, v.y, v.z);
@@ -304,7 +326,7 @@ bool TransformOptimize::transformCloud(
 {
     LOG(INFO) << "********transformCloud*******";
     std::stringstream ss;
-    ss << std::fixed << std::setprecision(5);
+    ss << std::fixed << std::setprecision(8);
     ss << "\n------final R------\n";
     ss << finalT (0,0) << " " << finalT (0,1) << " " << finalT (0,2) << "\n";
     ss << finalT (1,0) << " " << finalT (1,1) << " " << finalT (1,2) << "\n";
@@ -314,6 +336,7 @@ bool TransformOptimize::transformCloud(
     ss << finalT (0,3) << " " << finalT (1,3) << " " << finalT (2,3) << "\n";
     LOG(INFO) << ss.str();
 
+	Eigen::Matrix4d newT = Eigen::Matrix4d::Identity();
     for (int i = 0; i < vecCloudPtr.size(); i++)
     {
         auto &cloud = vecCloudPtr[i];
@@ -322,10 +345,27 @@ bool TransformOptimize::transformCloud(
         cloud->swap(*transformed_cloud); 
 
         Eigen::Vector4d plane = modePlanes[i];
-        double aveDist = calcCloudToPLaneAveDist(plane, cloud);
-        LOG(INFO) << "cloud to model plane, aveDist:" << aveDist;
+        auto distError = calcCloudToPLaneAveDist(plane, cloud);
+        LOG(INFO) << "first: cloud to model plane, aveDist:" << distError.first << " medianDist:" << distError.second;
+		
+		if (i == vecCloudPtr.size() - 2)
+		{
+			newT(2, 3) = -distError.second;
+		}
 
     }
+
+	for (int i = 0; i < vecCloudPtr.size(); i++)
+	{
+		auto &cloud = vecCloudPtr[i];
+		pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>());
+		pcl::transformPointCloud(*cloud, *transformed_cloud, newT);
+		cloud->swap(*transformed_cloud);
+
+		Eigen::Vector4d plane = modePlanes[i];
+		auto distError = calcCloudToPLaneAveDist(plane, cloud);
+		LOG(INFO) << "first: cloud to model plane, aveDist:" << distError.first << " medianDist:" << distError.second;
+	}
 
 	return true;
 }

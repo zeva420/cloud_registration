@@ -95,7 +95,7 @@ private:
 					Eigen::vector<Eigen::Vector4d> &modelPlanes,
 					Eigen::Vector3d center = Eigen::Vector3d(0,0,0));
 
-	double calcCloudToPLaneAveDist(Eigen::Vector4d &plane,
+	std::pair<double, double> calcCloudToPLaneAveDist(Eigen::Vector4d &plane,
                                 pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
 
 	bool matchCloudToMode(
