@@ -57,6 +57,15 @@ namespace CloudReg
 					
 	Eigen::Vector4d calcPlaneParam(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
 
+	bool isPointInPolygon2D(const Eigen::Vector2d &point, 
+			const Eigen::vector<std::pair<Eigen::Vector2d, Eigen::Vector2d>> &segments);
+
+	bool isPointInPolygon3D(const Eigen::Vector3d &point, 
+			const Eigen::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &segments);
+			
+	bool interSectionOfLineToLine(const Eigen::VectorXd &line1, 
+					const Eigen::VectorXd &line2, Eigen::Vector3d &interSectionPt);
+
 	bool interSectionOfLineToPlane(const Eigen::VectorXd &line,
 		const Eigen::Vector4d &plane, Eigen::Vector3d &interSectionPt);
 
