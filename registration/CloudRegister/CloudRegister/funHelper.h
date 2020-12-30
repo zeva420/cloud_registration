@@ -79,6 +79,9 @@ namespace CloudReg
 						const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud2,
 						const Eigen::Vector3d &floorPt, double height,
 						Eigen::Vector3d center, Eigen::Vector4d bottomPlane);
+
+	// cornerPoint(2, 0) == z
+	double calcCorner_beta(PointCloud::Ptr cloud1, PointCloud::Ptr cloud2, const Eigen::Vector3f& cornerPoint, float z);
 }
 
 

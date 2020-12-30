@@ -873,6 +873,8 @@ namespace CloudReg
 		pass.filter (*filteredCloud);
 		subSet2->swap(*filteredCloud);
 
+		auto subSet1 = get_sub_cloud(pCloud1);
+		auto subSet2 = get_sub_cloud(pCloud2);
 		LOG(INFO) << "subSet1:" << subSet1->size() << " subSet2:" << subSet2->size();
 		if (subSet1->size() < 50 || subSet2->size() < 50)
 		{
@@ -1034,5 +1036,159 @@ namespace CloudReg
 #endif
 		return v;
 	}
+
+}
+
+// #include "g2o/core/base_edge.h"
+#include "g2o/core/base_vertex.h"
+#include "g2o/core/base_unary_edge.h"
+#include "g2o/core/block_solver.h"
+#include "g2o/solvers/eigen/linear_solver_eigen.h"
+#include "g2o/core/optimization_algorithm_levenberg.h"
+#include "g2o/core/robust_kernel_impl.h"
+#include "g2o/types/sba/types_sba.h"
+
+using Vec4 = Eigen::Matrix<double, 4, 1>;
+
+// [x, y, theta, phi]
+namespace g2o {
+class VAngleMeasurer : public BaseVertex<4, Vec4> {
+public:
+	static constexpr double LENGTH = 0.2;
+
+	Eigen::Vector2d xy() const { return _estimate.block<2, 1>(0, 0); }
+	double theta() const { return _estimate(2, 0); }
+	double phi() const { return _estimate(3, 0); }
+
+	void setToOriginImpl() override { _estimate = Vec4::Zero(); }
+	void oplusImpl(const double* v) override {
+		Eigen::Map<const Vec4> dx(v);
+		_estimate += dx;
+	}
+
+	bool read(std::istream& is) override { return true; }
+	bool write(std::ostream& os) const override { return true; }
+
+	std::string to_string() const {
+		return ll::unsafe_format("AngleMeasure: (%.3f, %.3f), %.3f, %.3f",
+			_estimate(0), _estimate(1), 180. / 3.1415926* _estimate(2), 180. / 3.1415926 * _estimate(3));
+	}
+};
+
+class EDistanceToMeasurer2D : public BaseUnaryEdge<1, double, VAngleMeasurer> {
+public:
+	EDistanceToMeasurer2D(const Point& p) :
+		g2o::BaseUnaryEdge<1, double, VAngleMeasurer>(), point_(p.x, p.y) {}
+
+	void computeError() override {
+		// distance to each ray.
+		auto vam = static_cast<VAngleMeasurer*>(_vertices[0]);
+		Eigen::Vector2d op = point_ - vam->xy();
+		Eigen::Vector2d dir1 = dir(vam->theta());
+		Eigen::Vector2d dir2 = dir(vam->phi());
+
+		double t1 = op.dot(dir1);
+		double t2 = op.dot(dir2);
+
+		_error(0) = cross(op, std::abs(t1) > std::abs(t2) ? dir1 : dir2);
+	}
+
+	bool read(std::istream& is) override { return true; }
+	bool write(std::ostream& os) const override { return true; }
+
+	using g2o::BaseEdge<1, double>::information;
+
+private:
+	Eigen::Vector2d point_;
+
+	Eigen::Vector2d dir(double angle) const { return Eigen::Vector2d(std::cos(angle), std::sin(angle)); }
+	double cross(const Eigen::Vector2d& v1, const Eigen::Vector2d& v2) { return v1(0) * v2(1) - v1(1) * v2(0); }
+};
+}
+
+
+namespace CloudReg {
+double calcCorner_beta(PointCloud::Ptr cloud1, PointCloud::Ptr cloud2, const Eigen::Vector3f& cornerPoint, float z) {
+	constexpr float SLICE_THICKNESS = 0.05f;
+	constexpr float PIECE_MAX_LENGTH = 0.3f;
+	constexpr float PIECE_MAX_LENGTH_SQUARED = PIECE_MAX_LENGTH * PIECE_MAX_LENGTH;
+
+	const float zLow = z - SLICE_THICKNESS;
+	const float zHigh = z + SLICE_THICKNESS;
+
+	auto gain_sub_cloud = [&](PointCloud::Ptr cloud) {
+		auto sub = geo::passThrough(cloud, "z", zLow, zHigh);
+		sub = geo::filterPoints(sub, [&cornerPoint, PIECE_MAX_LENGTH_SQUARED](const Point& p) {
+			return (geo::V_(p) - cornerPoint).squaredNorm() < PIECE_MAX_LENGTH_SQUARED;
+		});
+
+		if (sub->size() < 50) sub = cloud;
+
+		return sub;
+	};
+
+	auto sub1 = gain_sub_cloud(cloud1);
+	auto sub2 = gain_sub_cloud(cloud2);
+
+	// now optimize
+	g2o::SparseOptimizer optimier; // actually no need to be sparse.
+	{
+		auto ls = std::make_unique<g2o::LinearSolverEigen<g2o::BlockSolverX::PoseMatrixType>>();
+		auto bs = std::make_unique<g2o::BlockSolverX>(std::move(ls));
+		auto algo = new g2o::OptimizationAlgorithmLevenberg(std::move(bs));
+		optimier.setAlgorithm(algo);
+	}
+
+	int id=0;
+
+	auto v = new g2o::VAngleMeasurer();
+	{
+		// simply use middle point to initialize
+		auto dir_angle = [](PointCloud::Ptr cloud, const Eigen::Vector3f& o)-> double{
+			double cenx{ 0. }, ceny{ 0. }, dn { static_cast<double>(cloud->size()) };
+			for(const auto& p: cloud->points){
+				cenx += p.x; ceny += p.y;
+			}
+
+			return std::atan2(ceny/ dn- o(1), cenx/ dn- o(0));
+		};
+
+		Vec4 estimate;
+		estimate(0, 0) = cornerPoint(0);
+		estimate(1, 0) = cornerPoint(1);
+		estimate(2, 0) = dir_angle(sub1, cornerPoint);
+		estimate(3, 0) = dir_angle(sub2, cornerPoint);
+		v->setEstimate(estimate);
+	}
+	v->setId(id++);
+	v->setFixed(false);
+	optimier.addVertex(v);
+
+	Eigen::Matrix<double, 1, 1> info = Eigen::Matrix<double, 1, 1>::Identity();
+	for(const auto& p: sub1->points){
+		auto e = new g2o::EDistanceToMeasurer2D(p);
+		e->setVertex(0, v);
+		e->setMeasurement(0.);
+		e->information() = info;
+		optimier.addEdge(e);
+	}
+	for (const auto& p : sub2->points) {
+		auto e = new g2o::EDistanceToMeasurer2D(p);
+		e->setVertex(0, v);
+		e->setMeasurement(0.);
+		e->information() = info;
+		optimier.addEdge(e);
+	}
+
+	LOG(INFO) << "before: "<< v->to_string();
+
+	optimier.setVerbose(true);
+	optimier.initializeOptimization();
+	optimier.optimize(10);
+
+	LOG(INFO) << "after: " << v->to_string();
+
+	return std::cos(v->theta()- v->phi())* 130.;
+}
 
 }

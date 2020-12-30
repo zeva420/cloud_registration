@@ -1,5 +1,5 @@
-#include <vtkAutoInit.h>
-VTK_MODULE_INIT(vtkRenderingOpenGL)
+// #include <vtkAutoInit.h>
+// VTK_MODULE_INIT(vtkRenderingOpenGL)
 //VTK_MODULE_INIT(vtkInteractionStyle)
 //VTK_MODULE_INIT(vtkRenderingFreeType)
 
@@ -15,6 +15,7 @@ VTK_MODULE_INIT(vtkRenderingOpenGL)
 #include <pcl/ModelCoefficients.h>
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/filters/radius_outlier_removal.h>
+#include "funHelper.h"
 
 // #define VISUALIZATION_ENABLED
 
@@ -65,7 +66,8 @@ CoarseMatching::MatchResult CoarseMatching::run(const std::vector<PointCloud::Pt
 #endif
 
 	//0. downsample
-	const auto sparsedPieces = ll::mapf([](PointCloud::Ptr cloud) { return geo::downsampleUniformly(cloud, 0.01f); }, allPieces);
+	// const auto sparsedPieces = ll::mapf([](PointCloud::Ptr cloud) { return geo::downsampleUniformly(cloud, 0.01f); }, allPieces);
+	const auto sparsedPieces = allPieces;
 	// debug write.
 #ifdef VISUALIZATION_ENABLED		
 	for (auto pr : ll::enumerate(sparsedPieces))
@@ -114,6 +116,58 @@ CoarseMatching::MatchResult CoarseMatching::run(const std::vector<PointCloud::Pt
 		return static_cast<Eigen::Vector2f>(pr.second.mid().block<2, 1>(0, 0));
 	});
 	auto sorted_indices = geo::sort_points_counter_clockwise(cens);
+
+#if 0
+	{
+		pcl::visualization::PCLVisualizer viewer;
+
+		for (auto pr : ll::enumerate(wallPieces)) {
+			auto cloud = pr.iter->first;
+
+			double r{ geo::random() }, g{ geo::random() }, b{ geo::random() };
+
+			pcl::visualization::PointCloudColorHandlerCustom<Point> color(cloud, r * 255., g * 255., b * 255.);
+			viewer.addPointCloud(cloud, color, "piece" + std::to_string(pr.index));
+
+		}
+
+		LOG(INFO) << "sorted indices: " << ll::string_join(sorted_indices, ", ");
+
+		auto intersect_segment_2d = [](const Segment& s1, const Segment& s2) {
+			Eigen::Vector3f n1 = s1.dir();
+			Eigen::Vector3f n2 = s2.dir();
+			double t2 = (s1.s_ - s2.s_).cross(n1).norm() / (n2.cross(n1).norm());
+			return s2.s_ + n2 * t2;
+		};
+
+		const std::size_t N = sorted_indices.size();
+		for (std::size_t i = 0; i < N; ++i) {
+			const auto& pr1 = wallPieces[i];
+			const auto& pr2 = wallPieces[(i + 1) % N];
+
+			Eigen::Vector3f cen = intersect_segment_2d(pr1.second, pr2.second);
+			cen(2, 0) = zFloor;
+
+			// auto v = calcCloudPairCorner(ll::unsafe_format("corner_%d", i),
+			//	pr1.first, pr2.first, Eigen::Vector3d(cen(0), cen(1), cen(2)), zFloor, 0.3f);
+			cen(2, 0) = zFloor + .3f;
+			auto v = calcCorner_beta(pr1.first, pr2.first, cen, zFloor + .3f);
+
+			LOG(INFO) << "corner " << i << ": " << v;
+
+			// cen(2, 0) += 0.3f;
+			viewer.addText3D(ll::unsafe_format("%d: %.2f", i, v), geo::P_(cen), 0.25f);
+
+			break;
+		}
+
+		while (!viewer.wasStopped()) {
+			viewer.spinOnce(33);
+		}
+
+		LL_ABORT("done.");
+	}
+#endif
 
 	Eigen::vector<Eigen::Vector2f> outline;
 	{
@@ -222,7 +276,7 @@ CoarseMatching::MatchResult CoarseMatching::run(const std::vector<PointCloud::Pt
 #ifdef VISUALIZATION_ENABLED
 	// simple visualization
 	pcl::visualization::PCLVisualizer viewer;
-	
+
 
 	for (auto pr : ll::enumerate(result.walls_)) {
 		auto cloud = *pr.iter;
@@ -231,13 +285,13 @@ CoarseMatching::MatchResult CoarseMatching::run(const std::vector<PointCloud::Pt
 
 		pcl::visualization::PointCloudColorHandlerCustom<Point> color(cloud, r * 255., g * 255., b * 255.);
 		viewer.addPointCloud(cloud, color, "piece" + std::to_string(pr.index));
-		
+
 	}
-	
+
 	for (auto pr : ll::enumerate(outline)) {
 		const Eigen::Vector2f& v = *pr.iter;
 		Point p(v[0], v[1], 0.0f);
-		
+
 		viewer.addSphere(p, 0.1f, "outline" + std::to_string(pr.index));
 		viewer.addText3D(std::to_string(pr.index), Point(p.x, p.y, 0.2f), 0.3f);
 	}
@@ -247,7 +301,7 @@ CoarseMatching::MatchResult CoarseMatching::run(const std::vector<PointCloud::Pt
 		pcl::visualization::PointCloudColorHandlerCustom<Point> color(cad, 255., 0., 0.);
 		viewer.addPointCloud(cad, color, "cad");
 	}
-	
+
 	while (!viewer.wasStopped()) {
 		viewer.spinOnce(33);
 	}
@@ -268,7 +322,13 @@ std::pair<PointCloud::Ptr, Eigen::Vector4f> CoarseMatching::refinePlanePattern(P
 	ransac.getModelCoefficients(params);
 
 	auto plane = geo::getSubSet(cloud, inliers);
-	Eigen::Vector4f abcd = params.block<4, 1>(0, 0);
+	Eigen::Vector4f abcd = calcPlaneParam(plane).cast<float>();
+
+	// filter again.
+	plane = geo::filterPoints(cloud, [&abcd, disthresh](const Point& p) {
+		double dis = abcd(0) * p.x + abcd(1) * p.y + abcd(2) * p.z + abcd(3);
+		return std::fabs(dis) <= disthresh;
+	});
 
 	LOG(INFO) << "refined plane: " << plane->size() * 100.f / static_cast<float>(cloud->size()) << "% inliers. params: " << params.transpose() << "\n";
 
@@ -350,7 +410,8 @@ CoarseMatching::Segment CoarseMatching::detectMainSegementXoY(PointCloud::Ptr cl
 	return segment;
 }
 
-Eigen::vector<trans2d::Matrix2x3f> CoarseMatching::computeOutlineTransformCandidates(const Eigen::vector<Eigen::Vector2f>& blueprint,
+Eigen::vector<trans2d::Matrix2x3f> CoarseMatching::computeOutlineTransformCandidates(
+	const Eigen::vector<Eigen::Vector2f>& blueprint,
 	const Eigen::vector<Eigen::Vector2f>& outline, float disthresh) {
 	// try to align by each wall
 	struct can {
@@ -678,11 +739,13 @@ std::vector<CoarseMatching::Segment> CoarseMatching::splitSegments(PointCloud::P
 			return projlens[i] < projlens[j];
 		});
 
-		Segment s;
-		s.s_ = geo::V_(cloud->points[*pr.first]);
-		s.e_ = geo::V_(cloud->points[*pr.second]);
+		std::size_t sid = *pr.first;
+		std::size_t eid = *pr.second;
+		if (std::fabs(projlens[eid] - projlens[sid]) < min_seg_length) continue;
 
-		if ((s.s_ - s.e_).norm() < min_seg_length) continue;
+		Segment s;
+		s.s_ = geo::V_(cloud->points[sid]);
+		s.e_ = geo::V_(cloud->points[eid]);
 
 		segments.push_back(s);
 	}
@@ -751,6 +814,346 @@ Eigen::vector<Eigen::Vector3d> CoarseMatching::intersectCADModelOnZ(const CADMod
 	}
 
 	return points;
+}
+}
+
+// test segment.
+namespace CloudReg {
+
+struct PlaneCloud {
+	PointCloud::Ptr cloud_;
+	Eigen::Vector4f abcd_;
+
+	Eigen::Vector3f n() const { return abcd_.block<3, 1>(0, 0); }
+};
+
+void detectPlanes(PointCloud::Ptr cloud, std::vector<PlaneCloud>& planes,
+	double disthresh, std::size_t inlier_count_thresh) {
+	if (cloud->size() < inlier_count_thresh) return;
+
+	pcl::SampleConsensusModelPlane<Point>::Ptr planeModel(new pcl::SampleConsensusModelPlane<Point>(cloud));
+	pcl::RandomSampleConsensus<Point> ransac(planeModel);
+	ransac.setDistanceThreshold(disthresh);
+	ransac.computeModel();
+
+	std::vector<int> inliers;
+	Eigen::VectorXf params;
+	ransac.getInliers(inliers);
+	ransac.getModelCoefficients(params);
+
+	if (inliers.size() < inlier_count_thresh) return;
+
+	PlaneCloud pc;
+	pc.cloud_ = geo::getSubSet(cloud, inliers);
+	pc.abcd_ = params.block<4, 1>(0, 0);
+	planes.push_back(pc);
+
+	auto left = geo::getSubSet(cloud, inliers, true);
+
+	LOG(INFO) << ll::unsafe_format("found a plane: %d + %d", inliers.size(), left->size());
+	detectPlanes(left, planes, disthresh, inlier_count_thresh);
+}
+
+std::vector<PointCloud::Ptr> CoarseMatching::testSegment(PointCloud::Ptr cloud, const CADModel& cadModel) {
+	cloud = geo::downsampleUniformly(cloud, 0.01);
+
+	// cad params
+	double cadx1{ 100. }, cadx2{ -100. }, cady1{ 100. }, cady2{ -100. }, cadz1{ 100. }, cadz2{ -100. }; // aabb 
+	{
+		const auto& floor = cadModel.getTypedModelItems(ITEM_BOTTOM_E).front();
+		for (const auto& p : floor.points_) {
+			if (p(0) < cadx1) cadx1 = p(0);
+			if (p(0) > cadx2) cadx2 = p(0);
+			if (p(1) < cady1) cady1 = p(1);
+			if (p(1) > cady2) cady2 = p(1);
+		}
+
+		cadz1 = floor.points_.front()(2);
+		const auto& roof = cadModel.getTypedModelItems(ITEM_TOP_E).front();
+		cadz2 = roof.points_.front()(2);
+
+		LOG(INFO) << ll::unsafe_format("cad model aabb bounding box: %.3f -> %.3f, %.3f -> %.3f, %.3f -> %.3f.", cadx1, cadx2, cady1, cady2, cadz1, cadz2);
+	}
+	const double wallHeight = cadz2 - cadz1;
+	double zBeamLow = cadz2;
+	if (cadModel.containModels(ITEM_BEAM_E)) {
+		auto beams = cadModel.getTypedModelItems(ITEM_BEAM_E);
+		for (const auto& beam : beams) {
+		}
+		zBeamLow = 2.43;
+	}
+	LOG(INFO) << "wall height: " << wallHeight << ", beam low: " << zBeamLow;
+
+	// gain body cloud, 
+	PointCloud::Ptr body;
+	double zFloor{ -1. }, zRoof{ 2. };
+	{
+		// simple bounding box, refer to blueprint
+		constexpr double MACHINE_RADIUS = 0.8;
+
+		const double dw = (cadx2 - cadx1 - MACHINE_RADIUS);
+		const double dh = (cady2 - cady1 - MACHINE_RADIUS);
+		const double BOUNDING_BOX_MAX_HALF_WIDTH = std::sqrt(dw * dw + dh * dh);
+		const double BOUNDING_BOX_Z_HIGH = cadz2 - cadz1;
+		const double BOUNDING_BOX_Z_LOW = -BOUNDING_BOX_Z_HIGH;
+
+		body = geo::passThrough(cloud, "x", -BOUNDING_BOX_MAX_HALF_WIDTH, BOUNDING_BOX_MAX_HALF_WIDTH);
+		body = geo::passThrough(body, "y", -BOUNDING_BOX_MAX_HALF_WIDTH, BOUNDING_BOX_MAX_HALF_WIDTH);
+		body = geo::passThrough(body, "z", BOUNDING_BOX_Z_LOW, BOUNDING_BOX_Z_HIGH);
+
+		// get zRoof
+		{
+			const float THRESH_COSINE = std::cos(5. / 180. * geo::PI);
+			auto subRoof = geo::filterPoints(cloud, [THRESH_COSINE](const Point& p) {
+				return p.z > 0. && p.z / geo::length(p) > THRESH_COSINE;
+			});
+			LL_ASSERT(!subRoof->empty() && "failed to estimate roof height.");
+
+			//todo: may calibrate (0, 0, 1) here
+
+			//todo: may remove outliers
+			zRoof = ll::sum_by([](const Point& p) { return p.z; }, subRoof->points) / static_cast<double>(subRoof->size());
+			LOG(INFO) << ll::unsafe_format("roof height estimated with %d points: %.3f", subRoof->size(), zRoof);
+		}
+
+		// now slice 
+		constexpr double Z_LOW = 0.5; // always avoid cloud under 0.5m, relative to floor
+		// blueprint, 
+		// actually we can find "closed" height range, but that's not the general case.
+		constexpr double MARGIN = 0.1;
+
+		zFloor = zRoof - wallHeight;
+		double zlow = zFloor + Z_LOW;
+		double zhigh = zFloor + zBeamLow;
+		LL_ASSERT((zhigh - zlow) > 1. && "no range available.");
+
+		LOG(INFO) << ll::unsafe_format("slice main body: %.3f -> %.3f.", zlow, zhigh);
+
+		body = geo::passThrough(cloud, "z", zlow, zhigh);
+	}
+
+	// vertical planes
+	std::vector<PlaneCloud> planes;
+	detectPlanes(body, planes, 0.02, 10000);
+	auto wallCandidates = ll::filter([](const PlaneCloud& pc) { return std::fabs(pc.n()(2)) < 0.02f; }, planes);
+	LOG(INFO) << planes.size() << " planes detected, of which " << wallCandidates.size() << " can be candidates for walls";
+	{
+		std::stringstream ss;
+		for (const auto& pc : wallCandidates)
+			ss << pc.n().transpose() << "\n";
+		LOG(INFO) << "candidates normals: " << ss.str();
+
+		// regain the points.
+		for (auto& pc : wallCandidates)
+			pc.cloud_ = geo::filterPoints(body, [&pc](const Point& p) {
+			Eigen::Vector4f vp(p.x, p.y, p.z, 1.);
+			float dis = vp.transpose().dot(pc.abcd_);
+			return std::fabs(dis) < 0.02f;
+		});
+		LOG(INFO) << "points regained.";
+	}
+
+	auto wallSegments = ll::mapf([&](const PlaneCloud& pc) {
+		// we simply ignore z here.
+		const Eigen::Vector4f& params = pc.abcd_;
+		Eigen::Vector3f n = Eigen::Vector3f(-params(1), params(0), 0.f).normalized();
+		Eigen::Vector3f p;
+		if (std::fabs(params(0)) < 1e-6) p = Eigen::Vector3f(0.f, -params(3) / params(1), 0.f);
+		else p = Eigen::Vector3f(-params(3) / params(0), 0.f, 0.f);
+
+		Eigen::VectorXf line_params(6, 1);
+		line_params.block<3, 1>(0, 0) = p;
+		line_params.block<3, 1>(3, 0) = n;
+
+		return splitSegments(pc.cloud_, line_params, 0.1f, 0.1f);
+	}, wallCandidates);
+
+	// join them, 
+	// todo: reconsider this, like, if the segments is too much, may try take some of them.
+	std::vector<Segment> allSegments;
+	{
+		std::size_t cnt = ll::sum_by([](const auto& v) { return v.size(); }, wallSegments);
+		allSegments.reserve(cnt);
+		for (const auto& segs : wallSegments) allSegments.insert(allSegments.end(), segs.begin(), segs.end());
+
+		for (auto& s : allSegments) {
+			// -2 for visualization.
+			s.s_(2) = -2.;
+			s.e_(2) = -2.;
+		}
+
+		std::stringstream ss;
+		for (auto pr : ll::enumerate(allSegments)) ss << ll::unsafe_format("%02d: %.3f\n", pr.index, pr.iter->len());
+
+		LOG(INFO) << allSegments.size() << " segments detected, length: \n" << ss.str();
+	}
+
+	// now match with blueprint
+	Eigen::Matrix4f cloudTrans = Eigen::Matrix4f::Identity();
+	{
+		const auto& blueprint3d = cadModel.getTypedModelItems(ITEM_BOTTOM_E).front();
+		Eigen::vector<Eigen::Vector2f> blueprint(blueprint3d.points_.size());
+		std::transform(blueprint3d.points_.begin(), blueprint3d.points_.end(), blueprint.begin(),
+			[](const Eigen::Vector3d& v) { return Eigen::Vector2f(v(0, 0), v(1, 0)); });
+
+		// to counterclockwise
+		std::reverse(blueprint.begin(), blueprint.end());
+		for (auto& seg : allSegments) {
+			double ps = atan2(seg.s_(1), seg.s_(0));
+			double pe = atan2(seg.e_(1), seg.e_(0));
+			if (pe < ps) std::swap(seg.s_, seg.e_);
+		}
+
+		// now check each candidate and select one with least error.
+		constexpr double MATCH_THRESH = 0.25;
+
+		auto minimum_distance_to_wall_segments = [&allSegments](const Eigen::Vector2f& p)-> float {
+			auto pr = ll::min_by([&p](const Segment& seg) {
+				Eigen::Vector2f s(seg.s_(0), seg.s_(1));
+				Eigen::Vector2f e(seg.e_(0), seg.e_(1));
+				return geo::distance_to_segment_2d(p, s, e);
+			}, allSegments);
+			return pr.second;
+		};
+
+		// sum of point distance to segment
+		auto match_error = [&](const trans2d::Matrix2x3f& T) {
+			auto mindis = ll::mapf([&](const Eigen::Vector2f& p) {
+				Eigen::Vector2f q = trans2d::transform(p, T);
+				return minimum_distance_to_wall_segments(q);
+			}, blueprint);
+			return ll::sum(mindis);
+		};
+
+		trans2d::Matrix2x3f minT = trans2d::buildTransform(0., Eigen::Vector2f::Zero());
+		float minError = std::numeric_limits<float>::max();
+
+		for (const auto& seg : allSegments) {
+			Eigen::Vector2f s1(seg.s_(0), seg.s_(1));
+			Eigen::Vector2f e1(seg.e_(0), seg.e_(1));
+
+			float len = (e1 - s1).norm();
+
+			for (std::size_t i = 0; i < blueprint.size(); ++i) {
+				Eigen::Vector2f s2 = blueprint[i];
+				Eigen::Vector2f e2 = blueprint[(i + 1) % blueprint.size()];
+
+				if (std::fabs((e2 - s2).norm() - len) > 2. * MATCH_THRESH) continue;
+
+				trans2d::Matrix2x3f T = trans2d::estimateTransform(s1, e1, s2, e2);
+				float err = match_error(T);
+
+				LOG(INFO) << "err: " << err;
+
+				if (minError > err) {
+					minError = err;
+					minT = T;
+				}
+			}
+		}
+
+		LOG(INFO) << "candidate is: \n" << minT << "\nwith error: " << minError << ", mean " << minError / (blueprint.size());
+
+		cloudTrans = trans2d::asTransform3d(trans2d::inverse(minT));
+		cloudTrans(2, 3) = -zFloor;
+	}
+	LOG(INFO) << "cloud trans found: \n" << cloudTrans;
+
+	// transform original cloud.
+	cloud = geo::transfromPointCloud(cloud, cloudTrans);
+
+	// we can now do slice refer to cad model.
+	constexpr double SLICE_HALF_THICKNESS = 0.1f;
+	cloud = geo::passThrough(cloud, "x", 0. - SLICE_HALF_THICKNESS, 2.9 + SLICE_HALF_THICKNESS); // from blueprint
+	cloud = geo::passThrough(cloud, "y", 0. - SLICE_HALF_THICKNESS, 2.9 + SLICE_HALF_THICKNESS);
+	cloud = geo::passThrough(cloud, "z", 0. - SLICE_HALF_THICKNESS, 2.9 + SLICE_HALF_THICKNESS);
+
+	auto get_slice = [&](const Eigen::Vector3d& a, const Eigen::Vector3d& b, const Eigen::Vector3d& c) {
+		Eigen::Vector3d n = (b - a).cross(c - a).normalized();
+		auto slice = geo::filterPoints(cloud, [&a, &n, SLICE_HALF_THICKNESS](const Point& p) {
+			Eigen::Vector3d ap = Eigen::Vector3d(p.x, p.y, p.z) - a;
+			double dis = std::fabs(ap.dot(n));
+			return dis <= SLICE_HALF_THICKNESS;
+		});
+
+		auto pr = refinePlanePattern(slice, 0.02);
+		return pr.first;
+	};
+
+	auto filter_slice = []() {};
+
+	std::vector<PointCloud::Ptr> allPieces;
+	{
+		// each wall
+		for (const auto& wi : cadModel.getTypedModelItems(ITEM_WALL_E))
+			allPieces.push_back(get_slice(wi.points_[0], wi.points_[1], wi.points_[2]));
+
+		// floor
+		const auto& floor = cadModel.getTypedModelItems(ITEM_BOTTOM_E).front();
+		allPieces.push_back(get_slice(floor.points_[0], floor.points_[1], floor.points_[2]));
+
+		// roof
+		const auto& roof = cadModel.getTypedModelItems(ITEM_TOP_E).front();
+		allPieces.push_back(get_slice(roof.points_[0], roof.points_[1], roof.points_[2]));
+
+		//todo: remove remote outliers
+	}
+	LOG(INFO) << allPieces.size() << " pieces gained.";
+	//cloud = geo::filterPoints(cloud, [](const Point& p) {
+
+	//});
+
+#ifdef VISUALIZATION_ENABLED
+	// simple visualization
+	pcl::visualization::PCLVisualizer viewer;
+
+	//{
+	//	pcl::visualization::PointCloudColorHandlerCustom<Point> color(cloud, 100., 100., 100.);
+	//	viewer.addPointCloud(cloud, "cloud");
+	//}
+
+	//for (auto pr : ll::enumerate(wallCandidates)) {
+	//	auto cloud = pr.iter->cloud_;
+
+	//	double r{ geo::random() }, g{ geo::random() }, b{ geo::random() };
+
+	//	pcl::visualization::PointCloudColorHandlerCustom<Point> color(cloud, r * 255., g * 255., b * 255.);
+	//	viewer.addPointCloud(cloud, color, "plane" + std::to_string(pr.index));
+	//}
+
+	for (auto pr : ll::enumerate(allPieces)) {
+		auto cloud = *pr.iter;
+
+		double r{ geo::random() }, g{ geo::random() }, b{ geo::random() };
+
+		pcl::visualization::PointCloudColorHandlerCustom<Point> color(cloud, r * 255., g * 255., b * 255.);
+		viewer.addPointCloud(cloud, color, "piece" + std::to_string(pr.index));
+	}
+
+
+	for (auto pr : ll::enumerate(allSegments)) {
+		auto& seg = *pr.iter;
+		auto s = geo::P_(seg.s_);
+		auto e = geo::P_(seg.e_);
+		double r{ geo::random() }, g{ geo::random() }, b{ geo::random() };
+		viewer.addSphere(s, 0.1f, r, g, b, "ps_" + std::to_string(pr.index));
+		viewer.addSphere(e, 0.1f, r, g, b, "pe_" + std::to_string(pr.index));
+		viewer.addLine(s, e, r, g, b, "line_" + std::to_string(pr.index));
+	}
+
+	{
+		auto cad = cadModel.genTestFrameCloud();
+		pcl::visualization::PointCloudColorHandlerCustom<Point> color(cad, 255., 0., 0.);
+		viewer.addPointCloud(cad, color, "cad");
+	}
+
+	while (!viewer.wasStopped()) {
+		viewer.spinOnce(33);
+	}
+#endif
+
+	return allPieces;
+
 }
 
 }
