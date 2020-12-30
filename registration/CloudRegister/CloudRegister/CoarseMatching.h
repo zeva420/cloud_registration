@@ -14,6 +14,7 @@ class CoarseMatching {
 
 		inline Eigen::Vector3f mid() const { return (s_ + e_) * 0.5f; }
 		inline Eigen::Vector3f dir() const { return (e_ - s_).normalized(); }
+		inline float len() const { return (e_ - s_).norm(); }
 	};
 
 public:
@@ -42,6 +43,8 @@ public:
 
 	MatchResult run(const std::vector<PointCloud::Ptr>& allPieces, const CADModel& cadModel);
 
+	std::vector<PointCloud::Ptr> segment(PointCloud::Ptr cloud, const CADModel& cadModel);
+
 private:
 	static constexpr double PLANE_REFINE_DISTANCE = 0.05;
 	static constexpr double LINE_DETECT_DIS_THRESH = 0.02;
@@ -65,10 +68,13 @@ private:
 		const std::vector<Eigen::VectorXf>& wallparams, const Eigen::vector<trans2d::Matrix2x3f>& Ts, const float floorZ) const;
 
 	std::vector<Segment> detectSegmentsXOY(PointCloud::Ptr cloud, float linethresh, float connect_thresh, float min_seg_length) const;
+	// line_params, v6: [p, n]
 	std::vector<Segment> splitSegments(PointCloud::Ptr cloud, Eigen::VectorXf line_params, float connect_thresh, float min_seg_length) const;
 
 	// get SORTED intersection points on cad
 	Eigen::vector<Eigen::Vector3d> intersectCADModelOnZ(const CADModel& cadModel, float z) const;
+
+	std::vector<PointCloud::Ptr> testSegment(PointCloud::Ptr cloud, const CADModel& cadModel);
 };
 
 }

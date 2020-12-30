@@ -50,6 +50,10 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 
 	// coarse match: ([PointCloud], CADModel)-> ([transformed & filtered PointCloud])
 	CoarseMatching cm;
+
+	cm.segment(vecCloudPtr.front(), model);
+	return true;
+
 	auto re = cm.run(vecCloudPtr, model);
 	if (!re.isValid()) {
 		LOG(INFO) << "coarse matching failed.";

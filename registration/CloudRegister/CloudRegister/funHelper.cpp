@@ -502,7 +502,7 @@ namespace CloudReg
 			ror.setMinNeighborsInRadius(10);
 			ror.filter(*body);
 		}
-		LOG(INFO) << "get segment cloud: " << inliers->size() << " -> " << body->size();
+		//LOG(INFO) << "get segment cloud: " << inliers->size() << " -> " << body->size();
 		if (body->size() < 10)
 		{
 			return false;
@@ -574,6 +574,177 @@ namespace CloudReg
 		return x;
 	}
 
+	bool isPointInPolygon2D(const Eigen::Vector2d &point, 
+			const Eigen::vector<std::pair<Eigen::Vector2d, Eigen::Vector2d>> &segments)
+	{
+		const double PI = 3.1415;
+		if (segments.size() < 2)
+		{
+			return false;
+		}
+
+		auto dist_to_seg = [](const Eigen::Vector2d &point, 
+				const std::pair<Eigen::Vector2d, Eigen::Vector2d> &seg)->double {
+			Eigen::Vector2d s = seg.first;
+			Eigen::Vector2d e = seg.second;
+			Eigen::Vector2d n = e - s;
+			Eigen::Vector2d sp = point - s;
+			if (n.norm() < 1e-7 || sp.norm() < 1e-7) return double(RAND_MAX);
+
+			double dot = sp.dot(n) / n.squaredNorm();
+			if (dot < 0.0 || dot > 1.0) return double(RAND_MAX);
+
+			double dist = std::fabs(sp(0)*n(1) - sp(1)*n(0)) / n.norm();	
+			return dist;	
+		};
+
+		for (auto &seg : segments)
+		{
+			if (dist_to_seg(point, seg) < 1e-7)
+			{
+				return true;
+			}
+		}
+
+		double angleSum = 0;
+		for (auto &seg : segments)
+		{
+			Eigen::Vector2d a = seg.first - point;
+			Eigen::Vector2d b = seg.second - point;
+			double angle = std::atan2(a(1), a(0)) - atan2(b(1), b(0));
+        
+			if (angle >= PI)
+				angle = angle - PI * 2;
+			else if (angle <= -PI)
+				angle = angle + PI * 2;
+			angleSum += angle;
+		}
+		angleSum = std::fabs(angleSum);
+		if (std::fabs(angleSum - PI * 2) < 1e-7)
+		{
+			return true;
+		}
+
+		return false;
+	}
+
+	bool isPointInPolygon3D(const Eigen::Vector3d &point, 
+			const Eigen::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &segments)
+	{
+
+		auto to_pcl_point = [](const Eigen::Vector3d &p)->pcl::PointXYZ {
+			return pcl::PointXYZ(p(0), p(1), p(2));
+		};
+		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>());
+		for (auto &seg : segments)
+		{
+			cloud->push_back(to_pcl_point(seg.first));
+			cloud->push_back(to_pcl_point(seg.second));
+		}
+        Eigen::VectorXf coeff;
+        std::vector<int> inlierIdxs;
+        planeFitting(0.003, cloud, coeff, inlierIdxs);
+		Eigen::Vector4d plane(coeff(0), coeff(1), coeff(2), coeff(3));	
+		Eigen::Vector3d n = plane.block<3,1>(0,0);
+		if (std::fabs(n.dot(point) + plane(3)) > 1e-5) return false;
+
+		auto findMaxAxis = [](const Eigen::Vector3d &n)->int
+		{
+			int maxIdx = -1;
+			if (n.norm() > 1e-5)
+			{
+				std::vector<double> valueVec;
+				valueVec.push_back(std::fabs(n(0)));
+				valueVec.push_back(std::fabs(n(1)));
+				valueVec.push_back(std::fabs(n(2)));
+				auto maxItor = std::max_element(valueVec.begin(), valueVec.end());
+				maxIdx = std::distance(valueVec.begin(), maxItor);
+			}
+			return maxIdx;
+		};
+		int maxAxis = findMaxAxis(n);
+		if (-1 == maxAxis) return false;
+	
+		auto to_2D_point = [](int deletCoordinate, const Eigen::Vector3d &p)->Eigen::Vector2d {
+			Eigen::Vector2d pt2D;
+			int j = 0;
+			for (int i = 0; i < p.size(); i++)
+			{
+				if (i == deletCoordinate) continue;
+				pt2D(j) = p(i);
+				j++;
+			}
+			return pt2D;
+		};
+		Eigen::Vector2d point2D = to_2D_point(maxAxis, point);
+		Eigen::vector<std::pair<Eigen::Vector2d, Eigen::Vector2d>> segments2D;
+		for (auto &seg : segments)
+		{
+			auto pair2D = std::make_pair(to_2D_point(maxAxis, seg.first), to_2D_point(maxAxis, seg.second));
+			segments2D.push_back(pair2D);
+		}
+		
+		if (false == isPointInPolygon2D(point2D, segments2D))
+		{
+			return false;
+		}
+		return true;
+	}
+
+	bool interSectionOfLineToLine(const Eigen::VectorXd &line1, 
+					const Eigen::VectorXd &line2, Eigen::Vector3d &interSectionPt)
+	{
+		Eigen::Vector3d p1 = line1.block<3, 1>(0, 0);
+		Eigen::Vector3d n1 = line1.block<3, 1>(3, 0);	
+		Eigen::Vector3d p2 = line2.block<3, 1>(0, 0);
+		Eigen::Vector3d n2 = line2.block<3, 1>(3, 0);
+		if (std::fabs(n1.dot(n2)) > 0.9997)// parallel
+		{
+			return false;
+		}
+
+		auto dist_to_line = [](const Eigen::Vector3d &point, const Eigen::VectorXd &line)->double {
+			Eigen::Vector3d p = line.block<3, 1>(0, 0);
+			Eigen::Vector3d n = line.block<3, 1>(3, 0);	
+			double dist = (point - p).cross(n).norm();	
+			return dist;	
+		};
+
+		if (dist_to_line(p1, line2) < 1e-7)
+		{
+			interSectionPt = p1;
+			return true;
+		}
+		Eigen::Vector3d A = p1;
+		Eigen::Vector3d B = A + 2*n1;
+		if (dist_to_line(B, line2) < 1e-7)
+		{
+			interSectionPt = B;
+			return true;
+		}
+		
+		auto verticalPt_to_line = [](const Eigen::Vector3d &point, 
+					const Eigen::VectorXd &line)->Eigen::Vector3d {
+			Eigen::Vector3d p = line.block<3, 1>(0, 0);
+			Eigen::Vector3d n = line.block<3, 1>(3, 0);	
+			Eigen::Vector3d verticalPt = (point - p).dot(n) * n + p;
+			return verticalPt;	
+		};
+		
+		// AO / BO = AC / BD = s, O = (s*B - A) / (s-1)
+		Eigen::Vector3d C = verticalPt_to_line(A, line2);
+		Eigen::Vector3d D = verticalPt_to_line(B, line2);
+		Eigen::Vector3d AC = C - A;
+		Eigen::Vector3d BD = D - B;
+		double flag = (AC.dot(BD) > 0) ? 1.0 : -1.0;
+		double s = flag * AC.norm() / BD.norm();
+		interSectionPt = (s*B - A) / (s-1);
+		double dist1 = dist_to_line(interSectionPt, line1);
+		double dist2 = dist_to_line(interSectionPt, line2);
+		//LOG(INFO) << "interSectionPt dist to line1:" << dist1 << ", dist to line2:" << dist2;
+		return true;
+	}
+
 	bool interSectionOfLineToPlane(const Eigen::VectorXd &line, 
 					const Eigen::Vector4d &plane, Eigen::Vector3d &interSectionPt)
 	{
@@ -581,13 +752,13 @@ namespace CloudReg
 		Eigen::Vector3d n1 = line.block<3, 1>(3, 0);
 		Eigen::Vector3d n2 = plane.block<3, 1>(0, 0);
 		double d2 = plane(3);
-		if (n1.norm() < 0.000001 || n2.norm() < 0.000001)
+		if (n1.norm() < 1e-6 || n2.norm() < 1e-6)
 		{
 			return false;
 		}
 		
 		double dot = n1.dot(n2);
-		if (std::fabs(dot) < 0.000001)
+		if (std::fabs(dot) < 1e-6)
 		{
 			return false;
 		}
@@ -597,8 +768,8 @@ namespace CloudReg
 		interSectionPt = p1 + t * n1;
 		double distToPlane = n2.dot(interSectionPt) + d2;
 		//LOG(INFO) << "interSectionPt:" << interSectionPt(0) << " " << interSectionPt(1) << " " << interSectionPt(2);
-		LOG(INFO) << "p1 to plane dist:" << dist << ", interSectionPt To plane dist:" << distToPlane;
-		if (std::fabs(distToPlane) > 0.000001)
+		//LOG(INFO) << "p1 to plane dist:" << dist << ", interSectionPt To plane dist:" << distToPlane;
+		if (std::fabs(distToPlane) > 1e-6)
 		{
 			return false;
 		}
@@ -612,7 +783,7 @@ namespace CloudReg
 		Eigen::Vector3d n2 = plane2.block<3, 1>(0, 0);
 		double d1 = plane1(3);
 		Eigen::Vector3d n = n1.cross(n2);
-		if (n1.norm() < 0.000001 || n2.norm() < 0.000001 || n.norm() < 0.00001)
+		if (n1.norm() < 1e-6 || n2.norm() <1e-6 || n.norm() < 1e-6)
 		{
 			return false;
 		}
@@ -637,7 +808,7 @@ namespace CloudReg
 		double dist = n1.dot(pt_random) + d1;
 		//LOG(INFO) << "pt_random:" << pt_random(0) << "," << pt_random(1) << "," << pt_random(2);
 		LOG(INFO) << "pt_random to plane1 dist:" << dist;
-		if (std::fabs(dist) > 0.000001)
+		if (std::fabs(dist) > 1e-6)
 		{
 			return false;
 		}
@@ -863,5 +1034,159 @@ namespace CloudReg
 #endif
 		return v;
 	}
+
+}
+
+// #include "g2o/core/base_edge.h"
+#include "g2o/core/base_vertex.h"
+#include "g2o/core/base_unary_edge.h"
+#include "g2o/core/block_solver.h"
+#include "g2o/solvers/eigen/linear_solver_eigen.h"
+#include "g2o/core/optimization_algorithm_levenberg.h"
+#include "g2o/core/robust_kernel_impl.h"
+#include "g2o/types/sba/types_sba.h"
+
+using Vec4 = Eigen::Matrix<double, 4, 1>;
+
+// [x, y, theta, phi]
+namespace g2o {
+class VAngleMeasurer : public BaseVertex<4, Vec4> {
+public:
+	static constexpr double LENGTH = 0.2;
+
+	Eigen::Vector2d xy() const { return _estimate.block<2, 1>(0, 0); }
+	double theta() const { return _estimate(2, 0); }
+	double phi() const { return _estimate(3, 0); }
+
+	void setToOriginImpl() override { _estimate = Vec4::Zero(); }
+	void oplusImpl(const double* v) override {
+		Eigen::Map<const Vec4> dx(v);
+		_estimate += dx;
+	}
+
+	bool read(std::istream& is) override { return true; }
+	bool write(std::ostream& os) const override { return true; }
+
+	std::string to_string() const {
+		return ll::unsafe_format("AngleMeasure: (%.3f, %.3f), %.3f, %.3f",
+			_estimate(0), _estimate(1), 180. / 3.1415926* _estimate(2), 180. / 3.1415926 * _estimate(3));
+	}
+};
+
+class EDistanceToMeasurer2D : public BaseUnaryEdge<1, double, VAngleMeasurer> {
+public:
+	EDistanceToMeasurer2D(const Point& p) :
+		g2o::BaseUnaryEdge<1, double, VAngleMeasurer>(), point_(p.x, p.y) {}
+
+	void computeError() override {
+		// distance to each ray.
+		auto vam = static_cast<VAngleMeasurer*>(_vertices[0]);
+		Eigen::Vector2d op = point_ - vam->xy();
+		Eigen::Vector2d dir1 = dir(vam->theta());
+		Eigen::Vector2d dir2 = dir(vam->phi());
+
+		double t1 = op.dot(dir1);
+		double t2 = op.dot(dir2);
+
+		_error(0) = cross(op, std::abs(t1) > std::abs(t2) ? dir1 : dir2);
+	}
+
+	bool read(std::istream& is) override { return true; }
+	bool write(std::ostream& os) const override { return true; }
+
+	using g2o::BaseEdge<1, double>::information;
+
+private:
+	Eigen::Vector2d point_;
+
+	Eigen::Vector2d dir(double angle) const { return Eigen::Vector2d(std::cos(angle), std::sin(angle)); }
+	double cross(const Eigen::Vector2d& v1, const Eigen::Vector2d& v2) { return v1(0) * v2(1) - v1(1) * v2(0); }
+};
+}
+
+
+namespace CloudReg {
+double calcCorner_beta(PointCloud::Ptr cloud1, PointCloud::Ptr cloud2, const Eigen::Vector3f& cornerPoint, float z) {
+	constexpr float SLICE_THICKNESS = 0.05f;
+	constexpr float PIECE_MAX_LENGTH = 0.3f;
+	constexpr float PIECE_MAX_LENGTH_SQUARED = PIECE_MAX_LENGTH * PIECE_MAX_LENGTH;
+
+	const float zLow = z - SLICE_THICKNESS;
+	const float zHigh = z + SLICE_THICKNESS;
+
+	auto gain_sub_cloud = [&](PointCloud::Ptr cloud) {
+		auto sub = geo::passThrough(cloud, "z", zLow, zHigh);
+		sub = geo::filterPoints(sub, [&cornerPoint, PIECE_MAX_LENGTH_SQUARED](const Point& p) {
+			return (geo::V_(p) - cornerPoint).squaredNorm() < PIECE_MAX_LENGTH_SQUARED;
+		});
+
+		if (sub->size() < 50) sub = cloud;
+
+		return sub;
+	};
+
+	auto sub1 = gain_sub_cloud(cloud1);
+	auto sub2 = gain_sub_cloud(cloud2);
+
+	// now optimize
+	g2o::SparseOptimizer optimier; // actually no need to be sparse.
+	{
+		auto ls = std::make_unique<g2o::LinearSolverEigen<g2o::BlockSolverX::PoseMatrixType>>();
+		auto bs = std::make_unique<g2o::BlockSolverX>(std::move(ls));
+		auto algo = new g2o::OptimizationAlgorithmLevenberg(std::move(bs));
+		optimier.setAlgorithm(algo);
+	}
+
+	int id=0;
+
+	auto v = new g2o::VAngleMeasurer();
+	{
+		// simply use middle point to initialize
+		auto dir_angle = [](PointCloud::Ptr cloud, const Eigen::Vector3f& o)-> double{
+			double cenx{ 0. }, ceny{ 0. }, dn { static_cast<double>(cloud->size()) };
+			for(const auto& p: cloud->points){
+				cenx += p.x; ceny += p.y;
+			}
+
+			return std::atan2(ceny/ dn- o(1), cenx/ dn- o(0));
+		};
+
+		Vec4 estimate;
+		estimate(0, 0) = cornerPoint(0);
+		estimate(1, 0) = cornerPoint(1);
+		estimate(2, 0) = dir_angle(sub1, cornerPoint);
+		estimate(3, 0) = dir_angle(sub2, cornerPoint);
+		v->setEstimate(estimate);
+	}
+	v->setId(id++);
+	v->setFixed(false);
+	optimier.addVertex(v);
+
+	Eigen::Matrix<double, 1, 1> info = Eigen::Matrix<double, 1, 1>::Identity();
+	for(const auto& p: sub1->points){
+		auto e = new g2o::EDistanceToMeasurer2D(p);
+		e->setVertex(0, v);
+		e->setMeasurement(0.);
+		e->information() = info;
+		optimier.addEdge(e);
+	}
+	for (const auto& p : sub2->points) {
+		auto e = new g2o::EDistanceToMeasurer2D(p);
+		e->setVertex(0, v);
+		e->setMeasurement(0.);
+		e->information() = info;
+		optimier.addEdge(e);
+	}
+
+	LOG(INFO) << "before: "<< v->to_string();
+
+	optimier.setVerbose(true);
+	optimier.initializeOptimization();
+	optimier.optimize(10);
+
+	LOG(INFO) << "after: " << v->to_string();
+
+	return std::cos(v->theta()- v->phi())* 130.;
+}
 
 }

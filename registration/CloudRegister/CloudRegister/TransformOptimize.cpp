@@ -1,5 +1,5 @@
-﻿#include <vtkAutoInit.h>
-VTK_MODULE_INIT(vtkRenderingOpenGL)
+﻿// #include <vtkAutoInit.h>
+// VTK_MODULE_INIT(vtkRenderingOpenGL)
 #include <pcl/visualization/pcl_visualizer.h>
 
 #include "TransformOptimize.h"
