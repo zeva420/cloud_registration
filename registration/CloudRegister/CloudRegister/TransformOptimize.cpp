@@ -254,7 +254,7 @@ bool TransformOptimize::optimize(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr
     addWallPointToModelPlaneEdges(vecCloudPtr, modelPlanes, transform);
 
     LOG(INFO) << "********optData*******";
-    optData(15, false, true);
+    optData(10, false, true);
 
     LOG(INFO) << "********getSE3Transfor*******";
     getSE3Transfor(transform);
@@ -336,35 +336,31 @@ bool TransformOptimize::transformCloud(
     ss << finalT (0,3) << " " << finalT (1,3) << " " << finalT (2,3) << "\n";
     LOG(INFO) << ss.str();
 
+	auto transfor = [&](Eigen::Matrix4d& finalT, Eigen::Vector4d& plane, pcl::PointCloud<pcl::PointXYZ>::Ptr cloud) {
+		
+		pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>());
+		pcl::transformPointCloud(*cloud, *transformed_cloud, finalT);
+		cloud->swap(*transformed_cloud);
+	};
+
 	Eigen::Matrix4d newT = Eigen::Matrix4d::Identity();
     for (int i = 0; i < vecCloudPtr.size(); i++)
-    {
-        auto &cloud = vecCloudPtr[i];
-        pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>());
-        pcl::transformPointCloud(*cloud, *transformed_cloud, finalT);    
-        cloud->swap(*transformed_cloud); 
-
-        Eigen::Vector4d plane = modePlanes[i];
-        auto distError = calcCloudToPLaneAveDist(plane, cloud);
+    {              
+		transfor(finalT, modePlanes[i], vecCloudPtr[i]);
+		auto distError = calcCloudToPLaneAveDist(modePlanes[i], vecCloudPtr[i]);
         LOG(INFO) << "first: cloud to model plane, aveDist:" << distError.first << " medianDist:" << distError.second;
 		
 		if (i == vecCloudPtr.size() - 2)
 		{
 			newT(2, 3) = -distError.second;
 		}
-
     }
 
 	for (int i = 0; i < vecCloudPtr.size(); i++)
 	{
-		auto &cloud = vecCloudPtr[i];
-		pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>());
-		pcl::transformPointCloud(*cloud, *transformed_cloud, newT);
-		cloud->swap(*transformed_cloud);
-
-		Eigen::Vector4d plane = modePlanes[i];
-		auto distError = calcCloudToPLaneAveDist(plane, cloud);
-		LOG(INFO) << "first: cloud to model plane, aveDist:" << distError.first << " medianDist:" << distError.second;
+		transfor(newT, modePlanes[i], vecCloudPtr[i]);
+		auto distError = calcCloudToPLaneAveDist(modePlanes[i], vecCloudPtr[i]);
+		LOG(INFO) << "second: cloud to model plane, aveDist:" << distError.first << " medianDist:" << distError.second;
 	}
 
 	return true;
