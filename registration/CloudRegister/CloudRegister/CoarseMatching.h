@@ -43,7 +43,7 @@ public:
 
 	MatchResult run(const std::vector<PointCloud::Ptr>& allPieces, const CADModel& cadModel);
 
-	std::vector<PointCloud::Ptr> testSegment(PointCloud::Ptr cloud, const CADModel& cadModel);
+	std::vector<PointCloud::Ptr> segment(PointCloud::Ptr cloud, const CADModel& cadModel);
 
 private:
 	static constexpr double PLANE_REFINE_DISTANCE = 0.05;
@@ -73,6 +73,8 @@ private:
 
 	// get SORTED intersection points on cad
 	Eigen::vector<Eigen::Vector3d> intersectCADModelOnZ(const CADModel& cadModel, float z) const;
+
+	std::vector<PointCloud::Ptr> testSegment(PointCloud::Ptr cloud, const CADModel& cadModel);
 };
 
 }

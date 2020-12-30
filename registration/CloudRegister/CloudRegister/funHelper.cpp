@@ -873,8 +873,6 @@ namespace CloudReg
 		pass.filter (*filteredCloud);
 		subSet2->swap(*filteredCloud);
 
-		auto subSet1 = get_sub_cloud(pCloud1);
-		auto subSet2 = get_sub_cloud(pCloud2);
 		LOG(INFO) << "subSet1:" << subSet1->size() << " subSet2:" << subSet2->size();
 		if (subSet1->size() < 50 || subSet2->size() < 50)
 		{

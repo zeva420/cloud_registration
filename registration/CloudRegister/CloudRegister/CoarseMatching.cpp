@@ -820,6 +820,10 @@ Eigen::vector<Eigen::Vector3d> CoarseMatching::intersectCADModelOnZ(const CADMod
 // test segment.
 namespace CloudReg {
 
+std::vector<PointCloud::Ptr> CoarseMatching::segment(PointCloud::Ptr cloud, const CADModel& cadModel) {
+	return testSegment(cloud, cadModel);
+}
+
 struct PlaneCloud {
 	PointCloud::Ptr cloud_;
 	Eigen::Vector4f abcd_;
@@ -854,8 +858,8 @@ void detectPlanes(PointCloud::Ptr cloud, std::vector<PlaneCloud>& planes,
 	detectPlanes(left, planes, disthresh, inlier_count_thresh);
 }
 
-std::vector<PointCloud::Ptr> CoarseMatching::testSegment(PointCloud::Ptr cloud, const CADModel& cadModel) {
-	cloud = geo::downsampleUniformly(cloud, 0.01);
+std::vector<PointCloud::Ptr> CoarseMatching::testSegment(PointCloud::Ptr orgcloud, const CADModel& cadModel) {
+	auto cloud = geo::downsampleUniformly(orgcloud, 0.01);
 
 	// cad params
 	double cadx1{ 100. }, cadx2{ -100. }, cady1{ 100. }, cady2{ -100. }, cadz1{ 100. }, cadz2{ -100. }; // aabb 
@@ -1059,14 +1063,15 @@ std::vector<PointCloud::Ptr> CoarseMatching::testSegment(PointCloud::Ptr cloud, 
 	}
 	LOG(INFO) << "cloud trans found: \n" << cloudTrans;
 
+	///////////////////////////////////////////////////////////////////////////////////
 	// transform original cloud.
-	cloud = geo::transfromPointCloud(cloud, cloudTrans);
+	cloud = geo::transfromPointCloud(orgcloud, cloudTrans);
 
 	// we can now do slice refer to cad model.
 	constexpr double SLICE_HALF_THICKNESS = 0.1f;
-	cloud = geo::passThrough(cloud, "x", 0. - SLICE_HALF_THICKNESS, 2.9 + SLICE_HALF_THICKNESS); // from blueprint
-	cloud = geo::passThrough(cloud, "y", 0. - SLICE_HALF_THICKNESS, 2.9 + SLICE_HALF_THICKNESS);
-	cloud = geo::passThrough(cloud, "z", 0. - SLICE_HALF_THICKNESS, 2.9 + SLICE_HALF_THICKNESS);
+	cloud = geo::passThrough(cloud, "x", cadx1 - SLICE_HALF_THICKNESS, cadx2 + SLICE_HALF_THICKNESS); // from blueprint
+	cloud = geo::passThrough(cloud, "y", cady1 - SLICE_HALF_THICKNESS, cady2 + SLICE_HALF_THICKNESS);
+	cloud = geo::passThrough(cloud, "z", cadz1 - SLICE_HALF_THICKNESS, cadz2 + SLICE_HALF_THICKNESS);
 
 	auto get_slice = [&](const Eigen::Vector3d& a, const Eigen::Vector3d& b, const Eigen::Vector3d& c) {
 		Eigen::Vector3d n = (b - a).cross(c - a).normalized();
@@ -1079,8 +1084,6 @@ std::vector<PointCloud::Ptr> CoarseMatching::testSegment(PointCloud::Ptr cloud, 
 		auto pr = refinePlanePattern(slice, 0.02);
 		return pr.first;
 	};
-
-	auto filter_slice = []() {};
 
 	std::vector<PointCloud::Ptr> allPieces;
 	{
@@ -1108,7 +1111,7 @@ std::vector<PointCloud::Ptr> CoarseMatching::testSegment(PointCloud::Ptr cloud, 
 	pcl::visualization::PCLVisualizer viewer;
 
 	//{
-	//	pcl::visualization::PointCloudColorHandlerCustom<Point> color(cloud, 100., 100., 100.);
+	//	pcl::visualization::PointCloudColorHandlerCustom<Point> color(orgcloud, 100., 100., 100.);
 	//	viewer.addPointCloud(cloud, "cloud");
 	//}
 
@@ -1153,7 +1156,6 @@ std::vector<PointCloud::Ptr> CoarseMatching::testSegment(PointCloud::Ptr cloud, 
 #endif
 
 	return allPieces;
-
 }
 
 }
