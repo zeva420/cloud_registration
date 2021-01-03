@@ -15,6 +15,7 @@
 #include <pcl/sample_consensus/sac_model_plane.h>
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/filters/conditional_removal.h>
+#include "funHelper.h"
 
 // trans2d
 #define RBLOCK(T) T.block<2, 2>(0, 0)
@@ -181,6 +182,29 @@ std::pair<std::vector<int>, Eigen::VectorXf> detectOneLineRansac(PointCloud::Ptr
 	ransac.getModelCoefficients(re.second);
 
 	return re;
+}
+
+std::pair<PointCloud::Ptr, Eigen::Vector4f> refinePlanePattern(PointCloud::Ptr cloud, double disthresh) {
+	pcl::SampleConsensusModelPlane<Point>::Ptr planeModel(new pcl::SampleConsensusModelPlane<Point>(cloud));
+	pcl::RandomSampleConsensus<Point> ransac(planeModel);
+	ransac.setDistanceThreshold(disthresh);
+	ransac.computeModel();
+
+	std::vector<int> inliers;
+	Eigen::VectorXf params;
+	ransac.getInliers(inliers);
+	ransac.getModelCoefficients(params);
+
+	auto plane = geo::getSubSet(cloud, inliers);
+	Eigen::Vector4f abcd = CloudReg::calcPlaneParam(plane).cast<float>();
+
+	// filter again.
+	plane = geo::filterPoints(cloud, [&abcd, disthresh](const Point& p) {
+		double dis = abcd(0) * p.x + abcd(1) * p.y + abcd(2) * p.z + abcd(3);
+		return std::fabs(dis) <= disthresh;
+	});
+
+	return std::make_pair(plane, abcd);
 }
 
 PointCloud::Ptr transfromPointCloud(PointCloud::Ptr cloud, const Eigen::Matrix4f& T) {

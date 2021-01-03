@@ -515,9 +515,9 @@ Eigen::vector<trans2d::Matrix2x3f> CoarseMatching::computeOutlineTransformCandid
 		};
 
 		std::cout << "===================================================\n";
-		for (const auto& can : candidates) {
+		/*for (const auto& can : candidates) {
 			is_same(candidates.front(), can);
-		}
+		}*/
 
 		// simple brute-force. this can be optimized
 		// keep in mind that the candidates are already sorted.

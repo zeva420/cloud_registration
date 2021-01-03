@@ -6,6 +6,7 @@
 #include "CoarseMatching.h"
 #include "TransformOptimize.h"
 #include "funHelper.h"
+#include "CloudSegment.h"
 
 #include <pcl/common/transforms.h>
 
@@ -47,6 +48,15 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	LOG(INFO) << "cad model loaded: " << model.toString() << ". from: " << CAD_File;
 	
 	// wall segmentation: (PointCloud, CADModel)-> [PointCloud]
+
+	CloudSegment cs(vecCloudPtr.front(), model);
+	auto sr = cs.run();
+	if(!sr.valid()){
+		LOG(WARNING)<< "failed to segment cloud.";
+		return false;
+	}
+
+	return true;
 
 	// coarse match: ([PointCloud], CADModel)-> ([transformed & filtered PointCloud])
 	CoarseMatching cm;
