@@ -127,8 +127,8 @@ CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
 	// simple pass through
 	auto cloud = geo::filterPoints(orgCloud_, [&](const Point& p) {
 		return (p.x > cadx1_ - SLICE_HALF_THICKNESS && p.x < cadx2_ + SLICE_HALF_THICKNESS) &&
-			(p.y > cady1_ - SLICE_HALF_THICKNESS && p.y < cady2_ + SLICE_HALF_THICKNESS) &&
-			(p.z > cadz1_ - SLICE_HALF_THICKNESS && p.z < cadz2_ + SLICE_HALF_THICKNESS);
+			(p.y > cady1_ - SLICE_HALF_THICKNESS && p.y < cady2_ + SLICE_HALF_THICKNESS);
+		// && (p.z > cadz1_ - SLICE_HALF_THICKNESS && p.z < cadz2_ + SLICE_HALF_THICKNESS);
 	});
 
 	// a, b, c should defines a plane
@@ -160,7 +160,33 @@ CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
 	const auto& roof = cadModel_.getTypedModelItems(ITEM_TOP_E).front();
 	sr.roof_ = get_slice(roof.points_[0], roof.points_[1], roof.points_[2]);
 
-	//todo: floor may not aligned properly.
+	// floor may not aligned properly.
+	// todo: we can use the pre-extracted planes
+	{
+		constexpr double MIN_WALL_HEIGHT = 1.;
+		constexpr double MAX_WALL_HEIGHT = 5.;
+		constexpr double HIST_STEP = 0.1;
+		constexpr std::size_t HIST_COUNT = static_cast<std::size_t>((MAX_WALL_HEIGHT - MIN_WALL_HEIGHT) / HIST_STEP);
+
+		// hist 0:0.1:5
+		std::array<std::size_t, HIST_COUNT> hists;
+		hists.fill(0);
+		for (const auto& p : (*cloud)) {
+			int i = (cadz2_ - MIN_WALL_HEIGHT - p.z) / HIST_STEP;
+			if (i < 0 || i >= HIST_COUNT) continue;
+			hists[i] += 1;
+		}
+		LOG(INFO) << "hists: " << ll::string_join(hists, ",");
+
+		auto iter = std::max_element(hists.begin(), hists.end());
+		std::size_t i = std::distance(hists.begin(), iter);
+		double floorz1 = cadz2_ - MIN_WALL_HEIGHT - (i + 1) * HIST_STEP;
+		double floorz2 = cadz2_ - MIN_WALL_HEIGHT - (i - 1) * HIST_STEP;
+		LOG(INFO) << ll::unsafe_format("slice floor %.3f -> %.3f.", floorz1, floorz2);
+
+		auto slice = geo::passThrough(cloud, "z", floorz1, floorz2);
+		std::tie(sr.floor_.cloud_, sr.floor_.abcd_) = geo::refinePlanePattern(slice, 0.02);
+	}
 
 	// beams
 
@@ -181,6 +207,7 @@ CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
 	for (const auto& pr : ll::enumerate(sr.walls_))
 		add_cloud_rc("wall" + std::to_string(pr.index), pr.iter->cloud_);
 	add_cloud_rc("roof", sr.roof_.cloud_);
+	add_cloud_rc("floor", sr.floor_.cloud_);
 
 	add_cloud("cad", cadModel_.genTestFrameCloud(), 255., 0., 0.);
 
