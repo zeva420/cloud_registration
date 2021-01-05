@@ -251,6 +251,7 @@ bool Segmentation::calibrateCloudByUpOrDown(CADModel &cad,
                     pcl::PointCloud<pcl::Normal>::Ptr normalSubSet1, 
                     double &moveZ)
 {
+    LOG(INFO) << "********calibrateCloudByUpOrDown*******";
     //detect plane and their coeff
     pcl::PointCloud<pcl::PointXYZ>::Ptr copySet1(new pcl::PointCloud<pcl::PointXYZ>());
     pcl::copyPointCloud(*ptSubSet1, *copySet1);
@@ -304,8 +305,20 @@ bool Segmentation::calibrateCloudByUpOrDown(CADModel &cad,
     // auto Beams = cad.getTypedModelItems(ITEM_BEAM_E);
     // for (auto &it : Beams)
     // {
-    //     auto &p = it.points_.front();
-    //     vecCadZ.push_back(p(2));
+    //     bool isValid = true;
+    //     float z = it.points_.front()(2);
+    //     for (auto &p : it.points_)
+    //     {
+    //         if (std::fabs(z - p(2)) > 1e-3)
+    //         {
+    //             isValid = false;
+    //             break;
+    //         }
+    //     }
+    //     if (isValid)
+    //     {
+    //         vecCadZ.push_back(z);
+    //     }
     // }
     std::sort(vecCadZ.begin(), vecCadZ.end());
     LOG(INFO) << "vecCadZ:" << vecCadZ.size() << " vecPlaneZ:" << vecPlaneZ.size();
@@ -399,6 +412,7 @@ bool Segmentation::calibrateCloudByWall(CADModel &cad,
                         pcl::PointCloud<pcl::Normal>::Ptr normalSubSet2, 
                         Eigen::Matrix<double, 2, 3> &T)
 {
+    LOG(INFO) << "********calibrateCloudByWall*******";
     //detect planes and their coeff
     pcl::PointCloud<pcl::PointXYZ>::Ptr copySet2(new pcl::PointCloud<pcl::PointXYZ>());
     pcl::copyPointCloud(*ptSubSet2, *copySet2);
@@ -808,10 +822,12 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr Segmentation::segmentateSingleModelItem(
         pcl::io::savePCDFile(file_name, *pCloudRgb);	
     }
 // #endif
-    Eigen::Vector4d fitPlane;
-    pcl::PointCloud<pcl::PointXYZ>::Ptr fitPoints(new pcl::PointCloud<pcl::PointXYZ>());
-    while (nearPoints->size() > 200)
+    std::vector<Eigen::Vector4d> vecfitPlanes;
+    std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> vecFitPoints;
+    while (nearPoints->size() > 100)
     {
+        Eigen::Vector4d fitPlane;
+        pcl::PointCloud<pcl::PointXYZ>::Ptr fitPoints(new pcl::PointCloud<pcl::PointXYZ>());
         std::vector<int> inlierIndices;
         if (false == planeFitAndCheck(nearPoints, fitPlane, inlierIndices)) break;
 
@@ -819,45 +835,62 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr Segmentation::segmentateSingleModelItem(
         fitPoints = geo::getSubSet(nearPoints, inlierIndices, false);
         if (std::fabs(cadPlane.block<3,1>(0,0).dot(fitPlane.block<3,1>(0,0))) > 0.9)
         {
-            break;
+            vecfitPlanes.push_back(fitPlane);
+            vecFitPoints.push_back(fitPoints);
         }
         auto tmpLeft = geo::getSubSet(nearPoints, inlierIndices, true);
         nearPoints->swap(*tmpLeft);
     }
+    LOG(INFO) << "vecfitPlanes:" << vecfitPlanes.size();
+    if (vecfitPlanes.empty()) return false;
+
     LOG(INFO) << "cadPlane:" << cadPlane(0) << " " << cadPlane(1) << " " << cadPlane(2) << " " << cadPlane(3);
-    LOG(INFO) << "fitPlane:" << fitPlane(0) << " " << fitPlane(1) << " " << fitPlane(2) << " " << fitPlane(3);
-    LOG(INFO) << "fitPoints:" << fitPoints->size();
-    if (fitPoints->empty()) return false;
-
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filter(new pcl::PointCloud<pcl::PointXYZ>());
-    projectionToPlane(cadPlane, fitPoints, cloud_filter);
-
-    std::vector<int> indices;
-    for (int i = 0; i < cloud_filter->size(); i++)
+    pcl::PointCloud<pcl::PointXYZ>::Ptr segmentedCloud(new pcl::PointCloud<pcl::PointXYZ>());
+    for (int k = 0; k < vecFitPoints.size(); k++)
     {
-        auto &p = cloud_filter->points[i];
-        Eigen::Vector3d point(p.x, p.y, p.z);
-        Eigen::Vector2d point2D = to_2D_point(maxAxis, point);
-        if (isPointInPolygon2D(point2D, segments2D))
+        auto &fitPlane = vecfitPlanes[k];
+        auto fitPoints = vecFitPoints[k];
+        LOG(INFO) << "fitPlane:" << fitPlane(0) << " " << fitPlane(1) << " " << fitPlane(2) << " " << fitPlane(3);
+        LOG(INFO) << "fitPoints:" << fitPoints->size();
+        if (fitPoints->empty()) continue;
+
+    // #ifdef VISUALIZATION_ENABLED
         {
-            indices.push_back(i);
+            std::default_random_engine e;
+            std::uniform_real_distribution<double> random(0,1);
+            int r = int(random(e)*255);
+            int g = int(random(e)*255);
+            int b = int(random(e)*255);
+            auto pCloudRgb = to_rgp_cloud(fitPoints, r, g, b, 0.01);
+            std::string file_name = name + "-plane" + std::to_string(k) + "-fitPoints.pcd";
+            pcl::io::savePCDFile(file_name, *pCloudRgb);	
+        }
+    // #endif
+
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filter(new pcl::PointCloud<pcl::PointXYZ>());
+        projectionToPlane(cadPlane, fitPoints, cloud_filter);
+
+        std::vector<int> indices;
+        for (int i = 0; i < cloud_filter->size(); i++)
+        {
+            auto &p = cloud_filter->points[i];
+            Eigen::Vector3d point(p.x, p.y, p.z);
+            Eigen::Vector2d point2D = to_2D_point(maxAxis, point);
+            if (isPointInPolygon2D(point2D, segments2D))
+            {
+                indices.push_back(i);
+            }
+        }
+        LOG(INFO) << "indices:" << indices.size();
+        if (indices.size() < 20) continue;
+
+        auto tmpCloud = geo::getSubSet(fitPoints, indices, false);
+        if (segmentedCloud->size() < tmpCloud->size())
+        {
+            segmentedCloud->swap(*tmpCloud);
         }
     }
-    LOG(INFO) << "indices:" << indices.size();
-    auto segmentedCloud = geo::getSubSet(fitPoints, indices, false);
-// #ifdef VISUALIZATION_ENABLED
-    {
-        std::default_random_engine e;
-        std::uniform_real_distribution<double> random(0,1);
-        int r = int(random(e)*255);
-        int g = int(random(e)*255);
-        int b = int(random(e)*255);
-        auto pCloudRgb = to_rgp_cloud(fitPoints, r, g, b, 0.01);
-        std::string file_name = name + "-fitPoints.pcd";
-        pcl::io::savePCDFile(file_name, *pCloudRgb);	
-    }
-// #endif
-
+    LOG(INFO) << "segmentedCloud:" << segmentedCloud->size();
     return segmentedCloud;
 }
 
@@ -930,6 +963,27 @@ bool Segmentation::doSegmentation(
             std::string file_name = "bottom-" + std::to_string(k) + "-segmentPoints.pcd";
             pcl::io::savePCDFile(file_name, *pCloudRgb);	
         } 
+    }
+
+    std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> segmentBeamPoints;
+    auto Beams = cad.getTypedModelItems(ITEM_BEAM_E);
+    LOG(INFO) << "Beams:" << Beams.size();
+    for (int k = 0; k < Beams.size(); k++)
+    {
+        auto &item = Beams[k];
+        LOG(INFO) << "=========== segmentate beam:" << k;
+        auto segmentPoints = segmentateSingleModelItem(inputCloud, item, "beam-" + std::to_string(k));
+        if (nullptr == segmentPoints || segmentPoints->empty()) continue;
+
+        segmentBeamPoints.push_back(segmentPoints);       
+        {
+            int r = int(random(e)*255);
+            int g = int(random(e)*255);
+            int b = int(random(e)*255);
+            auto pCloudRgb = to_rgp_cloud(segmentPoints, r, g, b, 0.01);
+            std::string file_name = "beam-" + std::to_string(k) + "-segmentPoints.pcd";
+            pcl::io::savePCDFile(file_name, *pCloudRgb);	
+        }
     }
 }
 
