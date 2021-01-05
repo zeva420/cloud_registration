@@ -28,6 +28,18 @@ public:
 		bool valid() const {
 			return !walls_.empty() && !roof_.cloud_ && !floor_.cloud_;
 		}
+
+		//! careful 
+		std::vector<PlaneCloud> allPlanes() const {
+			std::vector<PlaneCloud> all;
+			all.reserve(walls_.size() + beams_.size() + 2);
+			all.insert(all.end(), walls_.begin(), walls_.end());
+			all.insert(all.end(), beams_.begin(), beams_.end());
+			all.push_back(roof_);
+			all.push_back(floor_);
+
+			return all;
+		}
 	};
 
 	SegmentResult run();
@@ -52,8 +64,11 @@ private:
 
 	double zfloor_, zroof_; // org cloud
 
+	PointCloud::Ptr sparsedCloud_{ nullptr }; // most time we work on this.
+
 	// constants
 	static constexpr double METER_100 = 100.;
+	static constexpr float DOWNSAMPLE_SIZE = 0.01f;
 
 	// main processes
 	void recordModelBoundingBox();
@@ -77,6 +92,10 @@ private:
 	// 2d, segments & blueprint shall be sorted.
 	Eigen::vector<trans2d::Matrix2x3f> computeSegmentAlignCandidates(const std::vector<Segment>& segments,
 		const Eigen::vector<Eigen::Vector2f>& blueprint, float disthresh) const;
+
+	SegmentResult segmentCloudByCADModel(PointCloud::Ptr cloud) const; // after the cloud was aligned properly.
+
+	inline PointCloud::Ptr sparsedCloud();
 };
 
 }

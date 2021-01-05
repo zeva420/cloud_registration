@@ -123,82 +123,116 @@ bool CloudSegment::alignCloudToCADModel() {
 
 	LOG(INFO) << "cloud trans found: \n" << T;
 
+	//! note we do transform here
+	sparsedCloud_ = geo::transfromPointCloud(sparsedCloud(), T);
 	orgCloud_ = geo::transfromPointCloud(orgCloud_, T);
 
 	return true;
 }
 
 CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
-	// we now process the ORIGINAL cloud
-	constexpr double SLICE_HALF_THICKNESS = 0.1f;
+	// bad thing is, due to efficiency, we cannot just segment the original cloud. 
+	auto sr = segmentCloudByCADModel(sparsedCloud());
 
-	// simple pass through
-	auto cloud = geo::filterPoints(orgCloud_, [&](const Point& p) {
-		return (p.x > cadx1_ - SLICE_HALF_THICKNESS && p.x < cadx2_ + SLICE_HALF_THICKNESS) &&
-			(p.y > cady1_ - SLICE_HALF_THICKNESS && p.y < cady2_ + SLICE_HALF_THICKNESS);
-		// && (p.z > cadz1_ - SLICE_HALF_THICKNESS && p.z < cadz2_ + SLICE_HALF_THICKNESS);
-	});
-
-	// a, b, c should defines a plane
-	auto get_slice = [&](const Eigen::Vector3d& a, const Eigen::Vector3d& b, const Eigen::Vector3d& c)-> PlaneCloud {
-		Eigen::Vector3d n = (b - a).cross(c - a).normalized();
-		auto slice = geo::filterPoints(cloud, [&a, &n, SLICE_HALF_THICKNESS](const Point& p) {
-			Eigen::Vector3d ap = Eigen::Vector3d(p.x, p.y, p.z) - a;
-			double dis = std::fabs(ap.dot(n));
-			return dis <= SLICE_HALF_THICKNESS;
-		});
-
-		// by setting the minimal size to HALF, we ensure the result be only ONE.
-		// return detectRegionPlanes(slice, 5. / 180. * geo::PI, 1., slice->size() / 2).front();
-		PlaneCloud pc;
-		if (slice->empty()) return pc;
-
-		std::tie(pc.cloud_, pc.abcd_) = geo::refinePlanePattern(slice, 0.02);
-		return pc;
-	};
-
-	SegmentResult sr;
-	// each wall
-	const auto& walls = cadModel_.getTypedModelItems(ITEM_WALL_E);
-	sr.walls_.reserve(walls.size());
-	for (const auto& wi : walls) {
-		PlaneCloud pc = get_slice(wi.points_[0], wi.points_[1], wi.points_[2]);
-		sr.walls_.emplace_back(pc);
-	}
-
-	// floor & roof
-	const auto& roof = cadModel_.getTypedModelItems(ITEM_TOP_E).front();
-	sr.roof_ = get_slice(roof.points_[0], roof.points_[1], roof.points_[2]);
-
-	// floor may not aligned properly.
-	// todo: we can use the pre-extracted planes
+	// bounding box filter
+	float x1{ METER_100 }, x2{ -METER_100 }, y1{ METER_100 }, y2{ -METER_100 }, z1{ METER_100 }, z2{ -METER_100 };
 	{
-		constexpr double MIN_WALL_HEIGHT = 1.;
-		constexpr double MAX_WALL_HEIGHT = 5.;
-		constexpr double HIST_STEP = 0.1;
-		constexpr std::size_t HIST_COUNT = static_cast<std::size_t>((MAX_WALL_HEIGHT - MIN_WALL_HEIGHT) / HIST_STEP);
+		auto update_aabb = [&](PointCloud::Ptr cloud) {
+			if (!cloud) return;
 
-		// hist 0:0.1:5
-		std::array<std::size_t, HIST_COUNT> hists;
-		hists.fill(0);
-		for (const auto& p : (*cloud)) {
-			int i = (cadz2_ - MIN_WALL_HEIGHT - p.z) / HIST_STEP;
-			if (i < 0 || i >= HIST_COUNT) continue;
-			hists[i] += 1;
-		}
+			Point p1, p2;
+			pcl::getMinMax3D(*cloud, p1, p2);
 
-		auto iter = std::max_element(hists.begin(), hists.end());
-		std::size_t i = std::distance(hists.begin(), iter);
-		double floorz1 = cadz2_ - MIN_WALL_HEIGHT - (i + 1) * HIST_STEP;
-		double floorz2 = cadz2_ - MIN_WALL_HEIGHT - (i - 1) * HIST_STEP;
-		LOG(INFO) << ll::unsafe_format("slice floor %.3f -> %.3f.", floorz1, floorz2);
+			x1 = std::min(x1, p1.x);
+			y1 = std::min(y1, p1.y);
+			z1 = std::min(z1, p1.z);
+			x2 = std::max(x2, p2.x);
+			y2 = std::max(y2, p2.y);
+			z2 = std::max(z2, p2.z);
+		};
 
-		auto slice = geo::passThrough(cloud, "z", floorz1, floorz2);
-		// sr.floor_ = detectRegionPlanes(slice, 5. / 180. * geo::PI, 1., slice->size() / 2).front();
-		std::tie(sr.floor_.cloud_, sr.floor_.abcd_) = geo::refinePlanePattern(slice, 0.02);
+		for (const auto& pc : sr.walls_) update_aabb(pc.cloud_);
+		for (const auto& pc : sr.beams_) update_aabb(pc.cloud_);
+		update_aabb(sr.roof_.cloud_);
+		update_aabb(sr.floor_.cloud_);
+
+		LOG(INFO) << ll::unsafe_format("bounding box: %.3f -> %.3f, %.3f -> %.3f, %.3f -> %.3f.",
+			x1, x2, y1, y2, z1, z2);
+
+		// margin
+		x1 -= DOWNSAMPLE_SIZE;
+		x2 += DOWNSAMPLE_SIZE;
+		y1 -= DOWNSAMPLE_SIZE;
+		y2 += DOWNSAMPLE_SIZE;
+		z1 -= DOWNSAMPLE_SIZE;
+		z2 += DOWNSAMPLE_SIZE;
 	}
 
-	// beams
+	// we now classify original cloud
+	const auto& allplanes = sr.allPlanes();
+	std::vector<std::vector<int>> clusters(allplanes.size());
+	std::vector<pcl::search::KdTree<Point>> trees(allplanes.size());
+	for (std::size_t i = 0; i < allplanes.size(); ++i) {
+		auto cloud = allplanes[i].cloud_;
+		if (cloud && !cloud->empty()) trees[i].setInputCloud(cloud);
+	}
+
+	pcl::Indices searchIndices;
+	std::vector<float> searchDis;
+	constexpr double MAX_DIS_SQUARED = 0.015 * 0.015;
+
+	for (std::size_t idx = 0; idx < orgCloud_->size(); ++idx) {
+		const auto& p = orgCloud_->points[idx];
+		if (p.x< x1 || p.x> x2 || p.y< y1 || p.y> y2 || p.z< z1 || p.z> z2) continue;
+
+		Eigen::Vector4f phom(p.x, p.y, p.z, 1.);
+
+		auto ins = ll::filter([&](std::size_t i) {
+			const auto& pc = allplanes[i];
+			if (!pc.cloud_ || pc.cloud_->empty()) return false;
+
+			float dis = phom.transpose().dot(pc.abcd_);
+			return std::fabs(dis) < 0.02f;
+		}, ll::range(allplanes.size()));
+
+		if (ins.empty()) continue;
+		if (ins.size() == 1) clusters[ins.front()].emplace_back(idx);
+		else {
+			// then we have to judge by distance to cloud....
+			auto pr = ll::min_by([&](std::size_t i) {
+				int cnt = trees[i].nearestKSearch(p, 1, searchIndices, searchDis);
+				return cnt >= 1 ? searchDis.front() : 100.f;
+			}, ins);
+
+			if (pr.second < MAX_DIS_SQUARED) {
+				std::size_t i = *pr.first;
+				clusters[i].emplace_back(idx);
+			}
+		}
+	}
+
+	{
+		std::stringstream ss;
+		for (std::size_t i = 0; i < allplanes.size(); ++i)
+			ss << allplanes[i].cloud_->size() << " -> " << clusters[i].size() << ", ";
+		LOG(INFO) << "re-cluster done: " << ss.str();
+	}
+
+	// out
+	int offset = 0;
+	for (std::size_t i = 0; i < sr.walls_.size(); ++i) {
+		if (clusters[i + offset].size() > 0)
+			sr.walls_[i].cloud_ = geo::getSubSet(orgCloud_, clusters[i + offset]);
+	}
+	offset += sr.walls_.size();
+	for (std::size_t i = 0; i < sr.beams_.size(); ++i) {
+		if (clusters[i + offset].size() > 0)
+			sr.beams_[i].cloud_ = geo::getSubSet(orgCloud_, clusters[i + offset]);
+	}
+	offset += sr.beams_.size();
+	if (!clusters[offset].empty()) sr.roof_.cloud_ = geo::getSubSet(orgCloud_, clusters[offset]);
+	offset += 1;
+	if (!clusters[offset].empty()) sr.floor_.cloud_ = geo::getSubSet(orgCloud_, clusters[offset]);
 
 #ifdef VISUALIZATION_ENABLED
 	pcl::visualization::PCLVisualizer viewer;
@@ -215,7 +249,11 @@ CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
 	// add_cloud("cloud", cloud, 100., 100., 100.);
 
 	for (const auto& pr : ll::enumerate(sr.walls_))
-		add_cloud_rc("wall" + std::to_string(pr.index), pr.iter->cloud_);
+		if (pr.iter->cloud_)
+			add_cloud_rc("wall" + std::to_string(pr.index), pr.iter->cloud_);
+	for (const auto& pr : ll::enumerate(sr.beams_))
+		if (pr.iter->cloud_)
+			add_cloud_rc("beam" + std::to_string(pr.index), pr.iter->cloud_);
 	add_cloud_rc("roof", sr.roof_.cloud_);
 	add_cloud_rc("floor", sr.floor_.cloud_);
 
@@ -230,12 +268,11 @@ CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
 }
 
 PointCloud::Ptr CloudSegment::sliceMainBody() {
-	constexpr float DOWNSAMPLE_SIZE = 0.01f;
 	constexpr double MACHINE_RADIUS = 0.8f;
 	constexpr double ZCUT_LOW = 0.5; // always avoid cloud under 0.5m, relative to floor
 	constexpr double ZCUT_MARGIN = 0.1;
 
-	auto cloud = geo::downsampleUniformly(orgCloud_, DOWNSAMPLE_SIZE);
+	auto cloud = sparsedCloud();
 
 	//1. simple prune by bounding box
 	{
@@ -332,70 +369,68 @@ void CloudSegment::detectPlanesRecursively(PointCloud::Ptr cloud, std::vector<Pl
 }
 
 std::vector<CloudSegment::PlaneCloud> CloudSegment::detectRegionPlanes(PointCloud::Ptr cloud, double anglediff, double curvediff, std::size_t min_points) const {
+	pcl::search::KdTree<Point>::Ptr tree(new pcl::search::KdTree<Point>());
+	tree->setInputCloud(cloud);
+
+	// normals
+	pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>());
 	{
-		pcl::search::KdTree<Point>::Ptr tree(new pcl::search::KdTree<Point>());
-		tree->setInputCloud(cloud);
+		pcl::NormalEstimation<Point, pcl::Normal> n;
+		n.setInputCloud(cloud);
+		n.setSearchMethod(tree);
+		n.setKSearch(10);
+		n.compute(*normals);
+	}
 
-		// normals
-		pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>());
-		{
-			pcl::NormalEstimation<Point, pcl::Normal> n;
-			n.setInputCloud(cloud);
-			n.setSearchMethod(tree);
-			n.setKSearch(10);
-			n.compute(*normals);
-		}
+	std::vector<pcl::PointIndices> clusters;
+	{
+		pcl::RegionGrowing<Point, pcl::Normal> reg;
+		reg.setMinClusterSize(min_points);
+		reg.setSearchMethod(tree);
+		reg.setNumberOfNeighbours(30);
+		reg.setInputCloud(cloud);
+		reg.setInputNormals(normals);
+		reg.setSmoothnessThreshold(anglediff);
+		reg.setCurvatureThreshold(curvediff);
 
-		std::vector<pcl::PointIndices> clusters;
-		{
-			pcl::RegionGrowing<Point, pcl::Normal> reg;
-			reg.setMinClusterSize(min_points);
-			reg.setSearchMethod(tree);
-			reg.setResidualThreshold(0.1f);
-			reg.setInputCloud(cloud);
-			reg.setInputNormals(normals);
-			reg.setSmoothnessThreshold(anglediff);
-			reg.setCurvatureThreshold(curvediff);
+		reg.extract(clusters);
 
-			reg.extract(clusters);
+		LOG(INFO) << clusters.size() << " clusters found.";
+	}
 
-			LOG(INFO) << clusters.size() << " clusters found.";
-		}
-
-		auto planes = ll::mapf([&](const pcl::PointIndices& pi) {
-			PlaneCloud pc;
-			auto piece = geo::getSubSet(cloud, pi.indices);
-			std::tie(pc.cloud_, pc.abcd_) = geo::refinePlanePattern(piece, 0.05f);
-			return pc;
-		}, clusters);
+	auto planes = ll::mapf([&](const pcl::PointIndices& pi) {
+		PlaneCloud pc;
+		auto piece = geo::getSubSet(cloud, pi.indices);
+		std::tie(pc.cloud_, pc.abcd_) = geo::refinePlanePattern(piece, 0.05f);
+		return pc;
+	}, clusters);
 
 #if 0 // show segmentation
-		pcl::visualization::PCLVisualizer viewer;
+	pcl::visualization::PCLVisualizer viewer;
 
-		auto add_cloud = [&viewer](const std::string& name, PointCloud::Ptr cloud, double r, double g, double b) {
-			pcl::visualization::PointCloudColorHandlerCustom<Point> color(cloud, r, g, b);
-			viewer.addPointCloud(cloud, color, name);
-		};
-		auto add_cloud_rc = [&viewer, &add_cloud](const std::string& name, PointCloud::Ptr cloud) {
-			double r{ geo::random() }, g{ geo::random() }, b{ geo::random() };
-			add_cloud(name, cloud, r * 255., g * 255., b * 255.);
-		};
+	auto add_cloud = [&viewer](const std::string& name, PointCloud::Ptr cloud, double r, double g, double b) {
+		pcl::visualization::PointCloudColorHandlerCustom<Point> color(cloud, r, g, b);
+		viewer.addPointCloud(cloud, color, name);
+	};
+	auto add_cloud_rc = [&viewer, &add_cloud](const std::string& name, PointCloud::Ptr cloud) {
+		double r{ geo::random() }, g{ geo::random() }, b{ geo::random() };
+		add_cloud(name, cloud, r * 255., g * 255., b * 255.);
+	};
 
-		// add_cloud("cloud", cloud, 0., 0., 150.);
-		// viewer.addPointCloudNormals<Point, pcl::Normal>(cloud, normals, 10, 0.2f, "normals");
-		for (auto pr : ll::enumerate(clusters)) {
-			auto piece = geo::getSubSet(cloud, pr.iter->indices);
-			add_cloud_rc("piece_" + std::to_string(pr.index), piece);
-		}
+	// add_cloud("cloud", cloud, 0., 0., 150.);
+	// viewer.addPointCloudNormals<Point, pcl::Normal>(cloud, normals, 10, 0.2f, "normals");
+	for (auto pr : ll::enumerate(clusters)) {
+		auto piece = geo::getSubSet(cloud, pr.iter->indices);
+		add_cloud_rc("piece_" + std::to_string(pr.index), piece);
+	}
 
-		while (!viewer.wasStopped()) {
-			viewer.spinOnce(33);
-		}
+	while (!viewer.wasStopped()) {
+		viewer.spinOnce(33);
+	}
 #endif
 
-		return planes;
-	}
-		}
+	return planes;
+}
 
 std::vector<CloudSegment::Segment> CloudSegment::splitSegments(PointCloud::Ptr cloud, const Eigen::Vector3f vp, const Eigen::Vector3f& vn,
 	float connect_thresh, float min_seg_length) const {
@@ -523,10 +558,11 @@ Eigen::vector<trans2d::Matrix2x3f> CloudSegment::computeSegmentAlignCandidates(c
 	// sort and output.
 	std::sort(cans.begin(), cans.end(), [](const auto& c1, const auto& c2) { return c1.error_ < c2.error_; });
 
-	// unique.
+	// filter & unique.
 	{
 		constexpr float ANGLE_THRESH = 5.f / geo::PI;
-		constexpr float TRANSLATE_THRESH = 0.1f;
+		constexpr float TRANSLATE_THRESH = 0.2f;
+		constexpr float MAX_AVG_DISTANCE = 1.; // this is very loose, i think
 
 		auto is_same = [ANGLE_THRESH, TRANSLATE_THRESH](const can& ci, const can& cj) {
 			float da = ci.a() - cj.a();
@@ -546,6 +582,8 @@ Eigen::vector<trans2d::Matrix2x3f> CloudSegment::computeSegmentAlignCandidates(c
 
 		std::vector<can> unique_cans;
 		for (const auto& ci : cans) {
+			if (ci.error_ > MAX_AVG_DISTANCE* blueprint.size()) continue;
+
 			auto iter = std::find_if(unique_cans.begin(), unique_cans.end(), [&ci, &is_same](const can& cj) { return is_same(ci, cj); });
 			if (iter == unique_cans.end())
 				unique_cans.push_back(ci);
@@ -568,4 +606,103 @@ Eigen::vector<trans2d::Matrix2x3f> CloudSegment::computeSegmentAlignCandidates(c
 	return Ts;
 }
 
+CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr thecloud) const {
+	// we now process the ORIGINAL cloud
+	constexpr double SLICE_HALF_THICKNESS = 0.1f;
+
+	// simple pass through
+	auto cloud = geo::filterPoints(thecloud, [&](const Point& p) {
+		return (p.x > cadx1_ - SLICE_HALF_THICKNESS && p.x < cadx2_ + SLICE_HALF_THICKNESS) &&
+			(p.y > cady1_ - SLICE_HALF_THICKNESS && p.y < cady2_ + SLICE_HALF_THICKNESS);
+		// && (p.z > cadz1_ - SLICE_HALF_THICKNESS && p.z < cadz2_ + SLICE_HALF_THICKNESS);
+	});
+
+	// a, b, c should defines a plane
+	auto get_slice = [&](const Eigen::Vector3d& a, const Eigen::Vector3d& b, const Eigen::Vector3d& c)-> PlaneCloud {
+		Eigen::Vector3d n = (b - a).cross(c - a).normalized();
+		auto slice = geo::filterPoints(cloud, [&a, &n, SLICE_HALF_THICKNESS](const Point& p) {
+			Eigen::Vector3d ap = Eigen::Vector3d(p.x, p.y, p.z) - a;
+			double dis = std::fabs(ap.dot(n));
+			return dis <= SLICE_HALF_THICKNESS;
+		});
+
+		return detectRegionPlanes(slice, 5. / 180. * geo::PI, 1., slice->size() / 2).front();
+	};
+
+	SegmentResult sr;
+	// each wall
+	const auto& walls = cadModel_.getTypedModelItems(ITEM_WALL_E);
+	sr.walls_.reserve(walls.size());
+	for (const auto& wi : walls) {
+		PlaneCloud pc = get_slice(wi.points_[0], wi.points_[1], wi.points_[2]);
+		sr.walls_.emplace_back(pc);
 	}
+
+	// floor & roof
+	const auto& roof = cadModel_.getTypedModelItems(ITEM_TOP_E).front();
+	sr.roof_ = get_slice(roof.points_[0], roof.points_[1], roof.points_[2]);
+
+	// floor may not aligned properly.
+	// todo: we can use the pre-extracted planes
+	{
+		constexpr double MIN_WALL_HEIGHT = 1.;
+		constexpr double MAX_WALL_HEIGHT = 5.;
+		constexpr double HIST_STEP = 0.1;
+		constexpr std::size_t HIST_COUNT = static_cast<std::size_t>((MAX_WALL_HEIGHT - MIN_WALL_HEIGHT) / HIST_STEP);
+
+		// hist 0:0.1:5
+		std::array<std::size_t, HIST_COUNT> hists;
+		hists.fill(0);
+		for (const auto& p : (*cloud)) {
+			int i = (cadz2_ - MIN_WALL_HEIGHT - p.z) / HIST_STEP;
+			if (i < 0 || i >= HIST_COUNT) continue;
+			hists[i] += 1;
+		}
+
+		auto iter = std::max_element(hists.begin(), hists.end());
+		std::size_t i = std::distance(hists.begin(), iter);
+		double floorz1 = cadz2_ - MIN_WALL_HEIGHT - (i + 1) * HIST_STEP;
+		double floorz2 = cadz2_ - MIN_WALL_HEIGHT - (i - 1) * HIST_STEP;
+		LOG(INFO) << ll::unsafe_format("slice floor %.3f -> %.3f.", floorz1, floorz2);
+
+		auto slice = geo::passThrough(cloud, "z", floorz1, floorz2);
+		sr.floor_ = detectRegionPlanes(slice, 5. / 180. * geo::PI, 1., slice->size() / 2).front();
+	}
+
+	//todo: beams
+
+#if 0
+	pcl::visualization::PCLVisualizer viewer;
+
+	auto add_cloud = [&viewer](const std::string& name, PointCloud::Ptr cloud, double r, double g, double b) {
+		pcl::visualization::PointCloudColorHandlerCustom<Point> color(cloud, r, g, b);
+		viewer.addPointCloud(cloud, color, name);
+	};
+	auto add_cloud_rc = [&viewer, &add_cloud](const std::string& name, PointCloud::Ptr cloud) {
+		double r{ geo::random() }, g{ geo::random() }, b{ geo::random() };
+		add_cloud(name, cloud, r * 255., g * 255., b * 255.);
+	};
+
+	add_cloud("cloud", cloud, 100., 100., 100.);
+
+	for (const auto& pr : ll::enumerate(sr.walls_))
+		add_cloud_rc("wall" + std::to_string(pr.index), pr.iter->cloud_);
+	add_cloud_rc("roof", sr.roof_.cloud_);
+	add_cloud_rc("floor", sr.floor_.cloud_);
+
+	add_cloud("cad", cadModel_.genTestFrameCloud(), 255., 0., 0.);
+
+	while (!viewer.wasStopped()) {
+		viewer.spinOnce(33);
+	}
+#endif
+
+	return sr;
+}
+
+PointCloud::Ptr CloudSegment::sparsedCloud() {
+	if (!sparsedCloud_) sparsedCloud_ = geo::downsampleUniformly(orgCloud_, DOWNSAMPLE_SIZE);
+	return sparsedCloud_;
+}
+
+}
