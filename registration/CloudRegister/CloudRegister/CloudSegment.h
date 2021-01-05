@@ -65,6 +65,7 @@ private:
 
 	std::vector<PlaneCloud> detectPlanes(PointCloud::Ptr cloud,
 		double disthresh, std::size_t inlier_count_thresh, std::size_t countthresh = 10000) const;
+	std::vector<PlaneCloud> detectRegionPlanes(PointCloud::Ptr cloud, double anglediff, double curvediff, std::size_t min_points) const;
 	void detectPlanesRecursively(PointCloud::Ptr cloud, std::vector<PlaneCloud>& planes,
 		double disthresh, std::size_t inlier_count_thresh, std::size_t countthresh) const;
 

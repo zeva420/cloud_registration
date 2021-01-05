@@ -8,9 +8,13 @@
 #include <pcl/sample_consensus/sac_model_line.h>
 #include <pcl/sample_consensus/sac_model_plane.h>
 #include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/segmentation/region_growing.h>
 #include <pcl/ModelCoefficients.h>
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/filters/radius_outlier_removal.h>
+#include <pcl/features/normal_3d.h>
+#include <pcl/kdtree/kdtree_flann.h>
+#include <pcl/search/search.h>
 
 #include "GeometryUtils.h"
 #include "funHelper.h"
@@ -47,7 +51,10 @@ void CloudSegment::recordModelBoundingBox() {
 bool CloudSegment::alignCloudToCADModel() {
 	//1. found vertical planes
 	auto cloud = sliceMainBody(); // zroof, zfloor record here.
-	auto planes = detectPlanes(cloud, 0.02, 10000); //note: 10000 may relate to downsample in sliceMainBody
+
+	//note: 10000 may relate to downsample in sliceMainBody
+	// auto planes = detectPlanes(cloud, 0.02, 10000); 
+	auto planes = detectRegionPlanes(cloud, 3. / 180. * geo::PI, 1., 10000);
 
 	auto wallCandidates = ll::filter([](const PlaneCloud& pc) { return std::fabs(pc.n()(2)) < 0.02f; }, planes);
 	LOG(INFO) << ll::unsafe_format("%d / %d wall candidates detected: ", wallCandidates.size(), planes.size());
@@ -122,6 +129,7 @@ bool CloudSegment::alignCloudToCADModel() {
 }
 
 CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
+	// we now process the ORIGINAL cloud
 	constexpr double SLICE_HALF_THICKNESS = 0.1f;
 
 	// simple pass through
@@ -140,6 +148,8 @@ CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
 			return dis <= SLICE_HALF_THICKNESS;
 		});
 
+		// by setting the minimal size to HALF, we ensure the result be only ONE.
+		// return detectRegionPlanes(slice, 5. / 180. * geo::PI, 1., slice->size() / 2).front();
 		PlaneCloud pc;
 		if (slice->empty()) return pc;
 
@@ -176,7 +186,6 @@ CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
 			if (i < 0 || i >= HIST_COUNT) continue;
 			hists[i] += 1;
 		}
-		LOG(INFO) << "hists: " << ll::string_join(hists, ",");
 
 		auto iter = std::max_element(hists.begin(), hists.end());
 		std::size_t i = std::distance(hists.begin(), iter);
@@ -185,6 +194,7 @@ CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
 		LOG(INFO) << ll::unsafe_format("slice floor %.3f -> %.3f.", floorz1, floorz2);
 
 		auto slice = geo::passThrough(cloud, "z", floorz1, floorz2);
+		// sr.floor_ = detectRegionPlanes(slice, 5. / 180. * geo::PI, 1., slice->size() / 2).front();
 		std::tie(sr.floor_.cloud_, sr.floor_.abcd_) = geo::refinePlanePattern(slice, 0.02);
 	}
 
@@ -320,6 +330,72 @@ void CloudSegment::detectPlanesRecursively(PointCloud::Ptr cloud, std::vector<Pl
 	LOG(INFO) << ll::unsafe_format("found a plane: %d + %d", inliers.size(), left->size());
 	detectPlanesRecursively(left, planes, disthresh, inlier_count_thresh, countthresh);
 }
+
+std::vector<CloudSegment::PlaneCloud> CloudSegment::detectRegionPlanes(PointCloud::Ptr cloud, double anglediff, double curvediff, std::size_t min_points) const {
+	{
+		pcl::search::KdTree<Point>::Ptr tree(new pcl::search::KdTree<Point>());
+		tree->setInputCloud(cloud);
+
+		// normals
+		pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>());
+		{
+			pcl::NormalEstimation<Point, pcl::Normal> n;
+			n.setInputCloud(cloud);
+			n.setSearchMethod(tree);
+			n.setKSearch(10);
+			n.compute(*normals);
+		}
+
+		std::vector<pcl::PointIndices> clusters;
+		{
+			pcl::RegionGrowing<Point, pcl::Normal> reg;
+			reg.setMinClusterSize(min_points);
+			reg.setSearchMethod(tree);
+			reg.setResidualThreshold(0.1f);
+			reg.setInputCloud(cloud);
+			reg.setInputNormals(normals);
+			reg.setSmoothnessThreshold(anglediff);
+			reg.setCurvatureThreshold(curvediff);
+
+			reg.extract(clusters);
+
+			LOG(INFO) << clusters.size() << " clusters found.";
+		}
+
+		auto planes = ll::mapf([&](const pcl::PointIndices& pi) {
+			PlaneCloud pc;
+			auto piece = geo::getSubSet(cloud, pi.indices);
+			std::tie(pc.cloud_, pc.abcd_) = geo::refinePlanePattern(piece, 0.05f);
+			return pc;
+		}, clusters);
+
+#if 0 // show segmentation
+		pcl::visualization::PCLVisualizer viewer;
+
+		auto add_cloud = [&viewer](const std::string& name, PointCloud::Ptr cloud, double r, double g, double b) {
+			pcl::visualization::PointCloudColorHandlerCustom<Point> color(cloud, r, g, b);
+			viewer.addPointCloud(cloud, color, name);
+		};
+		auto add_cloud_rc = [&viewer, &add_cloud](const std::string& name, PointCloud::Ptr cloud) {
+			double r{ geo::random() }, g{ geo::random() }, b{ geo::random() };
+			add_cloud(name, cloud, r * 255., g * 255., b * 255.);
+		};
+
+		// add_cloud("cloud", cloud, 0., 0., 150.);
+		// viewer.addPointCloudNormals<Point, pcl::Normal>(cloud, normals, 10, 0.2f, "normals");
+		for (auto pr : ll::enumerate(clusters)) {
+			auto piece = geo::getSubSet(cloud, pr.iter->indices);
+			add_cloud_rc("piece_" + std::to_string(pr.index), piece);
+		}
+
+		while (!viewer.wasStopped()) {
+			viewer.spinOnce(33);
+		}
+#endif
+
+		return planes;
+	}
+		}
 
 std::vector<CloudSegment::Segment> CloudSegment::splitSegments(PointCloud::Ptr cloud, const Eigen::Vector3f vp, const Eigen::Vector3f& vn,
 	float connect_thresh, float min_seg_length) const {
@@ -492,4 +568,4 @@ Eigen::vector<trans2d::Matrix2x3f> CloudSegment::computeSegmentAlignCandidates(c
 	return Ts;
 }
 
-}
+	}
