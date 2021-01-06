@@ -177,7 +177,9 @@ CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
 		if (cloud && !cloud->empty()) trees[i].setInputCloud(cloud);
 	}
 
-	std::vector<int> searchIndices;
+	LOG(INFO) << ll::unsafe_format("would cluster %d clusters.", clusters.size());
+
+	pcl::Indices searchIndices;
 	std::vector<float> searchDis;
 	constexpr double MAX_DIS_SQUARED = 0.015 * 0.015;
 
@@ -213,8 +215,10 @@ CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
 
 	{
 		std::stringstream ss;
-		for (std::size_t i = 0; i < allplanes.size(); ++i)
-			ss << allplanes[i].cloud_->size() << " -> " << clusters[i].size() << ", ";
+		for (std::size_t i = 0; i < allplanes.size(); ++i) {
+			std::size_t size = allplanes[i].cloud_ ? allplanes[i].cloud_->size() : 0;
+			ss << size << " -> " << clusters[i].size() << ", ";
+		}
 		LOG(INFO) << "re-cluster done: " << ss.str();
 	}
 
@@ -235,33 +239,7 @@ CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
 	if (!clusters[offset].empty()) sr.floor_.cloud_ = geo::getSubSet(orgCloud_, clusters[offset]);
 
 #ifdef VISUALIZATION_ENABLED
-	pcl::visualization::PCLVisualizer viewer;
-
-	auto add_cloud = [&viewer](const std::string& name, PointCloud::Ptr cloud, double r, double g, double b) {
-		pcl::visualization::PointCloudColorHandlerCustom<Point> color(cloud, r, g, b);
-		viewer.addPointCloud(cloud, color, name);
-	};
-	auto add_cloud_rc = [&viewer, &add_cloud](const std::string& name, PointCloud::Ptr cloud) {
-		double r{ geo::random() }, g{ geo::random() }, b{ geo::random() };
-		add_cloud(name, cloud, r * 255., g * 255., b * 255.);
-	};
-
-	// add_cloud("cloud", cloud, 100., 100., 100.);
-
-	for (const auto& pr : ll::enumerate(sr.walls_))
-		if (pr.iter->cloud_)
-			add_cloud_rc("wall" + std::to_string(pr.index), pr.iter->cloud_);
-	for (const auto& pr : ll::enumerate(sr.beams_))
-		if (pr.iter->cloud_)
-			add_cloud_rc("beam" + std::to_string(pr.index), pr.iter->cloud_);
-	add_cloud_rc("roof", sr.roof_.cloud_);
-	add_cloud_rc("floor", sr.floor_.cloud_);
-
-	add_cloud("cad", cadModel_.genTestFrameCloud(), 255., 0., 0.);
-
-	while (!viewer.wasStopped()) {
-		viewer.spinOnce(33);
-	}
+	_show_result(sr);
 #endif
 
 	return sr;
@@ -626,7 +604,8 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 			return dis <= SLICE_HALF_THICKNESS;
 		});
 
-		return detectRegionPlanes(slice, 5. / 180. * geo::PI, 1., slice->size() / 2).front();
+		auto planes = detectRegionPlanes(slice, 5. / 180. * geo::PI, 1., slice->size() / 2);
+		return planes.empty() ? PlaneCloud() : planes.front();
 	};
 
 	SegmentResult sr;
@@ -671,7 +650,17 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 
 	//todo: beams
 
-#if 0
+	// _show_result(sr);
+
+	return sr;
+}
+
+PointCloud::Ptr CloudSegment::sparsedCloud() {
+	if (!sparsedCloud_) sparsedCloud_ = geo::downsampleUniformly(orgCloud_, DOWNSAMPLE_SIZE);
+	return sparsedCloud_;
+}
+
+void CloudSegment::_show_result(const SegmentResult& sr) const {
 	pcl::visualization::PCLVisualizer viewer;
 
 	auto add_cloud = [&viewer](const std::string& name, PointCloud::Ptr cloud, double r, double g, double b) {
@@ -683,26 +672,20 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 		add_cloud(name, cloud, r * 255., g * 255., b * 255.);
 	};
 
-	add_cloud("cloud", cloud, 100., 100., 100.);
-
 	for (const auto& pr : ll::enumerate(sr.walls_))
-		add_cloud_rc("wall" + std::to_string(pr.index), pr.iter->cloud_);
+		if (pr.iter->cloud_)
+			add_cloud_rc("wall" + std::to_string(pr.index), pr.iter->cloud_);
+	for (const auto& pr : ll::enumerate(sr.beams_))
+		if (pr.iter->cloud_)
+			add_cloud_rc("beam" + std::to_string(pr.index), pr.iter->cloud_);
+
 	add_cloud_rc("roof", sr.roof_.cloud_);
 	add_cloud_rc("floor", sr.floor_.cloud_);
 
 	add_cloud("cad", cadModel_.genTestFrameCloud(), 255., 0., 0.);
 
-	while (!viewer.wasStopped()) {
+	while (!viewer.wasStopped())
 		viewer.spinOnce(33);
-	}
-#endif
-
-	return sr;
-}
-
-PointCloud::Ptr CloudSegment::sparsedCloud() {
-	if (!sparsedCloud_) sparsedCloud_ = geo::downsampleUniformly(orgCloud_, DOWNSAMPLE_SIZE);
-	return sparsedCloud_;
 }
 
 }

@@ -26,7 +26,7 @@ public:
 		PlaneCloud roof_, floor_;
 
 		bool valid() const {
-			return !walls_.empty() && !roof_.cloud_ && !floor_.cloud_;
+			return !walls_.empty() && roof_.cloud_ && floor_.cloud_;
 		}
 
 		//! careful 
@@ -96,6 +96,9 @@ private:
 	SegmentResult segmentCloudByCADModel(PointCloud::Ptr cloud) const; // after the cloud was aligned properly.
 
 	inline PointCloud::Ptr sparsedCloud();
+
+	// debug
+	void _show_result(const SegmentResult& sr) const;
 };
 
 }
