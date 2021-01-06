@@ -22,6 +22,10 @@
 namespace CloudReg {
 
 CloudSegment::SegmentResult CloudSegment::run() {
+	if (!calibrateDirectionToAxisZ()){
+		LOG(ERROR) << "failed to calibrate direction to axis-Z.";
+	}
+
 	recordModelBoundingBox();
 
 	if (!alignCloudToCADModel()) {
@@ -29,6 +33,56 @@ CloudSegment::SegmentResult CloudSegment::run() {
 	}
 
 	return segmentByCADModel();
+}
+
+bool CloudSegment::calibrateDirectionToAxisZ()
+{
+    LOG(INFO) << "********calibrateDirectionToAxisZ*******";
+    removeFarPoints(orgCloud_, cadModel_);
+
+    PointCloud::Ptr samplingCloud(new PointCloud());
+	uniformSampling(0.05, orgCloud_, samplingCloud);
+
+    float binSizeTh = 0.2;
+    std::vector<std::pair<int, std::vector<int>>> zToNumVec;
+    if (false == statisticsForPointZ(binSizeTh, samplingCloud, zToNumVec))
+	{
+		LOG(WARNING) << "statistics For Point.Z Failed.";
+		return false;
+	}
+
+    auto &vecIdxs = zToNumVec.begin()->second;
+    auto subSet = geo::getSubSet(samplingCloud, vecIdxs, false);
+    LOG(INFO) << "zToNumVec:" << zToNumVec.size() << " firstZ:" 
+			<< zToNumVec.begin()->first << " subSet:" << subSet->size();
+    for (auto pr : ll::enumerate(zToNumVec))
+    {
+		auto it = *pr.iter;
+        LOG(INFO) << "z:" << it.first << " num:" << it.second.size();
+		if (3 <= pr.index) break;
+    }
+    Eigen::VectorXf coeff;
+    std::vector<int> inlierIdxs;
+    planeFitting(0.1, subSet, coeff, inlierIdxs);  
+    Eigen::Vector4f plane(coeff(0), coeff(1), coeff(2), coeff(3));
+    
+    Eigen::Vector3f axisZ(0,0,1);
+    float flag = (plane.block<3,1>(0,0).dot(axisZ) > 0) ? 1.0 : -1.0;  
+    plane = flag * plane; 
+    Eigen::Vector3f n = plane.block<3,1>(0,0); 
+    float angle = std::acos(n.dot(axisZ));
+    Eigen::AngleAxisf rotation_vector(angle, n.cross(axisZ));
+    Eigen::Matrix3f R = rotation_vector.matrix();
+    LOG(INFO) << "angle:" << (angle * 180.0 / 3.14) << " n:" 
+			<< n(0) << "," << n(1) << "," << n(2) << " d:" << plane(3);
+	LOG(INFO) << "calibrated to AxisZ, R: \n" << R;
+
+	Eigen::Matrix4f T(Eigen::Matrix4f::Identity());
+    T.block<3,3>(0,0) = R;
+
+	//transform orig cloud
+	orgCloud_ = geo::transfromPointCloud(orgCloud_, T);
+    return true;
 }
 
 void CloudSegment::recordModelBoundingBox() {
@@ -658,6 +712,62 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 PointCloud::Ptr CloudSegment::sparsedCloud() {
 	if (!sparsedCloud_) sparsedCloud_ = geo::downsampleUniformly(orgCloud_, DOWNSAMPLE_SIZE);
 	return sparsedCloud_;
+}
+
+void CloudSegment::removeFarPoints(PointCloud::Ptr inputCloud, const CADModel &cad) {
+    auto Bottons = cad.getTypedModelItems(ITEM_BOTTOM_E);
+	auto Walls = cad.getTypedModelItems(ITEM_WALL_E);
+
+	double width = 0;
+	Eigen::Vector3d firstPt = Bottons.front().points_.front();
+	for (auto &p : Bottons.front().points_)
+	{
+		double len = (firstPt - p).norm();
+		width = std::max(width, len);
+	}
+	double height = std::fabs(Walls.front().highRange_.second - Walls.front().highRange_.first);
+
+	double distSquareTh = width*width + height*height;
+    if (distSquareTh < 1.0) distSquareTh = 20*20;
+
+    PointCloud::Ptr leftCloud(new PointCloud());    
+    for (auto &p : inputCloud->points)
+    {
+        double dist = p.x*p.x + p.y*p.y + p.z*p.z;
+        if (dist < distSquareTh) leftCloud->push_back(p);
+    }
+    LOG(INFO) << "removeFarPoints, inputCloud:" << inputCloud->size() << " leftCloud:" 
+			<< leftCloud->size() << " distTh:" << std::sqrt(distSquareTh) 
+			<< " width:" << width << " height:" << height;
+    inputCloud->swap(*leftCloud);
+    return;
+}
+
+bool CloudSegment::statisticsForPointZ(float binSizeTh, PointCloud::Ptr cloud,
+                	std::vector<std::pair<int, std::vector<int>>> &zToNumVec) {
+    struct comp
+    {
+        bool operator()(const std::pair<int, std::vector<int>> l, const std::pair<int, std::vector<int>> r)
+        {
+            return (l.second.size() > r.second.size());
+        }
+    };
+    std::map<int, std::vector<int>> zToNumMap;
+    for (int i = 0; i < cloud->size(); i++)
+    {
+        auto &p = cloud->points[i];
+        int z = std::floor(p.z / binSizeTh);
+        zToNumMap[z].push_back(i);
+    }
+    if (zToNumMap.empty())
+    {
+        return false;
+    }
+
+    zToNumVec.clear();
+    zToNumVec.insert(zToNumVec.end(), zToNumMap.begin(), zToNumMap.end());
+    std::sort(zToNumVec.begin(), zToNumVec.end(), comp());
+    return true;
 }
 
 void CloudSegment::_show_result(const SegmentResult& sr) const {

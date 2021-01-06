@@ -71,6 +71,7 @@ private:
 	static constexpr float DOWNSAMPLE_SIZE = 0.01f;
 
 	// main processes
+	bool calibrateDirectionToAxisZ();
 	void recordModelBoundingBox();
 	bool alignCloudToCADModel();
 	SegmentResult segmentByCADModel();
@@ -96,6 +97,11 @@ private:
 	SegmentResult segmentCloudByCADModel(PointCloud::Ptr cloud) const; // after the cloud was aligned properly.
 
 	inline PointCloud::Ptr sparsedCloud();
+
+	void removeFarPoints(PointCloud::Ptr inputCloud, const CADModel &cad);
+
+	bool statisticsForPointZ(float binSizeTh, PointCloud::Ptr cloud,
+                std::vector<std::pair<int, std::vector<int>>> &zToNumVec);
 
 	// debug
 	void _show_result(const SegmentResult& sr) const;
