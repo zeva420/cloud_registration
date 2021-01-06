@@ -21,6 +21,12 @@
 
 namespace CloudReg {
 
+void CloudSegment::Segment::beCounterClockwise(const Eigen::Vector3f& cen) {
+	double ps = atan2(s_(1) - cen(1), s_(0) - cen(0));
+	double pe = atan2(e_(1) - cen(1), e_(0) - cen(0));
+	if (pe < ps) std::swap(s_, e_);
+}
+
 CloudSegment::SegmentResult CloudSegment::run() {
 	if (!calibrateDirectionToAxisZ()){
 		LOG(ERROR) << "failed to calibrate direction to axis-Z.";
@@ -108,9 +114,13 @@ bool CloudSegment::alignCloudToCADModel() {
 
 	//note: 10000 may relate to downsample in sliceMainBody
 	// auto planes = detectPlanes(cloud, 0.02, 10000); 
-	auto planes = detectRegionPlanes(cloud, 3. / 180. * geo::PI, 1., 10000);
+	auto planes = detectRegionPlanes(cloud, 3. / 180. * geo::PI, 1., 2000);
 
-	auto wallCandidates = ll::filter([](const PlaneCloud& pc) { return std::fabs(pc.n()(2)) < 0.02f; }, planes);
+	//auto nzs = ll::mapf([](const PlaneCloud& pc) { return std::fabs(pc.n()(2)); }, planes);
+	//std::sort(nzs.begin(), nzs.end());
+	//LOG(INFO) << "nzs: " << ll::string_join(nzs, ", ");
+
+	auto wallCandidates = ll::filter([](const PlaneCloud& pc) { return std::fabs(pc.n()(2)) < 0.1f; }, planes);
 	LOG(INFO) << ll::unsafe_format("%d / %d wall candidates detected: ", wallCandidates.size(), planes.size());
 	{
 		std::stringstream ss;
@@ -145,11 +155,7 @@ bool CloudSegment::alignCloudToCADModel() {
 		}
 
 		// to counter clockwise.	
-		for (auto& seg : allSegments) {
-			double ps = atan2(seg.s_(1), seg.s_(0));
-			double pe = atan2(seg.e_(1), seg.e_(0));
-			if (pe < ps) std::swap(seg.s_, seg.e_);
-		}
+		for (auto& seg : allSegments) seg.beCounterClockwise(Eigen::Vector3f::Zero());
 
 		std::stringstream ss;
 		for (auto pr : ll::enumerate(allSegments)) ss << ll::unsafe_format("%02d: %.3f\n", pr.index, pr.iter->len());
@@ -157,14 +163,77 @@ bool CloudSegment::alignCloudToCADModel() {
 	}
 
 	//3. match
-	// use cad floor, since the beams may affect roof's shape.
-	const auto& blueprint3d = cadModel_.getTypedModelItems(ITEM_BOTTOM_E).front();
-	Eigen::vector<Eigen::Vector2f> blueprint(blueprint3d.points_.size());
-	std::transform(blueprint3d.points_.rbegin(), blueprint3d.points_.rend(), blueprint.begin(),
-		[](const Eigen::Vector3d& v) { return Eigen::Vector2f(v(0, 0), v(1, 0)); });
-	//^^^ note the above "rbegin rend", by this we reverse the points to counterclockwise.
+	// we need get segments on blueprint first.
+	std::vector<Segment> blueprint;
+	{
+		Eigen::Vector3f floorCenter = Eigen::Vector3f::Zero();
 
-	constexpr double MATCH_THRESH = 0.25;
+		// floor contours
+		{
+			const auto& blueprint3d = cadModel_.getTypedModelItems(ITEM_BOTTOM_E).front();
+			const Eigen::vector<Eigen::Vector3d>& points = blueprint3d.points_;
+			for (std::size_t i = 0; i < points.size(); ++i) {
+				Segment s;
+				s.s_ = points[(i + 1) % points.size()].cast<float>();
+				s.e_ = points[i].cast<float>();
+				blueprint.push_back(s);
+
+				floorCenter += points[i].cast<float>();
+			}
+
+			floorCenter /= static_cast<float>(points.size());
+			LOG(INFO) << "floor center: " << floorCenter.transpose();
+		}
+
+		// beams
+		if (cadModel_.containModels(ITEM_BEAM_E)) {
+			const auto& beams = cadModel_.getTypedModelItems(ITEM_BEAM_E);
+			LOG(INFO) << ll::unsafe_format("%d beams in cad(means %d actually).", beams.size(), beams.size() / 2);
+
+			for (std::size_t bi = 0; bi < beams.size(); bi += 2) {
+				const Eigen::vector<Eigen::Vector3d>& points = beams[bi].points_;
+				// get proj
+				Eigen::Vector3d a, b;
+				bool valid = false;
+				for (std::size_t i = 0; i < points.size(); ++i) {
+					const Eigen::Vector3d& s = points[i];
+					const Eigen::Vector3d& e = points[(i + 1) % points.size()];
+
+					if ((e - s).block<2, 1>(0, 0).squaredNorm() < 1e-4) continue;
+
+					if (!valid) {
+						a = s;
+						b = e;
+						valid = true;
+					} else {
+						// merge
+						double projlen = (s - a).dot(b - a);
+						if (projlen < 0) a = s;
+						else if (projlen > (b - a).block<2, 1>(0, 0).squaredNorm()) b = s;
+
+						projlen = (e - a).dot(b - a);
+						if (projlen < 0) a = e;
+						else if (projlen > (b - a).block<2, 1>(0, 0).squaredNorm()) b = e;
+					}
+				}
+
+				Segment s;
+				s.s_ = a.cast<float>();
+				s.e_ = b.cast<float>();
+				s.s_(2, 0) = 0.;
+				s.e_(2, 0) = 0.;
+				s.beCounterClockwise(floorCenter);
+
+				LOG(INFO) << "found a beam segment: " << s.s_.transpose() << " -> " << s.e_.transpose() << " with length: " << s.len();
+
+				blueprint.push_back(s);
+			}
+		}
+
+		LOG(INFO) << blueprint.size() << " segments found from blueprint.";
+	}
+
+	constexpr double MATCH_THRESH = 0.15;
 	Eigen::vector<trans2d::Matrix2x3f> Ts = computeSegmentAlignCandidates(allSegments, blueprint, MATCH_THRESH);
 	if (Ts.empty()) {
 		LOG(ERROR) << " no candidate transform found.";
@@ -180,6 +249,42 @@ bool CloudSegment::alignCloudToCADModel() {
 	//! note we do transform here
 	sparsedCloud_ = geo::transfromPointCloud(sparsedCloud(), T);
 	orgCloud_ = geo::transfromPointCloud(orgCloud_, T);
+
+#if 0
+	pcl::visualization::PCLVisualizer viewer;
+
+	auto add_cloud = [&viewer](const std::string& name, PointCloud::Ptr cloud, double r, double g, double b) {
+		pcl::visualization::PointCloudColorHandlerCustom<Point> color(cloud, r, g, b);
+		viewer.addPointCloud(cloud, color, name);
+	};
+	auto add_cloud_rc = [&viewer, &add_cloud](const std::string& name, PointCloud::Ptr cloud) {
+		double r{ geo::random() }, g{ geo::random() }, b{ geo::random() };
+		add_cloud(name, cloud, r * 255., g * 255., b * 255.);
+	};
+
+	auto add_segment = [&viewer](const std::string& name, const Segment& seg) {
+		double r{ geo::random() }, g{ geo::random() }, b{ geo::random() };
+		Point s = geo::P_(seg.s_);
+		Point e = geo::P_(seg.e_);
+		viewer.addSphere(s, 0.02f, r, g, b, name + "s");
+		viewer.addSphere(e, 0.02f, r, g, b, name + "e");
+		viewer.addLine(s, e, r, g, b, name);
+	};
+
+	// add_cloud("cloud", cloud, 100., 150., 0.);
+
+	for (auto pr : ll::enumerate(wallCandidates))
+		add_cloud_rc("wc" + std::to_string(pr.index), pr.iter->cloud_);
+
+	for (auto pr : ll::enumerate(allSegments)) add_segment("cld" + std::to_string(pr.index), *pr.iter);
+	for (auto pr : ll::enumerate(blueprint)) add_segment("bp" + std::to_string(pr.index), *pr.iter);
+
+	// add_cloud("cad", cadModel_.genTestFrameCloud(), 255., 0., 0.);
+
+	while (!viewer.wasStopped())
+		viewer.spinOnce(33);
+	viewer.close();
+#endif
 
 	return true;
 }
@@ -325,11 +430,12 @@ PointCloud::Ptr CloudSegment::sliceMainBody() {
 	zroof_ = zRoof;
 
 	double zBeamLow{ cadz2_ }; // refer to cad model
-	if (cadModel_.containModels(ITEM_BEAM_E)) {
+	if (false && cadModel_.containModels(ITEM_BEAM_E)) {
+		//^^^^ false: just let beams in the matching.
 		auto beams = cadModel_.getTypedModelItems(ITEM_BEAM_E);
 		for (const auto& beam : beams) {
 			const auto& hr = beam.highRange_;
-			zBeamLow = std::min(zBeamLow, hr.first);
+			if (hr.first < 1e-4) {} else zBeamLow = std::min(zBeamLow, hr.first);
 		}
 
 		LOG(INFO) << ll::unsafe_format("beam lowest z: %.3f, (roof: %.3f)", zBeamLow, cadz2_);
@@ -462,7 +568,7 @@ std::vector<CloudSegment::PlaneCloud> CloudSegment::detectRegionPlanes(PointClou
 #endif
 
 	return planes;
-}
+	}
 
 std::vector<CloudSegment::Segment> CloudSegment::splitSegments(PointCloud::Ptr cloud, const Eigen::Vector3f vp, const Eigen::Vector3f& vn,
 	float connect_thresh, float min_seg_length) const {
@@ -528,7 +634,7 @@ std::vector<CloudSegment::Segment> CloudSegment::splitSegments(PointCloud::Ptr c
 }
 
 Eigen::vector<trans2d::Matrix2x3f> CloudSegment::computeSegmentAlignCandidates(const std::vector<Segment>& segments,
-	const Eigen::vector<Eigen::Vector2f>& blueprint, float disthresh) const {
+	const std::vector<Segment>& blueprint, float disthresh) const {
 	struct can {
 		trans2d::Matrix2x3f T_;
 		float error_;
@@ -545,6 +651,13 @@ Eigen::vector<trans2d::Matrix2x3f> CloudSegment::computeSegmentAlignCandidates(c
 		Eigen::Vector2f t() const { return -T_.block<2, 2>(0, 0).transpose() * T_.block<2, 1>(0, 2); }
 	};
 
+	Eigen::vector<Eigen::Vector2f> blueprintpoints;
+	blueprintpoints.reserve(blueprint.size() * 2);
+	for (const auto& s : blueprint) {
+		blueprintpoints.emplace_back(s.s_.block<2, 1>(0, 0));
+		blueprintpoints.emplace_back(s.e_.block<2, 1>(0, 0));
+	}
+
 	auto minimum_distance_to_wall_segments = [&segments](const Eigen::Vector2f& p)-> float {
 		auto pr = ll::min_by([&p](const Segment& seg) {
 			Eigen::Vector2f s(seg.s_(0), seg.s_(1));
@@ -554,30 +667,32 @@ Eigen::vector<trans2d::Matrix2x3f> CloudSegment::computeSegmentAlignCandidates(c
 		return pr.second;
 	};
 
-	// sum of point distance to segment
-	auto match_error = [&](const trans2d::Matrix2x3f& T) {
+	// max-min point distance
+	auto match_error = [&](const trans2d::Matrix2x3f& T)->float {
 		auto mindis = ll::mapf([&](const Eigen::Vector2f& p) {
 			Eigen::Vector2f q = trans2d::transform(p, T);
 			return minimum_distance_to_wall_segments(q);
-		}, blueprint);
-		return ll::sum(mindis);
+		}, blueprintpoints);
+		return *std::max_element(mindis.begin(), mindis.end());
 	};
 
 	std::vector<can> cans;
 	for (const auto& seg : segments) {
-		Eigen::Vector2f s1(seg.s_(0), seg.s_(1));
-		Eigen::Vector2f e1(seg.e_(0), seg.e_(1));
+		Eigen::Vector2f s1 = seg.s_.block<2, 1>(0, 0);
+		Eigen::Vector2f e1 = seg.e_.block<2, 1>(0, 0);
 
 		float len = (e1 - s1).norm();
 
-		for (std::size_t i = 0; i < blueprint.size(); ++i) {
-			Eigen::Vector2f s2 = blueprint[i];
-			Eigen::Vector2f e2 = blueprint[(i + 1) % blueprint.size()];
+		for (const auto& bseg : blueprint) {
+			Eigen::Vector2f s2 = bseg.s_.block<2, 1>(0, 0);
+			Eigen::Vector2f e2 = bseg.e_.block<2, 1>(0, 0);
 
 			if (std::fabs((e2 - s2).norm() - len) > 2. * disthresh) continue;
 
 			trans2d::Matrix2x3f T = trans2d::estimateTransform(s1, e1, s2, e2);
 			float err = match_error(T);
+
+			if (err > disthresh) continue;
 
 			can c;
 			c.T_ = T;
@@ -594,7 +709,6 @@ Eigen::vector<trans2d::Matrix2x3f> CloudSegment::computeSegmentAlignCandidates(c
 	{
 		constexpr float ANGLE_THRESH = 5.f / geo::PI;
 		constexpr float TRANSLATE_THRESH = 0.2f;
-		constexpr float MAX_AVG_DISTANCE = 1.; // this is very loose, i think
 
 		auto is_same = [ANGLE_THRESH, TRANSLATE_THRESH](const can& ci, const can& cj) {
 			float da = ci.a() - cj.a();
@@ -614,8 +728,6 @@ Eigen::vector<trans2d::Matrix2x3f> CloudSegment::computeSegmentAlignCandidates(c
 
 		std::vector<can> unique_cans;
 		for (const auto& ci : cans) {
-			if (ci.error_ > MAX_AVG_DISTANCE* blueprint.size()) continue;
-
 			auto iter = std::find_if(unique_cans.begin(), unique_cans.end(), [&ci, &is_same](const can& cj) { return is_same(ci, cj); });
 			if (iter == unique_cans.end())
 				unique_cans.push_back(ci);

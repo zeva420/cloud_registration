@@ -52,6 +52,9 @@ private:
 		inline Eigen::Vector3f mid() const { return (s_ + e_) * 0.5f; }
 		inline Eigen::Vector3f dir() const { return (e_ - s_).normalized(); }
 		inline float len() const { return (e_ - s_).norm(); }
+
+		// 2d logic
+		void beCounterClockwise(const Eigen::Vector3f& cen);
 	};
 
 	PointCloud::Ptr orgCloud_;
@@ -92,7 +95,7 @@ private:
 
 	// 2d, segments & blueprint shall be sorted.
 	Eigen::vector<trans2d::Matrix2x3f> computeSegmentAlignCandidates(const std::vector<Segment>& segments,
-		const Eigen::vector<Eigen::Vector2f>& blueprint, float disthresh) const;
+		const std::vector<Segment>& blueprint, float disthresh) const;
 
 	SegmentResult segmentCloudByCADModel(PointCloud::Ptr cloud) const; // after the cloud was aligned properly.
 
