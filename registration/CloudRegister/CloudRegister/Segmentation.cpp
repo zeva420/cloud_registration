@@ -118,7 +118,7 @@ bool Segmentation::calibrateDirectionToAxisZ(
     inputCloud->swap(*calibratedCloud);
 
     // remove some outliers by z
-    auto get_z_range = [](const Eigen::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &segments)
+    auto get_z_range = [](const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &segments)
             ->std::pair<double, double> {
         double minZ = 2000;
         double maxZ = 0;
