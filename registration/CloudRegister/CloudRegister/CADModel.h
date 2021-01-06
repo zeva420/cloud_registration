@@ -45,7 +45,7 @@ struct ModelItem {
 	std::string toString() const;
 	
 	Eigen::vector<Eigen::Vector3d> points_;
-	Eigen::vector<ItemPair_t> segments_;
+	std::vector<ItemPair_t> segments_;
 	ModelItemType itemtype_;
 	std::size_t parentIndex_ = 9999;
 	std::pair<double, double> highRange_ = std::make_pair(0, 0);

@@ -177,7 +177,7 @@ CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
 		if (cloud && !cloud->empty()) trees[i].setInputCloud(cloud);
 	}
 
-	pcl::Indices searchIndices;
+	std::vector<int> searchIndices;
 	std::vector<float> searchDis;
 	constexpr double MAX_DIS_SQUARED = 0.015 * 0.015;
 
