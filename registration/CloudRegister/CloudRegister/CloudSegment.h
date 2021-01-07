@@ -88,6 +88,11 @@ private:
 	void detectPlanesRecursively(PointCloud::Ptr cloud, std::vector<PlaneCloud>& planes,
 		double disthresh, std::size_t inlier_count_thresh, std::size_t countthresh) const;
 
+	trans2d::Matrix2x3f chooseTransformByHoles(const Eigen::vector<trans2d::Matrix2x3f>& Ts, const std::vector<PlaneCloud>& walls) const;
+
+	// get SORTED intersection points on cad
+	Eigen::vector<Eigen::Vector3d> intersectCADModelOnZ(const CADModel& cadModel, float z) const;
+
 	// line: p, n, 
 	// note that the cloud no need to be an "actual segment", either the detected segment cloud.
 	std::vector<Segment> splitSegments(PointCloud::Ptr cloud, const Eigen::Vector3f p, const Eigen::Vector3f& n,

@@ -240,8 +240,9 @@ bool CloudSegment::alignCloudToCADModel() {
 		return false;
 	}
 
-	// use the first one(minimal error) for now
-	Eigen::Matrix4f T = trans2d::asTransform3d(trans2d::inverse(Ts.front()));
+	trans2d::Matrix2x3f T2d = Ts.size() == 1 ? Ts.front() : chooseTransformByHoles(Ts, wallCandidates);
+
+	Eigen::Matrix4f T = trans2d::asTransform3d(trans2d::inverse(T2d));
 	T(2, 3) = -zfloor_; // shift up
 
 	LOG(INFO) << "cloud trans found: \n" << T;
@@ -250,7 +251,7 @@ bool CloudSegment::alignCloudToCADModel() {
 	sparsedCloud_ = geo::transfromPointCloud(sparsedCloud(), T);
 	orgCloud_ = geo::transfromPointCloud(orgCloud_, T);
 
-#if 0
+#if 1
 	pcl::visualization::PCLVisualizer viewer;
 
 	auto add_cloud = [&viewer](const std::string& name, PointCloud::Ptr cloud, double r, double g, double b) {
@@ -568,7 +569,179 @@ std::vector<CloudSegment::PlaneCloud> CloudSegment::detectRegionPlanes(PointClou
 #endif
 
 	return planes;
+}
+
+trans2d::Matrix2x3f CloudSegment::chooseTransformByHoles(const Eigen::vector<trans2d::Matrix2x3f>& Ts, const std::vector<PlaneCloud>& walls) const {
+	constexpr float HALF_SLICE_THICKNESS = 0.02f;
+	constexpr float MATCH_DIS_CHECK = 0.1f;
+
+	// T*src -> dst
+	auto get_matched_num = [MATCH_DIS_CHECK](const Eigen::vector<Eigen::Vector2f>& src,
+		const Eigen::vector<Eigen::Vector2f>& dst, const trans2d::Matrix2x3f& T) {
+		Eigen::vector<Eigen::Vector2f> transed_src(src.size());
+		std::transform(src.begin(), src.end(), transed_src.begin(), [&T](const Eigen::Vector2f& v) { return trans2d::transform(v, T); });
+
+		return std::count_if(transed_src.begin(), transed_src.end(), [&dst](Eigen::Vector2f& sp) {
+			return std::any_of(dst.begin(), dst.end(), [&sp](const Eigen::Vector2f& dp) { return (sp - dp).norm() < 0.1f; });
+		});
+	};
+
+	auto get_consistent_transformations_for = [&](const Eigen::vector<trans2d::Matrix2x3f>& checkTs, float z) {
+		Eigen::vector<Eigen::Vector3d> cadHoleEnds = intersectCADModelOnZ(cadModel_, z);
+		if (cadHoleEnds.empty()) {
+			LOG(WARNING) << "bad function call: no intersection points found at: " << z;
+			return checkTs;
+		}
+
+		// slice and detect ends
+		Eigen::vector<Eigen::Vector3f> wallEnds;
+		for (const auto& pc : walls) {
+			auto line = geo::passThrough(pc.cloud_, "z", zfloor_ + z - HALF_SLICE_THICKNESS, zfloor_ + z + HALF_SLICE_THICKNESS);
+			// we simply ignore z here.
+			const Eigen::Vector4f& params = pc.abcd_;
+			Eigen::Vector3f n = Eigen::Vector3f(-params(1), params(0), 0.f).normalized();
+			Eigen::Vector3f p;
+			if (std::fabs(params(0)) < 1e-6) p = Eigen::Vector3f(0.f, -params(3) / params(1), 0.f);
+			else p = Eigen::Vector3f(-params(3) / params(0), 0.f, 0.f);
+
+			auto subsegs = splitSegments(line, p, n, 0.1f, 0.1f);
+			for (const auto& seg : subsegs) {
+				wallEnds.emplace_back(seg.s_);
+				wallEnds.emplace_back(seg.e_);
+			}
+		}
+
+		Eigen::vector<Eigen::Vector2f> hole2d, wall2d;
+		{
+			hole2d.reserve(cadHoleEnds.size());
+			wall2d.reserve(wallEnds.size());
+			for (const auto& v : cadHoleEnds) hole2d.emplace_back(v(0), v(1));
+			for (const auto& v : wallEnds) wall2d.emplace_back(v(0), v(1));
+		}
+
+		// now check if matched
+		Eigen::vector<trans2d::Matrix2x3f> re;
+		for (const auto& T : checkTs) {
+			// succeed if only each cad hole have candidate
+			std::size_t cnt = get_matched_num(hole2d, wall2d, T);
+
+			if (cnt == cadHoleEnds.size()) re.emplace_back(T);
+		}
+
+		return re;
+	};
+
+	// choose height
+	if (!cadModel_.containModels(ITEM_HOLE_E)) {
+		LOG(WARNING) << "no holes in cad model! choose the first one (with least max min distance).";
+		return Ts.front();
 	}
+
+	const auto& holes = cadModel_.getTypedModelItems(ITEM_HOLE_E);
+	auto hranges = ll::mapf([](const ModelItem& mi) { return mi.highRange_; }, holes);
+
+	const double low = ll::min_by(ll::get_key<double, double>, hranges).second;
+	const double high = ll::max_by(ll::get_value<double, double>, hranges).second;
+	LOG(INFO) << "hole high range: " << low << " -> " << high << " (" << (high - low) << ")";
+
+	// this can be very inefficient for now.
+	// todo: rethink & optimize this process, use grid for now.
+	constexpr double GRID_SIZE = HALF_SLICE_THICKNESS * 2.5;
+	const int N = static_cast<int>((high - low) / GRID_SIZE) + 1;
+	std::vector<int> cell_counts(N, 0);
+	for (const auto& hr : hranges) {
+		int ilow = (hr.first - low) / GRID_SIZE;
+		int ihigh = (hr.second - low) / GRID_SIZE;
+
+		for (int i = ilow; i <= ihigh; ++i) cell_counts[i]++;
+	}
+	LOG(INFO) << "cell counts: " << ll::string_join(cell_counts, ", ");
+
+	// only avoid jumps for now...
+	Eigen::vector<trans2d::Matrix2x3f> leftTs = Ts;
+	for (std::size_t i = 1; i < cell_counts.size() - 1; ++i) {
+		if (cell_counts[i - 1] == cell_counts[i] && cell_counts[i] == cell_counts[i + 1] && cell_counts[i] != 0) {
+			float mid = low + i * GRID_SIZE + GRID_SIZE / 2.f;
+
+			auto lTs = get_consistent_transformations_for(leftTs, mid);
+			if (lTs.empty()) {
+				LOG(WARNING) << "no consistent transformation at: " << mid;
+			} else if (lTs.size() == 1) {
+				LOG(INFO) << "unique consistence check succeed at: " << mid;
+				return lTs.front();
+			} else {
+				LOG(INFO) << lTs.size() << " consistent transformation found at: " << mid;
+				leftTs.swap(lTs);
+			}
+		}
+	}
+
+	// we failed to find any
+	LOG(WARNING) << "failed to remove ambiguity, left candidates: " << leftTs.size() << "/" << Ts.size() << ". choose the first one (with least max min distance).";
+	return leftTs.front();
+}
+
+// get SORTED intersection points on cad
+Eigen::vector<Eigen::Vector3d> CloudSegment::intersectCADModelOnZ(const CADModel& cadModel, float z) const {
+	const auto& roof = cadModel.getTypedModelItems(ITEM_TOP_E).front();
+	const auto& floor = cadModel.getTypedModelItems(ITEM_BOTTOM_E).front();
+
+	const auto& bottom_outline = floor.points_;
+
+	const float floorZ = floor.points_.front()(2, 0);
+	const float roofZ = roof.points_.front()(2, 0);
+
+	if (z <= floorZ || z >= roofZ || !cadModel.containModels(ITEM_HOLE_E)) return bottom_outline;
+
+	// we now try intersect each hole
+	// note that the hole can be non-convex, so we only need intersection points
+	Eigen::vector<Eigen::Vector3d> points;
+
+	const auto& holes = cadModel.getTypedModelItems(ITEM_HOLE_E); // we already checked this in above
+
+	for (const auto& hole : holes) {
+		const auto& hr = hole.highRange_;
+		if (z <= hr.first || z >= hr.second) continue;
+
+		Eigen::vector<Eigen::Vector3d> ips;
+		for (const auto& seg : hole.segments_) {
+			auto sii = geo::zIntersectSegment(seg.first, seg.second, z);
+			if (sii.valid()) { //todo: use margin check
+				ips.emplace_back(sii.point_);
+			}
+		}
+		LOG_IF(WARNING, ips.size() % 2 != 0) << "intersection points is odd! may intersected with ends.";
+
+		// todo: may just insert refer to its parent index, but we just sort here then
+		points.insert(points.end(), ips.begin(), ips.end());
+	}
+
+	LOG(INFO) << points.size() << " intersection points found on z: " << z;
+
+	if (!points.empty()) {
+		// remove duplicated points
+		// if points are too close, then this may NOT be an detectable point
+		constexpr double CHECK_THRESH = 0.01;
+		std::vector<Eigen::vector<Eigen::Vector3d>> sets; // a simple cluster
+		for (const auto& p : points) {
+			auto iter = std::find_if(sets.begin(), sets.end(), [&p, CHECK_THRESH](const Eigen::vector<Eigen::Vector3d>& set) {
+				return std::any_of(set.begin(), set.end(), [&p, CHECK_THRESH](const Eigen::Vector3d& q) { return (p - q).norm() < CHECK_THRESH; });
+			});
+			if (iter == sets.end()) {
+				sets.emplace_back(1, p);
+			} else {
+				iter->emplace_back(p);
+			}
+		}
+
+		points.clear();
+		for (const auto& s : sets) if (s.size() == 1) points.emplace_back(s.front());
+
+		LOG(INFO) << points.size() << " valid points found.";
+	}
+
+	return points;
+}
 
 std::vector<CloudSegment::Segment> CloudSegment::splitSegments(PointCloud::Ptr cloud, const Eigen::Vector3f vp, const Eigen::Vector3f& vn,
 	float connect_thresh, float min_seg_length) const {
