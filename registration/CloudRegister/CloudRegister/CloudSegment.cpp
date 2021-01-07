@@ -19,6 +19,8 @@
 #include "GeometryUtils.h"
 #include "funHelper.h"
 
+#include "SimpleViewer.h"
+
 namespace CloudReg {
 
 void CloudSegment::Segment::beCounterClockwise(const Eigen::Vector3f& cen) {
@@ -251,41 +253,21 @@ bool CloudSegment::alignCloudToCADModel() {
 	sparsedCloud_ = geo::transfromPointCloud(sparsedCloud(), T);
 	orgCloud_ = geo::transfromPointCloud(orgCloud_, T);
 
-#if 1
-	pcl::visualization::PCLVisualizer viewer;
+	// debug show
+	if (0) {
+		SimpleViewer viewer;
+		for (const auto& pc : wallCandidates) viewer.addCloud(pc.cloud_);
 
-	auto add_cloud = [&viewer](const std::string& name, PointCloud::Ptr cloud, double r, double g, double b) {
-		pcl::visualization::PointCloudColorHandlerCustom<Point> color(cloud, r, g, b);
-		viewer.addPointCloud(cloud, color, name);
-	};
-	auto add_cloud_rc = [&viewer, &add_cloud](const std::string& name, PointCloud::Ptr cloud) {
-		double r{ geo::random() }, g{ geo::random() }, b{ geo::random() };
-		add_cloud(name, cloud, r * 255., g * 255., b * 255.);
-	};
+		for (const auto& seg : allSegments)
+			viewer.addSegment(geo::P_(seg.s_), geo::P_(seg.e_));
 
-	auto add_segment = [&viewer](const std::string& name, const Segment& seg) {
-		double r{ geo::random() }, g{ geo::random() }, b{ geo::random() };
-		Point s = geo::P_(seg.s_);
-		Point e = geo::P_(seg.e_);
-		viewer.addSphere(s, 0.02f, r, g, b, name + "s");
-		viewer.addSphere(e, 0.02f, r, g, b, name + "e");
-		viewer.addLine(s, e, r, g, b, name);
-	};
+		for (const auto& seg : blueprint)
+			viewer.addSegment(geo::P_(seg.s_), geo::P_(seg.e_));
 
-	// add_cloud("cloud", cloud, 100., 150., 0.);
+		viewer.addCloud(cadModel_.genTestFrameCloud(), 255., 0., 0.);
 
-	for (auto pr : ll::enumerate(wallCandidates))
-		add_cloud_rc("wc" + std::to_string(pr.index), pr.iter->cloud_);
-
-	for (auto pr : ll::enumerate(allSegments)) add_segment("cld" + std::to_string(pr.index), *pr.iter);
-	for (auto pr : ll::enumerate(blueprint)) add_segment("bp" + std::to_string(pr.index), *pr.iter);
-
-	// add_cloud("cad", cadModel_.genTestFrameCloud(), 255., 0., 0.);
-
-	while (!viewer.wasStopped())
-		viewer.spinOnce(33);
-	viewer.close();
-#endif
+		viewer.show();
+	}
 
 	return true;
 }
@@ -398,9 +380,7 @@ CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
 	offset += 1;
 	if (!clusters[offset].empty()) sr.floor_.cloud_ = geo::getSubSet(orgCloud_, clusters[offset]);
 
-#ifdef VISUALIZATION_ENABLED
 	_show_result(sr);
-#endif
 
 	return sr;
 }
@@ -545,27 +525,16 @@ std::vector<CloudSegment::PlaneCloud> CloudSegment::detectRegionPlanes(PointClou
 	}, clusters);
 
 #if 0 // show segmentation
-	pcl::visualization::PCLVisualizer viewer;
-
-	auto add_cloud = [&viewer](const std::string& name, PointCloud::Ptr cloud, double r, double g, double b) {
-		pcl::visualization::PointCloudColorHandlerCustom<Point> color(cloud, r, g, b);
-		viewer.addPointCloud(cloud, color, name);
-	};
-	auto add_cloud_rc = [&viewer, &add_cloud](const std::string& name, PointCloud::Ptr cloud) {
-		double r{ geo::random() }, g{ geo::random() }, b{ geo::random() };
-		add_cloud(name, cloud, r * 255., g * 255., b * 255.);
-	};
+	SimpleViewer viewer;
 
 	// add_cloud("cloud", cloud, 0., 0., 150.);
 	// viewer.addPointCloudNormals<Point, pcl::Normal>(cloud, normals, 10, 0.2f, "normals");
 	for (auto pr : ll::enumerate(clusters)) {
 		auto piece = geo::getSubSet(cloud, pr.iter->indices);
-		add_cloud_rc("piece_" + std::to_string(pr.index), piece);
+		viewer.addCloud("piece_" + std::to_string(pr.index), piece);
 	}
 
-	while (!viewer.wasStopped()) {
-		viewer.spinOnce(33);
-	}
+	viewer.show();
 #endif
 
 	return planes;
@@ -585,6 +554,10 @@ trans2d::Matrix2x3f CloudSegment::chooseTransformByHoles(const Eigen::vector<tra
 			return std::any_of(dst.begin(), dst.end(), [&sp](const Eigen::Vector2f& dp) { return (sp - dp).norm() < 0.1f; });
 		});
 	};
+
+	// for the case when we cannot remove ambiguity
+	trans2d::Matrix2x3f canT;
+	std::size_t cancnt{ 0 };
 
 	auto get_consistent_transformations_for = [&](const Eigen::vector<trans2d::Matrix2x3f>& checkTs, float z) {
 		Eigen::vector<Eigen::Vector3d> cadHoleEnds = intersectCADModelOnZ(cadModel_, z);
@@ -626,6 +599,25 @@ trans2d::Matrix2x3f CloudSegment::chooseTransformByHoles(const Eigen::vector<tra
 			std::size_t cnt = get_matched_num(hole2d, wall2d, T);
 
 			if (cnt == cadHoleEnds.size()) re.emplace_back(T);
+
+			//SimpleViewer viewer;
+			//for (const Eigen::Vector2f& p : hole2d) {
+			//	Eigen::Vector2f tp = trans2d::transform(p, T);
+			//	auto ps = Point(p(0), p(1), 0.);
+			//	auto pd = Point(tp(0), tp(1), 0.);
+
+			//	viewer.addPoint(ps, 255., 255., 0.);
+			//	viewer.addPoint(pd, 255., 0., 0.);
+			//	viewer.addLine(ps, pd, 255., 255., 255.);
+			//}
+			//for (const Eigen::Vector2f& p : wall2d)
+			//	viewer.addPoint(Point(p(0), p(1), 0.), 0., 255., 0.);
+
+			//viewer.show();
+			if (cnt > cancnt) {
+				cancnt = cnt;
+				canT = T;
+			}
 		}
 
 		return re;
@@ -659,7 +651,8 @@ trans2d::Matrix2x3f CloudSegment::chooseTransformByHoles(const Eigen::vector<tra
 
 	// only avoid jumps for now...
 	Eigen::vector<trans2d::Matrix2x3f> leftTs = Ts;
-	for (std::size_t i = 1; i < cell_counts.size() - 1; ++i) {
+	// for (std::size_t i = 1; i < cell_counts.size() - 1; ++i) {
+	for (std::size_t i = cell_counts.size() - 2; i >= 1; --i) {
 		if (cell_counts[i - 1] == cell_counts[i] && cell_counts[i] == cell_counts[i + 1] && cell_counts[i] != 0) {
 			float mid = low + i * GRID_SIZE + GRID_SIZE / 2.f;
 
@@ -677,8 +670,15 @@ trans2d::Matrix2x3f CloudSegment::chooseTransformByHoles(const Eigen::vector<tra
 	}
 
 	// we failed to find any
-	LOG(WARNING) << "failed to remove ambiguity, left candidates: " << leftTs.size() << "/" << Ts.size() << ". choose the first one (with least max min distance).";
-	return leftTs.front();
+	LOG(WARNING) << "failed to remove ambiguity, left candidates: " << leftTs.size() << "/" << Ts.size();
+
+	if (cancnt > 0) {
+		LOG(INFO) << "use the one with max match count: " << cancnt;
+		return canT;
+	} else {
+		LOG(INFO) << "use the first one (with minimal matching error).";
+		return leftTs.front();
+	}
 }
 
 // get SORTED intersection points on cad
@@ -989,7 +989,7 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 
 	//todo: beams
 
-	// _show_result(sr);
+	_show_result(sr);
 
 	return sr;
 }
@@ -1056,31 +1056,18 @@ bool CloudSegment::statisticsForPointZ(float binSizeTh, PointCloud::Ptr cloud,
 }
 
 void CloudSegment::_show_result(const SegmentResult& sr) const {
-	pcl::visualization::PCLVisualizer viewer;
+	SimpleViewer viewer;
 
-	auto add_cloud = [&viewer](const std::string& name, PointCloud::Ptr cloud, double r, double g, double b) {
-		pcl::visualization::PointCloudColorHandlerCustom<Point> color(cloud, r, g, b);
-		viewer.addPointCloud(cloud, color, name);
-	};
-	auto add_cloud_rc = [&viewer, &add_cloud](const std::string& name, PointCloud::Ptr cloud) {
-		double r{ geo::random() }, g{ geo::random() }, b{ geo::random() };
-		add_cloud(name, cloud, r * 255., g * 255., b * 255.);
-	};
+	for (const auto& pc : sr.walls_) if (pc.cloud_) viewer.addCloud(pc.cloud_);
 
-	for (const auto& pr : ll::enumerate(sr.walls_))
-		if (pr.iter->cloud_)
-			add_cloud_rc("wall" + std::to_string(pr.index), pr.iter->cloud_);
-	for (const auto& pr : ll::enumerate(sr.beams_))
-		if (pr.iter->cloud_)
-			add_cloud_rc("beam" + std::to_string(pr.index), pr.iter->cloud_);
+	for (const auto& pc : sr.beams_) if (pc.cloud_) viewer.addCloud(pc.cloud_);
 
-	add_cloud_rc("roof", sr.roof_.cloud_);
-	add_cloud_rc("floor", sr.floor_.cloud_);
+	viewer.addCloud(sr.roof_.cloud_);
+	viewer.addCloud(sr.floor_.cloud_);
 
-	add_cloud("cad", cadModel_.genTestFrameCloud(), 255., 0., 0.);
+	viewer.addCloud(cadModel_.genTestFrameCloud(), 255., 0., 0.);
 
-	while (!viewer.wasStopped())
-		viewer.spinOnce(33);
+	viewer.show();
 }
 
 }
