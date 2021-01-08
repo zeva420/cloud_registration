@@ -162,7 +162,7 @@ namespace CloudReg
 
 			std::size_t baseIndex =  A1.norm() >= A2.norm() ? 0 : vecHorizen.size()-1;
 			const seg_pair_t& baseSeg = vecHorizen[baseIndex];
-			
+		
 			for(std::size_t i = 0; i < vecHorizen.size(); i++)
 			{
 				if (i == baseIndex) continue;

@@ -66,6 +66,7 @@ source/GeometryUtils.cpp
 source/TransformOptimize.cpp
 source/Segmentation.cpp
 source/CalcHoleMeasure.cpp
+source/CalcBayAndDepthMeasure.cpp
 source/CalcMeasureHelper.cpp
 )
 

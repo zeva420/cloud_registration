@@ -790,6 +790,7 @@ void CADModel::reSortWall()
 	
 	if (maxIndex > 0)
 	{
+
 		auto& wall = mapModelItem_[ITEM_WALL_E];
 		vecItems_t newWall;
 		newWall.insert(newWall.end(),wall.begin()+maxIndex, wall.end());
@@ -825,10 +826,11 @@ void CADModel::reSortWall()
 		newWall.insert(newWall.end(), wall.rbegin(), wall.rend()-1);
 		wall.swap(newWall);
 
-		auto& botton = mapModelItem_[ITEM_BOTTOM_E].front().points_;
-		Eigen::vector<Eigen::Vector3d> points{ botton.front()};
-		points.insert(points.end(), botton.rbegin(), botton.rend()-1);
-		botton.swap(points);
+		auto& bottom = mapModelItem_[ITEM_BOTTOM_E].front().points_;
+
+		bottom.clear();
+		for(auto& value : wall)
+			bottom.emplace_back(value.points_[0]);
 		mapModelItem_[ITEM_BOTTOM_E].front().buildSegment();
 
 		auto function = [&](ModelItem& value) {

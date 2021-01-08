@@ -1,4 +1,4 @@
-#include "CalcHoleMeasure.h"
+#include "CalcMeasureHelper.h"
 
 #include "funHelper.h"
 #include <pcl/common/common.h>
@@ -10,9 +10,47 @@
 namespace CloudReg
 {
 
+	void writePCDFile(const std::string& name, const std::vector<seg_pair_t>& segA, const std::vector<seg_pair_t>& segB)
+	{
+		pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloudRGB(new pcl::PointCloud<pcl::PointXYZRGB>());
+		for(auto& seg : segA)
+		{
+			auto vecPts = ininterpolateSeg(seg.first,seg.second,0.01);
+			for(auto& pt : vecPts)
+			{
+				pcl::PointXYZRGB p2;
+				p2.x = pt[0];	
+				p2.y = pt[1];	
+				p2.z = pt[2];	
+				p2.r = 0;
+				p2.g = 255;
+				p2.b = 0;
+
+				pCloudRGB->push_back(p2);
+			}
+		}
+		
+		for(auto& seg : segB)
+		{
+			auto vecPts = ininterpolateSeg(seg.first,seg.second,0.01);
+			for(auto& pt : vecPts)
+			{
+				pcl::PointXYZRGB p2;
+				p2.x = pt[0];	
+				p2.y = pt[1];	
+				p2.z = pt[2];	
+				p2.r = 255;
+				p2.g = 0;
+				p2.b = 0;
+
+				pCloudRGB->push_back(p2);
+			}
+		}
+		pcl::io::savePCDFile(name, *pCloudRGB);
+	}
+
 	void writePCDFile(const std::string& name, const PointCloud::Ptr pCloud, std::vector<seg_pair_t>& border)
 	{
-
 		pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloudRGB(new pcl::PointCloud<pcl::PointXYZRGB>());
 
 		for(auto& pt : pCloud->points)
@@ -114,7 +152,6 @@ namespace CloudReg
 				double tmp = (ePt - vecCalcPt[i]).squaredNorm();
 				//LOG(INFO) << tmp;
 				if (tmp < maxDist && tmp < vecDist[i])
-				//if (tmp < vecDist[i])
 				{
 					vecDist[i] = tmp;
 					vecCalcRaw[i] = ePt;
@@ -134,4 +171,36 @@ namespace CloudReg
 		return vecCalcRaw;
 	}
 
+	void groupDirectionIndex(const Eigen::Vector3d& horizenSeg, const std::vector<seg_pair_t>& border, 
+			std::vector<std::size_t>& vecVertical, std::vector<std::size_t>& vecHorizen)
+	{
+		for(std::size_t i = 0 ; i < border.size(); i++)
+		{
+			auto& seg = border[i];
+			auto curSeg = seg.first - seg.second;
+			double cos = horizenSeg.dot(curSeg)/(horizenSeg.norm() * curSeg.norm());
+			if (fabs(cos) < 0.0001) 
+				vecVertical.emplace_back(i);
+			else 
+				vecHorizen.emplace_back(i);
+		}
+
+	}
+
+	bool isRootInSeg(const seg_pair_t& seg, const Eigen::Vector3d& p)
+	{
+
+		auto segAB = seg.first - seg.second;
+		auto segAP = seg.first - p;
+		double dotA = segAB.dot(segAP);
+
+		auto segBA = seg.second - seg.first;
+		auto segBP = seg.second - p;
+		double dotB = segBA.dot(segBP);
+		//LOG(INFO) << dotA << " " << dotB;
+		if (dotA < 0.0 || dotB < 0.0)
+			return false;
+		
+		return true;
+	}
 }

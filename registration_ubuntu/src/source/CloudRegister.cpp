@@ -8,6 +8,7 @@
 #include "funHelper.h"
 #include "Segmentation.h"
 #include "CalcHoleMeasure.h"
+#include "CalcBayAndDepthMeasure.h"
 
 #include <pcl/common/transforms.h>
 
@@ -51,7 +52,16 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	auto& wall  = cadCloud[ITEM_WALL_E];
 	auto vecHole = model.getTypedModelItems(ITEM_HOLE_E);
 	auto vecWall = model.getTypedModelItems(ITEM_WALL_E);
-	for(std::size_t i  = 0 ; i< vecHole.size(); i++)
+	auto vecRoot = model.getTypedModelItems(ITEM_BOTTOM_E);
+
+	std::vector<vec_seg_pair_t> allWallBorder;
+	for(auto& wall : vecWall)
+		allWallBorder.push_back(wall.segments_);
+	std::map<std::size_t, std::vector<vec_seg_pair_t>> holeBorder;
+
+	calcDepth(vecRoot.front().segments_, allWallBorder, holeBorder ,wall,0);
+	calcDepth(vecRoot.front().segments_, allWallBorder, holeBorder ,wall,1);
+	/*for(std::size_t i  = 0 ; i< vecHole.size(); i++)
 	{
 		//if ( i < 2) continue;
 		auto& hole = vecHole[i];
@@ -61,7 +71,7 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 			calcHole(vecWall[hole.parentIndex_].segments_.back(), hole.segments_, wall[hole.parentIndex_]);
 			break;
 		}
-	}
+	}*/
 	return true;
 	LOG(INFO) << "cad model loaded: " << model.toString() << ". from: " << CAD_File;
 	
