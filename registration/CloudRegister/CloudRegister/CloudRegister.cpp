@@ -118,35 +118,6 @@ const std::map<pairCloud_t, std::pair<double, double>>& CloudRegister::getAllCor
 	return mapCorner_;
 }
 
-bool CloudRegister::findSameSegment(
-				const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &segments1,
-				const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &segments2,
-				std::pair<int, int> &idxPair)
-{
-	for (std::size_t i = 0; i < segments1.size(); i++)
-	{
-		const Eigen::Vector3d &s1 = segments1[i].first;
-		const Eigen::Vector3d &e1 = segments1[i].second;
-		for (std::size_t j = 0; j < segments2.size(); j++)
-		{
-			const Eigen::Vector3d &s2 = segments2[j].first;
-			const Eigen::Vector3d &e2 = segments2[j].second;
-			if ((s1 - s2).norm() < 0.0001 && (e1 - e2).norm() < 0.0001)
-			{
-				idxPair = std::make_pair(i, j);
-				return true;
-			}
-			if ((s1 - e2).norm() < 0.0001 && (e1 - s2).norm() < 0.0001)
-			{
-				idxPair = std::make_pair(i, j);
-				return true;
-			}
-		}
-	}
-
-	return false;
-}
-
 int CloudRegister::findMatchCloud(const Eigen::Vector4d &plane,
 		std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecOrigCloud)
 {
@@ -263,6 +234,184 @@ CloudRegister::calcDistError(const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_,
 	return pCloud_rgb;
 }
 
+void CloudRegister::calcAllCloudBorder(CADModel& cad)
+{
+	LOG(INFO) << "*******************calcAllCloudBorder*********************";
+	std::vector<Eigen::Vector4d> cloudPlaneVec;
+	std::vector<std::vector<Eigen::Vector3d>> cadSegPtsOfPlanes;
+	auto pushNeedData = [&](ModelItemType cadType, CloudItemType cloudType)->void {
+		if (mapCloudItem_.count(cloudType))
+		{
+			const vecItems_t &vecCloudItems = mapCloudItem_[cloudType];
+			auto vecCadItems = cad.getTypedModelItems(cadType);
+			if (vecCadItems.size() !=  vecCloudItems.size()) return;
+
+			for (int i = 0; i < vecCloudItems.size(); i++)
+			{
+				std::vector<Eigen::Vector3d> segPoints;
+				for (auto &seg : vecCadItems[i].segments_)
+				{
+					segPoints.push_back(seg.first);
+				}				
+				cloudPlaneVec.push_back(vecCloudItems[i].cloudPlane_);
+				cadSegPtsOfPlanes.push_back(segPoints);
+			}
+		}
+	};
+	pushNeedData(ITEM_WALL_E, CLOUD_WALL_E);
+	pushNeedData(ITEM_BOTTOM_E, CLOUD_BOTTOM_E);
+	pushNeedData(ITEM_TOP_E, CLOUD_TOP_E);
+	pushNeedData(ITEM_BEAM_E, CLOUD_BEAM_E);
+	LOG(INFO) << "cloudPlaneVec:" << cloudPlaneVec.size() << " cadSegPtsOfPlanes:" << cadSegPtsOfPlanes.size();
+
+	//get 3 planes' idx which share same cad seg point
+	std::set<std::set<int>> planeIdxGroup;
+	if (false == groupPlanesBySamePt(cadSegPtsOfPlanes, planeIdxGroup))
+	{
+		LOG(ERROR) << "groupPlanesBySamePt Failed.";
+		return;
+	}
+	LOG(INFO) << "planeIdxGroup:" << planeIdxGroup.size();
+
+	//calc the interSection point of each 3 planes
+	std::vector<Eigen::Vector3d> focalPointVec;
+	if (false == interSectionOf3Planes(cloudPlaneVec, planeIdxGroup, focalPointVec))
+	{
+		LOG(ERROR) << "interSectionOf3Planes Failed.";
+		return;
+	}
+
+	auto isHoleSeg = [](const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &holeSegs, 
+				const std::pair<Eigen::Vector3d, Eigen::Vector3d> &seg)->bool {
+		for (int i = 0; i < holeSegs.size(); i++)
+		{
+			auto &holeSeg = holeSegs[i];
+			bool flag1 = ((seg.first - holeSeg.first).norm() < 1e-6) 
+							&& ((seg.second - holeSeg.second).norm() < 1e-6);
+			bool flag2 = ((seg.first - holeSeg.second).norm() < 1e-6) 
+							&& ((seg.second - holeSeg.first).norm() < 1e-6);
+			if (flag1 || flag2)
+			{
+				return true;
+			}
+		}
+		return false;
+	};
+	std::set<int> wallIdxWithHole;
+	std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> holeSegs;
+	auto vecHole = cad.getTypedModelItems(ITEM_HOLE_E);
+	for (auto& hole : vecHole)
+	{
+		if (!hole.segments_.empty())
+		{
+			wallIdxWithHole.insert(hole.parentIndex_);
+			holeSegs.insert(holeSegs.end(), hole.segments_.begin(), hole.segments_.end());
+		}
+	}
+
+	auto findNearestNodeOrCloudPt = [&](const std::vector<Eigen::Vector3d> &pCloud, 
+			const std::vector<Eigen::Vector3d> &vecNodes, Eigen::Vector3d &pt)->Eigen::Vector3d {
+		LOG(INFO) << "+++is hole seg";
+		auto ret1 = findNearestPt(vecNodes, pt);
+		if (ret1.first < 0.3)
+		{
+			LOG(INFO) << "find node, dist1:" <<ret1.first;
+			return ret1.second;
+		}
+		auto ret2 = findNearestPt(pCloud, pt);
+		LOG(INFO) << "empty, to find nearest pt, dist1:" <<ret2.first;
+		return ret2.second;
+	};
+
+	//find nearest_pt (in intersection pts, or cloud pts) for each cadBorder
+	std::vector<std::string> typeNames{"Beam","Bottom","Wall","Top","Unknow"};
+	for (auto &it : mapCloudItem_)
+	{
+		std::string name = typeNames[it.first];
+		auto &vecItems = it.second;
+		for (int i = 0; i < vecItems.size(); i++)
+		{
+			LOG(INFO) << "------get cloud border for " << name << "-" << i << "------";
+			auto &item = vecItems[i];
+			std::vector<Eigen::Vector3d> vecNodes;
+			if (CLOUD_WALL_E == it.first && wallIdxWithHole.count(i))
+			{
+				LOG(INFO) << "wall-" << i << " has holes";
+				vecNodes = calcWallNodes(name + std::to_string(i), item.pCloud_, item.cloudPlane_);
+			}
+
+			auto cloudPts = convertCloudToEigenVec(item.pCloud_);
+			for (auto seg : item.cadBorder_)
+			{
+				Eigen::Vector3d p1, p2;
+				if (isHoleSeg(holeSegs, seg) && !vecNodes.empty()) 
+				{
+					LOG(INFO) << "+++is hole seg";
+					p1 = findNearestNodeOrCloudPt(cloudPts, vecNodes, seg.first);
+					p2 = findNearestNodeOrCloudPt(cloudPts, vecNodes, seg.second);
+				}
+				else
+				{
+					LOG(INFO) << "+++is outer contour seg";
+					p1 = findNearestNodeOrCloudPt(cloudPts, focalPointVec, seg.first);
+					p2 = findNearestNodeOrCloudPt(cloudPts, focalPointVec, seg.second);
+				}
+				item.cloudBorder_.push_back(std::make_pair(p1, p2));
+			}
+			if (item.cadBorder_.size() != item.cloudBorder_.size())
+			{
+				LOG(ERROR) << "current item cadBorder_.size != cloudBorder_.size";
+			}
+#ifdef VISUALIZATION_ENABLED
+			if (!vecNodes.empty())
+			{
+				pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud(new pcl::PointCloud<pcl::PointXYZ>());
+				for (size_t i = 0; i < vecNodes.size(); ++i)
+				{
+					pcl::PointXYZ p(vecNodes[i](0), vecNodes[i](1), vecNodes[i](2));
+					pCloud->push_back(p);
+				}			
+				std::string file_name = "vecNodes-" + name + "-" + std::to_string(i)  + ".pcd";
+				pcl::io::savePCDFile(file_name, *pCloud);	
+			}
+
+			{
+				std::vector<Eigen::Vector3d> vecPoints;
+				for (auto& pt_pair : item.cadBorder_) {
+					auto vec_tmp = ininterpolateSeg(pt_pair.first, pt_pair.second, 0.05);
+					vecPoints.insert(vecPoints.end(), vec_tmp.begin(), vec_tmp.end());
+				}
+				pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud(new pcl::PointCloud<pcl::PointXYZ>());
+				for (size_t i = 0; i < vecPoints.size(); ++i)
+				{
+					pcl::PointXYZ p(vecPoints[i](0), vecPoints[i](1), vecPoints[i](2));
+					pCloud->push_back(p);
+				}			
+				std::string file_name = "cadSegs-plane-" + name + "-" + std::to_string(i) + ".pcd";
+				pcl::io::savePCDFile(file_name, *pCloud);	
+			}
+			{
+				std::vector<Eigen::Vector3d> vecPoints;
+				for (auto& pt_pair : item.cloudBorder_) {
+					auto vec_tmp = ininterpolateSeg(pt_pair.first, pt_pair.second, 0.05);
+					vecPoints.insert(vecPoints.end(), vec_tmp.begin(), vec_tmp.end());
+				}
+				pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud(new pcl::PointCloud<pcl::PointXYZ>());
+				for (size_t i = 0; i < vecPoints.size(); ++i)
+				{
+					pcl::PointXYZ p(vecPoints[i](0), vecPoints[i](1), vecPoints[i](2));
+					pCloud->push_back(p);
+				}			
+				std::string file_name = "cloudSegs-plane-" + name + "-" + std::to_string(i) + ".pcd";
+				pcl::io::savePCDFile(file_name, *pCloud);	
+			}
+#endif			
+		}		
+	}
+
+	LOG(INFO) << "***************************************";
+	return;
+}
 
 void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 {
@@ -281,13 +430,13 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 		item.cloudPlane_ = ret.vecCloudPlane_.front();
 		item.cadPlane_ = ret.vecCadPlane_.front();
 		item.cadBorder_.insert(item.cadBorder_.end(), Botton.segments_.begin(), Botton.segments_.end());
-		LOG(INFO) << "*********************bottom************************";
-		auto boundPoints = calcCloudBorder("bottom",
-				pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
+		// LOG(INFO) << "*********************bottom************************";
+		// auto boundPoints = calcCloudBorder("bottom",
+		// 		pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
 		mapCloudItem_[CLOUD_BOTTOM_E].emplace_back(item);
-#ifdef VISUALIZATION_ENABLED
-		pcl::io::savePCDFile("boundPoints-bottom.pcd", *boundPoints);
-#endif
+// #ifdef VISUALIZATION_ENABLED
+// 		pcl::io::savePCDFile("boundPoints-bottom.pcd", *boundPoints);
+// #endif
 	}
 
 	if (optRets.count(TransformOptimize::CloudType::TOP_E))
@@ -301,13 +450,13 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 		item.cloudPlane_ = ret.vecCloudPlane_.front();
 		item.cadPlane_ = ret.vecCadPlane_.front();
 		item.cadBorder_.insert(item.cadBorder_.end(), Top.segments_.begin(), Top.segments_.end());
-		LOG(INFO) << "*********************top************************";
-		auto boundPoints = calcCloudBorder("top",
-				pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
+		// LOG(INFO) << "*********************top************************";
+		// auto boundPoints = calcCloudBorder("top",
+		// 		pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
 		mapCloudItem_[CLOUD_TOP_E].emplace_back(item);
-#ifdef VISUALIZATION_ENABLED
-		pcl::io::savePCDFile("boundPoints-top.pcd", *boundPoints);
-#endif
+// #ifdef VISUALIZATION_ENABLED
+// 		pcl::io::savePCDFile("boundPoints-top.pcd", *boundPoints);
+// #endif
 	}
 
 	auto vecWall = cad.getTypedModelItems(ITEM_WALL_E);
@@ -331,13 +480,13 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 				if (i != hole.parentIndex_) continue;
 				item.cadBorder_.insert(item.cadBorder_.end(), hole.segments_.begin(), hole.segments_.end());
 			}	
-			LOG(INFO) << "*********************wall:" << i << "************************";
-			auto boundPoints = calcCloudBorder("wall-" + std::to_string(i),
-					pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
+			// LOG(INFO) << "*********************wall:" << i << "************************";
+			// auto boundPoints = calcCloudBorder("wall-" + std::to_string(i),
+			// 		pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
 			mapCloudItem_[CLOUD_WALL_E].emplace_back(item);		
-#ifdef VISUALIZATION_ENABLED
-			pcl::io::savePCDFile("boundPoints-wall-" + std::to_string(i) + ".pcd", *boundPoints);
-#endif
+// #ifdef VISUALIZATION_ENABLED
+// 			pcl::io::savePCDFile("boundPoints-wall-" + std::to_string(i) + ".pcd", *boundPoints);
+// #endif
 		}
 	}
 	
@@ -357,15 +506,17 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 			item.cloudPlane_ = ret.vecCloudPlane_[i];
 			item.cadPlane_ = ret.vecCadPlane_[i];
 			item.cadBorder_.insert(item.cadBorder_.end(), beam.segments_.begin(), beam.segments_.end());
-			LOG(INFO) << "*********************beam:" << i << "************************";
-			auto boundPoints = calcCloudBorder("beam-" + std::to_string(i),
-					pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
+// 			LOG(INFO) << "*********************beam:" << i << "************************";
+// 			auto boundPoints = calcCloudBorder("beam-" + std::to_string(i),
+// 					pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
 			mapCloudItem_[CLOUD_BEAM_E].emplace_back(item);
-#ifdef VISUALIZATION_ENABLED
-			pcl::io::savePCDFile("boundPoints-beam-" + std::to_string(i) + ".pcd", *boundPoints);
-#endif
+// #ifdef VISUALIZATION_ENABLED
+// 			pcl::io::savePCDFile("boundPoints-beam-" + std::to_string(i) + ".pcd", *boundPoints);
+// #endif
 		}
 	}
+
+	calcAllCloudBorder(cad);
 }
 
 }

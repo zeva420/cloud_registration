@@ -249,7 +249,240 @@ namespace CloudReg
 			}
 		}
 	}
+	
+	void searchBoundaries(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud,
+							pcl::PointCloud<pcl::Normal>::Ptr normals,
+							std::vector<int> &boundIndices)
+	{
+		int arg_kNearest = 100;
+		int arg_Angle = 144;
 
+		pcl::PointCloud<pcl::Boundary> boundaries;
+		pcl::BoundaryEstimation<pcl::PointXYZ, pcl::Normal, pcl::Boundary> est; 
+		pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>());
+
+		est.setInputCloud(input_cloud);
+		est.setInputNormals(normals);
+		est.setAngleThreshold(M_PI*(arg_Angle % 360) / 180);
+		est.setSearchMethod(tree);
+		est.setKSearch(arg_kNearest);  
+		est.compute(boundaries);
+
+		for (int i = 0; i<input_cloud->size(); i++)
+		{
+			uint8_t x = (boundaries.points[i].boundary_point);
+			int a = static_cast<int>(x);
+			if (a == 1)
+			{
+				boundIndices.push_back(i);
+			}
+		}
+	}
+
+	std::vector<Eigen::Vector3d> convertCloudToEigenVec(
+			const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud)
+	{
+		std::vector<Eigen::Vector3d> vecPts;	
+		for (const auto &p : cloud->points)
+		{
+			Eigen::Vector3d pt(p.x, p.y, p.z);
+			vecPts.push_back(pt);
+		}	
+		return vecPts;
+	}
+
+	std::pair<double, Eigen::Vector3d> findNearestPt(
+			const std::vector<Eigen::Vector3d> &vecPts, const Eigen::Vector3d &point)
+	{
+		double minDist = double(RAND_MAX);
+		int idx = 0;
+		for (int i = 0; i < vecPts.size(); i++)
+		{
+			auto &pt = vecPts[i];
+			double dist = (point - pt).norm();
+			if (dist < minDist)
+			{	
+				minDist = dist;
+				idx = i;
+			}
+		}
+		return std::make_pair(minDist, vecPts[idx]);
+	}
+
+	bool groupPlanesBySamePt(const std::vector<std::vector<Eigen::Vector3d>> &segPtsOfPlanes,
+						std::set<std::set<int>> &planeIdxGroup)
+	{
+		for (int i = 0; i < segPtsOfPlanes.size(); i++)
+		{
+			for (auto &pt1 : segPtsOfPlanes[i])
+			{
+				std::set<int> idxSet;
+				idxSet.insert(i);
+				for (int j = 0; j < segPtsOfPlanes.size(); j++)
+				{
+					if (i == j) continue;
+					bool findSame = false;
+					for (auto &pt2 : segPtsOfPlanes[j])
+					{
+						if ((pt1 - pt2).norm() < 1e-6)
+						{
+							findSame = true;
+							break;
+						}
+					}
+					if (findSame)
+					{
+						idxSet.insert(j);
+					}
+				}
+				planeIdxGroup.insert(idxSet);
+			}
+		}
+
+		LOG(INFO) << "planeIdxGroup:" << planeIdxGroup.size();
+		if (planeIdxGroup.empty())
+		{
+			return false;
+		}
+		return true;
+	}
+
+	bool interSectionOf3Planes(const std::vector<Eigen::Vector4d> &cloudPlaneVec,
+							const std::set<std::set<int>> &idGroups, 
+							std::vector<Eigen::Vector3d> &focalPointVec)
+	{
+		for (const auto &currSet : idGroups)
+		{
+			if (currSet.size() != 3)
+			{
+				LOG(ERROR) << "neighbour currSet size:" << currSet.size() << " is not 3";
+				return false;
+			}
+			std::vector<int> vecIds(currSet.begin(), currSet.end());
+			auto idx1 = vecIds[0];
+			auto idx2 = vecIds[1];
+			auto idx3 = vecIds[2];
+			LOG(INFO) << "idxSet:" << idx1 << "," << idx2 << "," << idx3;
+			const Eigen::Vector4d &plane1 = cloudPlaneVec[idx1];
+			const Eigen::Vector4d &plane2 = cloudPlaneVec[idx2];
+			const Eigen::Vector4d &plane3 = cloudPlaneVec[idx3];
+			
+			Eigen::VectorXd interSectionLine(6);
+			if (false == interSectionOfPlaneToPlane(plane1, plane2, interSectionLine)) continue;
+			LOG(INFO) << "interSectionLine:\n" << interSectionLine;
+
+			Eigen::Vector3d interSectionPt;
+			if (false == interSectionOfLineToPlane(interSectionLine, plane3, interSectionPt)) continue;
+			LOG(INFO) << "interSectionPt:\n" << interSectionPt;
+
+			focalPointVec.push_back(interSectionPt);
+		}
+		LOG(INFO) << "focalPointVec:" << focalPointVec.size();
+		if (focalPointVec.empty())
+		{
+			return false;
+		}
+		return true;
+	}
+
+	std::vector<Eigen::Vector3d> calcWallNodes(const std::string &name, 
+			pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, Eigen::Vector4d &cloudPlane)
+	{
+		LOG(INFO) << "*******************calcWallNodes*********************";
+		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filter(new pcl::PointCloud<pcl::PointXYZ>());
+        projectionToPlane(cloudPlane, cloud, cloud_filter);
+
+		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_sampling(new pcl::PointCloud<pcl::PointXYZ>);
+        uniformSampling(0.01, cloud_filter, cloud_sampling);
+
+		pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
+		pcl::Normal ptNormal(cloudPlane(0), cloudPlane(1), cloudPlane(2));
+		for (int i = 0; i < cloud_sampling->size(); i++)
+		{
+			normals->push_back(ptNormal);
+		}
+		std::vector<int> boundIndices;
+		searchBoundaries(cloud_sampling, normals, boundIndices);
+		auto boundPoints = geo::getSubSet(cloud_sampling, boundIndices, false);
+
+		pcl::PointCloud<pcl::PointXYZ>::Ptr inputPoints(new pcl::PointCloud<pcl::PointXYZ>());
+		pcl::copyPointCloud(*boundPoints, *inputPoints);
+
+		float disthresh = 0.01;
+		std::vector<Eigen::VectorXf> lineCoeffs;
+		std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> linePoints;
+		while (inputPoints->size() > 10)
+		{
+			std::vector<int> indices;
+			Eigen::VectorXf params;
+			std::tie(indices, params) = geo::detectOneLineRansac(inputPoints, disthresh);
+			auto inliers = geo::getSubSet(inputPoints, indices, false);
+			lineCoeffs.push_back(params);
+			linePoints.push_back(inliers);       
+
+			auto tmpLeft = geo::getSubSet(inputPoints, indices, true);
+			inputPoints->swap(*tmpLeft);
+		}
+		LOG(INFO) << "lineCoeffs:" << lineCoeffs.size() << ", linePoints:" << linePoints.size();
+ 
+		//calc intersection node between two lines
+		std::vector<Eigen::Vector3d> vecNodes;
+		for (int i = 0; i < lineCoeffs.size(); i++)
+		{
+			auto tmp1 = lineCoeffs[i];
+			Eigen::VectorXd line1(6);
+			line1 << tmp1(0), tmp1(1), tmp1(2), tmp1(3), tmp1(4), tmp1(5);
+			for (int j = i+1; j < lineCoeffs.size(); j++)
+			{
+				auto tmp2 = lineCoeffs[j];
+				Eigen::VectorXd line2(6);
+				line2 << tmp2(0), tmp2(1), tmp2(2), tmp2(3), tmp2(4), tmp2(5);
+				Eigen::Vector3d interSectionPt;
+				if (false == interSectionOfLineToLine(line1, line2, interSectionPt)) continue;
+				auto vecPts1 = convertCloudToEigenVec(linePoints[i]);
+				auto vecPts2 = convertCloudToEigenVec(linePoints[j]);
+
+				auto ret1 = findNearestPt(vecPts1, interSectionPt);
+				auto ret2 = findNearestPt(vecPts2, interSectionPt);
+				if (ret1.first > 1.5 || ret2.first > 1.5) continue;
+
+				vecNodes.push_back(interSectionPt);
+			}
+		}
+		LOG(INFO) << "vecNodes:" << vecNodes.size();
+
+//debug files		
+#ifdef VISUALIZATION_ENABLED
+		{	
+			std::default_random_engine e;
+    		std::uniform_real_distribution<double> random(0,1);
+			pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloud(new pcl::PointCloud<pcl::PointXYZRGB>());
+			for (size_t i = 0; i < linePoints.size(); ++i)
+			{
+				auto cloud = linePoints[i];
+				int r = int(random(e)*255);
+				int g = int(random(e)*255);
+				int b = int(random(e)*255);
+				for (auto &p1 : cloud->points)
+				{
+					pcl::PointXYZRGB p2;
+					p2.x = p1.x;
+					p2.y = p1.y;
+					p2.z = p1.z;
+					p2.r = r;
+					p2.g = g;
+					p2.b = b;
+					pCloud->push_back(p2);
+				}	
+			}
+			std::string file_name = "findLine-" + name + ".pcd";
+			pcl::io::savePCDFile(file_name, *pCloud);				
+		}
+#endif
+
+		return vecNodes;
+	}
+	
 	pcl::PointCloud<pcl::PointXYZ>::Ptr calcCloudBorder(const std::string &name, 
 			pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
 			Eigen::Vector4d &cloudPlane,
@@ -754,12 +987,14 @@ namespace CloudReg
 		double d2 = plane(3);
 		if (n1.norm() < 1e-6 || n2.norm() < 1e-6)
 		{
+			LOG(WARNING) << "n1-norm:" << n1.norm() << ", n2-norm:" << n2.norm() << " are too small";
 			return false;
 		}
 		
 		double dot = n1.dot(n2);
 		if (std::fabs(dot) < 1e-6)
 		{
+			LOG(WARNING) << "std::fabs(dot):" << std::fabs(dot) << " is too small";
 			return false;
 		}
 		double dist = n2.dot(p1) + d2;
@@ -767,10 +1002,11 @@ namespace CloudReg
 		
 		interSectionPt = p1 + t * n1;
 		double distToPlane = n2.dot(interSectionPt) + d2;
-		//LOG(INFO) << "interSectionPt:" << interSectionPt(0) << " " << interSectionPt(1) << " " << interSectionPt(2);
+		//LOG(INFO) << "interSectionPt:" << interSectionPt;
 		//LOG(INFO) << "p1 to plane dist:" << dist << ", interSectionPt To plane dist:" << distToPlane;
 		if (std::fabs(distToPlane) > 1e-6)
 		{
+			LOG(WARNING) << "std::fabs(distToPlane):" << std::fabs(distToPlane) << " is not zero";
 			return false;
 		}
 		return true;
@@ -785,6 +1021,8 @@ namespace CloudReg
 		Eigen::Vector3d n = n1.cross(n2);
 		if (n1.norm() < 1e-6 || n2.norm() <1e-6 || n.norm() < 1e-6)
 		{
+			LOG(WARNING) << "n1-norm:" << n1.norm() << ", n2-norm:" << n2.norm() 
+				<< "n-norm:" << n.norm() << " are too small";
 			return false;
 		}
 		
@@ -806,10 +1044,11 @@ namespace CloudReg
 		pt_random(maxIdx) = (-d1 - tmp) / n1(maxIdx);
 
 		double dist = n1.dot(pt_random) + d1;
-		//LOG(INFO) << "pt_random:" << pt_random(0) << "," << pt_random(1) << "," << pt_random(2);
-		LOG(INFO) << "pt_random to plane1 dist:" << dist;
+		//LOG(INFO) << "pt_random:" << pt_random;
+		//LOG(INFO) << "pt_random to plane1 dist:" << dist;
 		if (std::fabs(dist) > 1e-6)
 		{
+			LOG(WARNING) << "std::fabs(dist):" << std::fabs(dist) << " is not zero";
 			return false;
 		}
 
@@ -821,6 +1060,7 @@ namespace CloudReg
 		Eigen::Vector3d pt;
 		if (false == interSectionOfLineToPlane(lineA, plane2, pt))
 		{
+			LOG(WARNING) << "interSectionOfLineToPlane Failed";
 			return false;
 		}
 		interSectionLine << pt(0), pt(1), pt(2), n(0), n(1), n(2);

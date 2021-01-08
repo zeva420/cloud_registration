@@ -69,12 +69,9 @@ namespace CloudReg
 	private:
 		
 		void fillRet(CADModel& cad, TransformOptimize& optimitor);
+		void calcAllCloudBorder(CADModel& cad);
 		void calcAllCorner(CADModel& cad, Eigen::Vector3d center,
 			std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecOrigCloud);
-		bool findSameSegment(
-				const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &segments1,
-				const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &segments2,
-				std::pair<int, int> &idxPair);
 		int findMatchCloud(const Eigen::Vector4d &plane,
 			std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecOrigCloud);
 
