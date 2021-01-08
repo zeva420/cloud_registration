@@ -30,6 +30,14 @@ namespace CloudReg
 	
 	void groupDirectionIndex(const Eigen::Vector3d& horizenSeg, const std::vector<seg_pair_t>& border, 
 			std::vector<std::size_t>& vecVertical, std::vector<std::size_t>& vecHorizen);
+
+	//calculate ruler
+	std::vector<Eigen::Vector3d> createRulerBox(seg_pair_t ruler, int thicknessDir, 
+						double thickness, double width);
+	bool calIntersection(seg_pair_t line1, seg_pair_t line2, Eigen::Vector3d& intersec);
+	bool calRuler3d(const std::vector<seg_pair_t>& wallBorder, const std::vector<seg_pair_t>& holeBorder, 
+					 const seg_pair_t& rotateLine, const Eigen::Vector3d& P0,
+					 const float& theta, seg_pair_t& ruler);
 }
 
 

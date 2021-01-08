@@ -9,6 +9,7 @@
 #include "Segmentation.h"
 #include "CalcHoleMeasure.h"
 #include "CalcBayAndDepthMeasure.h"
+#include "CalcWallVerticality.h"
 
 #include <pcl/common/transforms.h>
 
@@ -62,6 +63,44 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	calcDepth(vecRoot.front().segments_, allWallBorder, holeBorder ,wall,0);
 	calcDepth(vecRoot.front().segments_, allWallBorder, holeBorder ,wall,1);
 	/*for(std::size_t i  = 0 ; i< vecHole.size(); i++)
+
+	// //
+	// for (std::size_t i = 0; i < vecWall.size(); i++)
+	// {
+	// 	auto &wal = vecWall[i];
+	// 	std::vector<std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>> holeBorders;
+	// 	for (std::size_t j = 0; j < vecHole.size(); j++)
+	// 	{
+	// 		auto& hole = vecHole[j];
+	// 		if (hole.parentIndex_ == i)
+	// 			holeBorders.emplace_back(hole.segments_);
+	// 	}
+	// 	calcVerticality(wal.segments_.back(), wal.segments_, holeBorders, wall[i], i);
+	// 	// break;
+	// }
+	// return true;
+
+	
+	for (std::size_t i = 0; i < vecWall.size(); i++)
+	{
+		auto wal = vecWall[i];
+		std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> holeBorders;
+		std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> wallBorders;
+		wallBorders = wal.segments_;
+		for (std::size_t j = 0; j < vecHole.size(); j++)
+		{
+			auto& hole = vecHole[j];
+			if (hole.parentIndex_ == i)
+				holeBorders.insert(holeBorders.end(), hole.segments_.begin(), hole.segments_.end());
+		}
+		testRuler(wallBorders, holeBorders, wall[i], i);
+		
+	}
+	
+	
+	return true;
+
+	for(std::size_t i  = 0 ; i< vecHole.size(); i++)
 	{
 		//if ( i < 2) continue;
 		auto& hole = vecHole[i];

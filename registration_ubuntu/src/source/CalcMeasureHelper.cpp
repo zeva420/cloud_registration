@@ -104,14 +104,13 @@ namespace CloudReg
 		return retVal;
 	}
 
-
-
 	void groupDirection(const Eigen::Vector3d& horizenSeg, const std::vector<seg_pair_t>& border, 
 			std::vector<seg_pair_t>& vecVertical, std::vector<seg_pair_t>& vecHorizen)
 	{
 		for(auto& seg : border)
 		{
 			auto curSeg = seg.first - seg.second;
+			// std::cout << "cor " << seg.first[0] << " " << seg.first[1] << " " << seg.first[2] << std::endl;
 			double cos = horizenSeg.dot(curSeg)/(horizenSeg.norm() * curSeg.norm());
 			if (fabs(cos) < 0.0001) 
 				vecVertical.emplace_back(seg);
@@ -203,4 +202,156 @@ namespace CloudReg
 		
 		return true;
 	}
+	
+	std::vector<Eigen::Vector3d> createRulerBox(seg_pair_t ruler, int thicknessDir, double thickness, double width)
+	{
+		if ((ruler.first - ruler.second).norm() < 1e-8)
+		{
+			LOG(ERROR) << "ruler length is 0";
+			std::vector<Eigen::Vector3d> rulerPoints;
+			return rulerPoints;
+		}
+
+		//thickness Direction
+		Eigen::Vector3d thickn(0,0,0);
+		thickn[thicknessDir] = 1;
+		//ruler direction
+		Eigen::Vector3d rulerab = ruler.second - ruler.first;
+		Eigen::Vector3d rulern = rulerab.normalized();
+		//width direction
+		Eigen::Vector3d widthn = thickn.cross(rulern);
+
+		//first 4 points
+		Eigen::Vector3d pta = ruler.first + widthn * (width / 2);
+		Eigen::Vector3d ptb = ruler.first - widthn * (width / 2);
+
+		Eigen::Vector3d pt1 = pta + thickn * (thickness / 2);
+		Eigen::Vector3d pt2 = pta - thickn * (thickness / 2);
+		Eigen::Vector3d pt3 = ptb + thickn * (thickness / 2);
+		Eigen::Vector3d pt4 = ptb - thickn * (thickness / 2);
+
+		//last 4 points
+		Eigen::Vector3d pt5 = pt1 + rulerab;
+		Eigen::Vector3d pt6 = pt2 + rulerab;
+		Eigen::Vector3d pt7 = pt3 + rulerab;
+		Eigen::Vector3d pt8 = pt4 + rulerab;
+
+		std::vector<Eigen::Vector3d> rulerPoints = {pt1, pt2, pt3, pt4, pt5, pt6, pt7, pt8};
+		return rulerPoints;
+	}
+
+	bool calIntersection(seg_pair_t line1, seg_pair_t line2, Eigen::Vector3d& intersec)
+	{
+		Eigen::Vector3d s1e1 = line1.second - line1.first;
+		Eigen::Vector3d s2e2 = line2.second - line2.first;
+		Eigen::Vector3d c12 = s1e1.cross(s2e2);
+		if (c12.norm() <= 0 + 1e-6)
+		{
+			LOG(INFO) << "Parallel line";
+			return false;
+		}
+
+		Eigen::Vector3d s1s2 = line2.first - line1.first;
+		Eigen::Vector3d cross1 = s1s2.cross(s1e1);
+		Eigen::Vector3d cross2 = -s2e2.cross(s1e1);
+		double scale = cross2.dot(cross1)/cross2.squaredNorm();
+		if (scale < 0 || scale > 1)
+		{
+			LOG(INFO) << "There is no intersec";
+			return false;
+		}
+
+		intersec = line2.first + scale*s2e2;
+		return true;
+	}
+
+	bool calRuler3d(const std::vector<seg_pair_t>& wallBorder, const std::vector<seg_pair_t>& holeBorder, 
+					 const seg_pair_t& rotateLine, const Eigen::Vector3d& P0,
+					 const float& theta, seg_pair_t& ruler)
+	{
+		if (wallBorder.empty())
+		{
+			LOG(ERROR) << "empty input for ruler";
+			return false;
+		}
+		
+		if (P0 != rotateLine.first && P0 != rotateLine.second)
+		{
+			LOG(ERROR) << "P0 is not on the rotateLine for ruler";
+			return false;
+		}
+		
+		if (theta == 0)
+		{
+			ruler = rotateLine;
+			return true;
+		}
+
+		//step0: Calculate normal vector
+		seg_pair_t firstSeg = wallBorder[0];
+		seg_pair_t bottomSeg = wallBorder.back();
+		Eigen::Vector3d firstV = firstSeg.first - firstSeg.second;
+		Eigen::Vector3d bottomV = bottomSeg.first - bottomSeg.second;
+		Eigen::Vector3d nV = bottomV.cross(firstV);
+		nV = nV.normalized();
+
+		//step1: create R
+		float radian = theta * geo::PI/180;
+		Eigen::AngleAxisd t_V(radian, nV);
+		Eigen::Matrix3d R = t_V.matrix();
+
+		//step3: rotate
+		Eigen::Vector3d rotateLineV = rotateLine.second - rotateLine.first;
+		Eigen::Vector3d Q = R * rotateLineV + P0;
+		seg_pair_t rotateQ = std::make_pair(P0, Q);
+
+		//step4: Calculate the intersection point
+		Eigen::Vector3d new3d;
+		double rulerLength = 1000000.0;
+		std::vector<seg_pair_t> allBorder = wallBorder;
+		allBorder.insert(allBorder.end(), holeBorder.begin(), holeBorder.end());
+		for (std::size_t i = 0; i < allBorder.size(); i++)
+		{
+			seg_pair_t line = allBorder[i];
+			if (line == rotateLine)
+				continue;
+
+			Eigen::Vector3d s1e1 = line.second - line.first;
+			Eigen::Vector3d s2e2 = rotateQ.second - rotateQ.first;
+			Eigen::Vector3d c12 = s1e1.cross(s2e2);
+			if (c12.norm() <= 0 + 1e-6 && ((line.first - P0).norm() < 1e-3 || (line.second - P0).norm() < 1e-3))
+			{
+				LOG(INFO) << "find the Vertical line"; // only for theta is 90
+				ruler = line;
+				LOG(INFO) <<"find the ruler end point is " << line.first[0] << " " <<line.first[1] 
+					<< " " << line.first[2];
+				LOG(INFO) <<"find the ruler end point is " << line.second[0] << " " <<line.second[1] 
+					<< " " << line.second[2];
+				return true;
+			}
+			
+			Eigen::Vector3d intersec;
+			if (calIntersection(rotateQ,line , intersec))
+			{
+				double length = (intersec - P0).norm();
+				if (length <= 0 + 1e-6)
+					continue;
+				if (length < rulerLength)
+				{
+					rulerLength = length;
+					new3d = intersec;
+				}
+			}
+		}
+
+		if (std::fabs(1000000.0 - rulerLength)< 1e-8)
+		{
+			LOG(ERROR) << "can not find ruler, please check theta";
+			return false;
+		}
+		LOG(INFO) <<"find the ruler end point is " << new3d[0] << " " <<new3d[1] << " " << new3d[2];
+		ruler = std::make_pair(P0, new3d);
+		return true;
+	}
+
 }

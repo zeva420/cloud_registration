@@ -68,6 +68,7 @@ source/Segmentation.cpp
 source/CalcHoleMeasure.cpp
 source/CalcBayAndDepthMeasure.cpp
 source/CalcMeasureHelper.cpp
+source/CalcWallVerticality.cpp
 )
 
 target_link_libraries(${PROJECT_NAME}
