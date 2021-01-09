@@ -291,6 +291,47 @@ namespace CloudReg
 		return vecPts;
 	}
 
+	std::pair<double, std::pair<Eigen::Vector3d, Eigen::Vector3d>> findNearestSeg(
+			const std::vector<Eigen::Vector3d> &vecPts, 
+			const std::pair<Eigen::Vector3d, Eigen::Vector3d> &seg)
+	{
+		const double distTh = 0.4;
+		const double dotTh = 0.996;
+
+		auto findCadidatePts = [](const std::vector<Eigen::Vector3d> &vecPts, const Eigen::Vector3d &point,
+		        const double distTh)->std::map<double, Eigen::Vector3d> {
+			std::map<double, Eigen::Vector3d> candidatesMap;	
+			for (const auto &pt : vecPts)
+			{
+				double dist = (point - pt).norm();
+				if (dist < distTh) candidatesMap.insert(std::make_pair(dist, pt));
+			}	
+			return candidatesMap;
+		};
+
+		std::map<double, Eigen::Vector3d> candidatesMap1 = findCadidatePts(vecPts, seg.first, distTh);
+		std::map<double, Eigen::Vector3d> candidatesMap2 = findCadidatePts(vecPts, seg.second, distTh);
+
+		Eigen::Vector3d normlizedSeg = (seg.first - seg.second) / (seg.first - seg.second).norm();
+		for (const auto &it1 : candidatesMap1)
+		{
+			const auto &pt1 = it1.second;
+			for (const auto &it2 : candidatesMap2)
+			{
+				const auto &pt2 = it2.second;
+				double dot = (pt1 - pt2).dot(normlizedSeg) / (pt1 - pt2).norm();
+				if (dot > dotTh)
+				{
+					double aveDist = (it1.first + it2.first) / 2.0;
+					return std::make_pair(aveDist, std::make_pair(pt1, pt2));
+				}
+			}
+		}
+
+		auto ptPair = std::make_pair(Eigen::Vector3d(0.0, 0.0, 0.0), Eigen::Vector3d(0.0, 0.0, 0.0));
+		return std::make_pair(double(RAND_MAX), ptPair);
+	}
+
 	std::pair<double, Eigen::Vector3d> findNearestPt(
 			const std::vector<Eigen::Vector3d> &vecPts, const Eigen::Vector3d &point)
 	{
@@ -388,7 +429,7 @@ namespace CloudReg
 	std::vector<Eigen::Vector3d> calcWallNodes(const std::string &name, 
 			pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, Eigen::Vector4d &cloudPlane)
 	{
-		LOG(INFO) << "*******************calcWallNodes*********************";
+		LOG(INFO) << "*******calcWallNodes*******";
 		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filter(new pcl::PointCloud<pcl::PointXYZ>());
         projectionToPlane(cloudPlane, cloud, cloud_filter);
 

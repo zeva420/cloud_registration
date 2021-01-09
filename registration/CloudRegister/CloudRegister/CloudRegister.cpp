@@ -309,17 +309,19 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 		}
 	}
 
-	auto findNearestNodeOrCloudPt = [&](const std::vector<Eigen::Vector3d> &pCloud, 
-			const std::vector<Eigen::Vector3d> &vecNodes, Eigen::Vector3d &pt)->Eigen::Vector3d {
-		LOG(INFO) << "+++is hole seg";
-		auto ret1 = findNearestPt(vecNodes, pt);
+	auto findNearestSegOfNodeOrCloudPt = [&](const std::vector<Eigen::Vector3d> &pCloud, 
+			const std::vector<Eigen::Vector3d> &vecNodes, 
+			const std::pair<Eigen::Vector3d, Eigen::Vector3d> &seg)
+			->std::pair<Eigen::Vector3d, Eigen::Vector3d> {
+		auto ret1 = findNearestSeg(vecNodes, seg);
 		if (ret1.first < 0.3)
 		{
-			LOG(INFO) << "find node, dist1:" <<ret1.first;
+			LOG(INFO) << "find node seg, dist1:" <<ret1.first;
 			return ret1.second;
 		}
-		auto ret2 = findNearestPt(pCloud, pt);
-		LOG(INFO) << "empty, to find nearest pt, dist1:" <<ret2.first;
+
+		auto ret2 = findNearestSeg(pCloud, seg);
+		LOG(INFO) << "empty, to find cloud seg, dist1:" <<ret2.first;
 		return ret2.second;
 	};
 
@@ -343,20 +345,18 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 			auto cloudPts = convertCloudToEigenVec(item.pCloud_);
 			for (auto seg : item.cadBorder_)
 			{
-				Eigen::Vector3d p1, p2;
+				std::pair<Eigen::Vector3d, Eigen::Vector3d> bestSeg;
 				if (isHoleSeg(holeSegs, seg) && !vecNodes.empty()) 
 				{
-					LOG(INFO) << "+++is hole seg";
-					p1 = findNearestNodeOrCloudPt(cloudPts, vecNodes, seg.first);
-					p2 = findNearestNodeOrCloudPt(cloudPts, vecNodes, seg.second);
+					LOG(INFO) << "---is hole seg";
+					bestSeg = findNearestSegOfNodeOrCloudPt(cloudPts, vecNodes, seg);
 				}
 				else
 				{
 					LOG(INFO) << "+++is outer contour seg";
-					p1 = findNearestNodeOrCloudPt(cloudPts, focalPointVec, seg.first);
-					p2 = findNearestNodeOrCloudPt(cloudPts, focalPointVec, seg.second);
+					bestSeg = findNearestSegOfNodeOrCloudPt(cloudPts, focalPointVec, seg);
 				}
-				item.cloudBorder_.push_back(std::make_pair(p1, p2));
+				item.cloudBorder_.push_back(bestSeg);
 			}
 			if (item.cadBorder_.size() != item.cloudBorder_.size())
 			{
