@@ -376,7 +376,7 @@ namespace CloudReg
 						idxSet.insert(j);
 					}
 				}
-				planeIdxGroup.insert(idxSet);
+				if (3 == idxSet.size()) planeIdxGroup.insert(idxSet);
 			}
 		}
 
