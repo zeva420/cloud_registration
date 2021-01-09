@@ -862,4 +862,13 @@ void CADModel::scaleModel(const double scale)
 	}
 }
 
+std::map<std::size_t, std::vector<ModelItem>> CADModel::getHoleWithWallIndex()
+{
+	auto& vecHole = mapModelItem_[ITEM_HOLE_E];
+	std::map<std::size_t, std::vector<ModelItem>> mapHole;
+	for(auto& hole : vecHole)
+		mapHole[hole.parentIndex_].emplace_back(hole);
+
+	return mapHole;
+}
 }

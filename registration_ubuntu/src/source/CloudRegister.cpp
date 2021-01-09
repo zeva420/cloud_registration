@@ -54,14 +54,38 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	auto vecHole = model.getTypedModelItems(ITEM_HOLE_E);
 	auto vecWall = model.getTypedModelItems(ITEM_WALL_E);
 	auto vecRoot = model.getTypedModelItems(ITEM_BOTTOM_E);
+	auto holeIndexWall = model.getHoleWithWallIndex();
+
 
 	std::vector<vec_seg_pair_t> allWallBorder;
-	for(auto& wall : vecWall)
+	Eigen::vector<Eigen::Vector4d> vecPlane;
+	
+	for (auto& wall : vecWall)
+	{
 		allWallBorder.push_back(wall.segments_);
-	std::map<std::size_t, std::vector<vec_seg_pair_t>> holeBorder;
 
-	calcDepth(vecRoot.front().segments_, allWallBorder, holeBorder ,wall,0);
-	calcDepth(vecRoot.front().segments_, allWallBorder, holeBorder ,wall,1);
+		pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud(new pcl::PointCloud<pcl::PointXYZ>());
+
+		for (size_t i = 0; i < wall.points_.size(); ++i)
+		{
+			pcl::PointXYZ p2;
+			p2.x = wall.points_[i][0];
+			p2.y = wall.points_[i][1];
+			p2.z = wall.points_[i][2];
+			pCloud->push_back(p2);
+		}
+		auto plane = calcPlaneParam(pCloud);
+		vecPlane.emplace_back(plane);
+			//std::cout << plane << std::endl;
+	}
+
+	std::map<std::size_t, std::vector<vec_seg_pair_t>> holeBorder;
+	for (auto item : holeIndexWall)
+		for (auto& hole : item.second)
+			holeBorder[item.first].emplace_back(hole.segments_);
+
+	//calcDepthorBay(vecRoot.front().segments_, allWallBorder, holeBorder ,wall,vecPlane,0);
+	//calcDepthorBay(vecRoot.front().segments_, allWallBorder, holeBorder ,wall,vecPlane,1);
 	/*for(std::size_t i  = 0 ; i< vecHole.size(); i++)
 
 	// //

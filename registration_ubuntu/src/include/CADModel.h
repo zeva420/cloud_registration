@@ -89,6 +89,8 @@ public:
 	void getAxis(const std::pair<Eigen::Vector3d, Eigen::Vector3d>& segment, 
 		std::size_t& other_axis_index,double& start_axis, double& other_axis, bool& operate);
 
+	std::map<std::size_t, std::vector<ModelItem>> getHoleWithWallIndex();
+
 private:
 	
 
