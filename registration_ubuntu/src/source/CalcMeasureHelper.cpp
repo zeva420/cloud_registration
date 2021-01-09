@@ -110,7 +110,6 @@ namespace CloudReg
 		for(auto& seg : border)
 		{
 			auto curSeg = seg.first - seg.second;
-			// std::cout << "cor " << seg.first[0] << " " << seg.first[1] << " " << seg.first[2] << std::endl;
 			double cos = horizenSeg.dot(curSeg)/(horizenSeg.norm() * curSeg.norm());
 			if (fabs(cos) < 0.0001) 
 				vecVertical.emplace_back(seg);
