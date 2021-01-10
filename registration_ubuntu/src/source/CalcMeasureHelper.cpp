@@ -229,8 +229,8 @@ namespace CloudReg
 
 		//LOG(INFO)<< findS1 << " " << findE1 << " " << findS2 << " " << findE2;
 
-		Eigen::Vector3d s1Pt, e1Pt;
-		Eigen::Vector3d s2Pt, e2Pt;
+		Eigen::Vector3d s1Pt(.0,.0,.0), e1Pt(.0,.0,.0);
+		Eigen::Vector3d s2Pt(.0,.0,.0), e2Pt(.0,.0,.0);
 		bool ret = false;
 		if (findE1 && findS1)
 		{
@@ -247,7 +247,7 @@ namespace CloudReg
 		{
 			ret = true;
 			s1Pt = toSeg.first;
-			e2Pt = toSeg.second;
+			e1Pt = toSeg.second;
 
 			s2Pt = calcPerpendicular(toSeg.first, calcSeg.first, calcSeg.second);
 			e2Pt = calcPerpendicular(toSeg.second, calcSeg.first, calcSeg.second);

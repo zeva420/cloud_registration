@@ -9,8 +9,7 @@
 #include "Segmentation.h"
 #include "CalcHoleMeasure.h"
 #include "CalcBayAndDepthMeasure.h"
-#include "CalcWallVerticality.h"
-
+#include "CalcNetHeight.h"
 #include <pcl/common/transforms.h>
 
 namespace CloudReg {
@@ -49,21 +48,23 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	CADModel model;
 	model.initCAD(CAD_File);
 
-	auto cadCloud = model.genTestFragCloud();
+	auto cadCloud = model.genTestFragCloud(0.01);
 	auto& wall  = cadCloud[ITEM_WALL_E];
+	auto& roof  = cadCloud[ITEM_TOP_E];
+	auto& root  = cadCloud[ITEM_BOTTOM_E];
+
 	auto vecHole = model.getTypedModelItems(ITEM_HOLE_E);
 	auto vecWall = model.getTypedModelItems(ITEM_WALL_E);
 	auto vecRoot = model.getTypedModelItems(ITEM_BOTTOM_E);
+	auto vecRoof = model.getTypedModelItems(ITEM_TOP_E);
 	auto holeIndexWall = model.getHoleWithWallIndex();
-
 
 	std::vector<vec_seg_pair_t> allWallBorder;
 	Eigen::vector<Eigen::Vector4d> vecPlane;
-	
-	for (auto& wall : vecWall)
+	for(auto& wall : vecWall)
 	{
 		allWallBorder.push_back(wall.segments_);
-
+		
 		pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud(new pcl::PointCloud<pcl::PointXYZ>());
 
 		for (size_t i = 0; i < wall.points_.size(); ++i)
@@ -76,57 +77,35 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 		}
 		auto plane = calcPlaneParam(pCloud);
 		vecPlane.emplace_back(plane);
-			//std::cout << plane << std::endl;
+		//std::cout << plane << std::endl;
 	}
 
 	std::map<std::size_t, std::vector<vec_seg_pair_t>> holeBorder;
-	for (auto item : holeIndexWall)
-		for (auto& hole : item.second)
+	for(auto item : holeIndexWall)
+		for(auto& hole : item.second)
 			holeBorder[item.first].emplace_back(hole.segments_);
+
+	{
+		pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud(new pcl::PointCloud<pcl::PointXYZ>());
+
+		auto& vecPt = vecRoot.front().points_;
+		for (size_t i = 0; i < vecPt.size(); ++i)
+		{
+			pcl::PointXYZ p2;
+			p2.x = vecPt[i][0];
+			p2.y = vecPt[i][1];
+			p2.z = vecPt[i][2];
+			pCloud->push_back(p2);
+		}
+		Eigen::Vector4d roofPlane = calcPlaneParam(pCloud);
+		CalcNetHeight(vecRoof.front().segments_,roof.front(),roofPlane);
+	}
 
 	//calcDepthorBay(vecRoot.front().segments_, allWallBorder, holeBorder ,wall,vecPlane,0);
 	//calcDepthorBay(vecRoot.front().segments_, allWallBorder, holeBorder ,wall,vecPlane,1);
 	/*for(std::size_t i  = 0 ; i< vecHole.size(); i++)
-
-	// //
-	// for (std::size_t i = 0; i < vecWall.size(); i++)
-	// {
-	// 	auto &wal = vecWall[i];
-	// 	std::vector<std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>> holeBorders;
-	// 	for (std::size_t j = 0; j < vecHole.size(); j++)
-	// 	{
-	// 		auto& hole = vecHole[j];
-	// 		if (hole.parentIndex_ == i)
-	// 			holeBorders.emplace_back(hole.segments_);
-	// 	}
-	// 	calcVerticality(wal.segments_.back(), wal.segments_, holeBorders, wall[i], i);
-	// 	// break;
-	// }
-	// return true;
-
-	
-	for (std::size_t i = 0; i < vecWall.size(); i++)
 	{
-		auto wal = vecWall[i];
-		std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> holeBorders;
-		std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> wallBorders;
-		wallBorders = wal.segments_;
-		for (std::size_t j = 0; j < vecHole.size(); j++)
-		{
-			auto& hole = vecHole[j];
-			if (hole.parentIndex_ == i)
-				holeBorders.insert(holeBorders.end(), hole.segments_.begin(), hole.segments_.end());
-		}
-		testRuler(wallBorders, holeBorders, wall[i], i);
-		
-	}
-	
-	
-	return true;
-
-	for(std::size_t i  = 0 ; i< vecHole.size(); i++)
-	{
-		//if ( i < 2) continue;
+		if ( i < 1) continue;
 		auto& hole = vecHole[i];
 		if (hole.parentIndex_ < wall.size()-1)
 		{

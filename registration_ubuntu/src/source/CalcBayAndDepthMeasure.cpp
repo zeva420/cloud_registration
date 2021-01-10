@@ -148,7 +148,7 @@ namespace CloudReg
 		std::vector<seg_pair_t> vecCutSeg;
 		const auto& calcIndex = optType == 0 ? vecHorizenIndex : vecVerticalIndex;
 
-		std::map<std::size_t, std::vector<calcMeassurment_t>> mapCalcRet;
+		std::map<std::pair<std::size_t,std::size_t>, std::vector<calcMeassurment_t>> mapCalcRet;
 		for(std::size_t i = 0; i< calcIndex.size(); i++)
 		{
 			seg_pair_t toSeg = rootBorder[calcIndex[i]];
@@ -179,7 +179,7 @@ namespace CloudReg
 				vecCutSeg.emplace_back(std::make_pair(e1Pt,e2Pt));
 				LOG(INFO)<< "type: "<< optName  << " findSeg:" << calcIndex[i] <<" " << calcIndex[j];
 
-				auto& calcvecRet = mapCalcRet[calcIndex[j]];
+				auto& calcvecRet = mapCalcRet[std::make_pair(calcIndex[j],calcIndex[i])];
 				
 				PointCloud::Ptr pWall = vecCloud[calcIndex[j]];
 				auto& plane = vecPlane[calcIndex[i]];
@@ -210,14 +210,14 @@ namespace CloudReg
 
 		for(auto& value : mapCalcRet)
 		{
-			std::string name = "wall_"+ std::to_string(value.first) +"_" + optName + ".pcd";
+			std::string name = "wall_"+ std::to_string(value.first.first) +"_"+ std::to_string(value.first.second) +"_" + optName + ".pcd";
 			std::vector<seg_pair_t> vecRange;
 			for(auto& item : value.second)
 			{
 				vecRange.insert(vecRange.end(), item.rangeSeg.begin(), item.rangeSeg.end());
-				LOG(INFO) << value.first << ":avgDist:" << item.value;
+				LOG(INFO) << value.first.first << " - " << value.first.second << " :avgDist:" << item.value;
 			}
-			writePCDFile(name,vecCloud[value.first], vecRange);
+			writePCDFile(name,vecCloud[value.first.first], vecRange);
 		}
 		std::string name = "root_" + optName + ".pcd";
 		writePCDFile(name,rootBorder, vecCutSeg);
