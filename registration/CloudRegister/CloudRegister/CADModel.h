@@ -4,13 +4,21 @@
 
 namespace CloudReg {
 enum ModelItemType {
-	ITEM_HOLE_E = 1,
+	ITEM_HOLE_E = 0,
 	ITEM_BEAM_E,
 	ITEM_BOTTOM_E,
 	ITEM_WALL_E,
 	ITEM_TOP_E,
 	ITEM_MAX_E
 };
+// debug func
+inline std::string toModelItemName(ModelItemType type) {
+	const std::array<std::string, ITEM_MAX_E> TYPENAME{
+		"hole", "beam", "bottom", "wall", "top"
+	};
+	return TYPENAME[type];
+}
+
 struct ModelItem {
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 		ModelItem(const ModelItemType& type) :itemtype_(type) {
@@ -88,13 +96,15 @@ public:
 		std::size_t& other_axis_index,double& start_axis, double& other_axis, bool& operate);
 
 private:
-	
-
 	bool savePCD(const std::string& name, std::vector<ModelItem>& vec_item);
 	void reSortWall();
 	void cutWallByBeam();
 
 	std::map<ModelItemType, vecItems_t> mapModelItem_;
 	Eigen::Vector3d centerPt_ = Eigen::Vector3d(0, 0, 0);
+
+	//warn: axis plane, need to in range.
+	PointCloud::Ptr InterpolateShape(const Eigen::vector<Eigen::Vector3d>& points, 
+		const std::vector<Eigen::vector<Eigen::Vector3d> >& holes, double delta) const;
 };
 }

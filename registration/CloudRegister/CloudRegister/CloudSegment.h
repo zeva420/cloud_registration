@@ -21,25 +21,18 @@ public:
 	};
 
 	struct SegmentResult {
-		std::vector<PlaneCloud> walls_;
-		std::vector<PlaneCloud> beams_;
-		PlaneCloud roof_, floor_;
+		std::map<ModelItemType, std::vector<PlaneCloud> > clouds_;
 
-		bool valid() const {
-			return !walls_.empty() && roof_.cloud_ && floor_.cloud_;
-		}
+		bool valid() const { return !clouds_.empty(); }
 
-		//! careful 
 		std::vector<PlaneCloud> allPlanes() const {
 			std::vector<PlaneCloud> all;
-			all.reserve(walls_.size() + beams_.size() + 2);
-			all.insert(all.end(), walls_.begin(), walls_.end());
-			all.insert(all.end(), beams_.begin(), beams_.end());
-			all.push_back(roof_);
-			all.push_back(floor_);
-
+			for (const auto& pr : clouds_)
+				all.insert(all.end(), pr.second.begin(), pr.second.end());
 			return all;
 		}
+
+		std::string to_string() const;
 	};
 
 	SegmentResult run();
@@ -106,10 +99,10 @@ private:
 
 	inline PointCloud::Ptr sparsedCloud();
 
-	void removeFarPoints(PointCloud::Ptr inputCloud, const CADModel &cad);
+	void removeFarPoints(PointCloud::Ptr inputCloud, const CADModel& cad);
 
 	bool statisticsForPointZ(float binSizeTh, PointCloud::Ptr cloud,
-                std::vector<std::pair<int, std::vector<int>>> &zToNumVec);
+		std::vector<std::pair<int, std::vector<int>>>& zToNumVec);
 
 	// debug
 	void _show_result(const SegmentResult& sr) const;
