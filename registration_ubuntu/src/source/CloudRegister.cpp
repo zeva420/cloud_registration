@@ -145,7 +145,7 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 		Eigen::Vector4d roofPlane = calcPlaneParam(pCloud);
 		CalcNetHeight(vecRoof.front().segments_,roof.front(),roofPlane);
 	}
-
+	//CalcPlaneRange(vecRoof.front().segments_,vecRoot.front().segments_, allWallBorder, roof.front(), root.front());
 	//calcDepthorBay(vecRoot.front().segments_, allWallBorder, holeBorder ,wall,vecPlane,0);
 	//calcDepthorBay(vecRoot.front().segments_, allWallBorder, holeBorder ,wall,vecPlane,1);
 	/*for(std::size_t i  = 0 ; i< vecHole.size(); i++)

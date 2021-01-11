@@ -96,9 +96,25 @@ namespace CloudReg
 		return vecCalcPt;
 	}
 
-	void CalcNetHeight(const std::vector<seg_pair_t>& roofBorder,
+	void calcAvgDiff(std::vector<calcMeassurment_t>& vecRet)
+	{
+		double minValue = 9999.0;
+		for(std::size_t i = 0; i < vecRet.size(); i++)
+		{
+			if (vecRet[i].value < minValue)
+				minValue = vecRet[i].value;
+
+			//LOG(INFO) << "orig value:" << vecRet[i].value;
+		}
+
+		std::for_each(vecRet.begin(), vecRet.end(),[&](calcMeassurment_t& item){
+			item.value -= minValue;});
+	}
+
+	std::vector<calcMeassurment_t> CalcNetHeight(const std::vector<seg_pair_t>& roofBorder,
 			const PointCloud::Ptr pCloud,
 			const Eigen::Vector4d& plane,
+			const std::string& name,
 			const double calcLengthTh)
 	{
 		const Eigen::Vector3d& horizenSeg = roofBorder.front().first - roofBorder.front().second;
@@ -130,7 +146,9 @@ namespace CloudReg
 				if((s1Pt-e1Pt).norm() < calcLengthTh 
 					|| (s2Pt-e2Pt).norm() < calcLengthTh)
 				{
-					LOG(INFO)<< "too short seg:" << vecVerticalIndex[i] <<" " << vecVerticalIndex[j];
+					LOG(INFO)<< "too short seg:" << vecVerticalIndex[i] <<" " 
+						<< vecVerticalIndex[j] << " :" << (s1Pt -e1Pt).norm() 
+						<<" " << (s2Pt-e2Pt).norm();
 					continue;
 				}
 			
@@ -149,7 +167,61 @@ namespace CloudReg
 			}
 
 		}
-		std::string name = "roof_net_height.pcd";
 		writePCDFile(name,roofBorder, vecCutSeg);
+
+		return vecRet;
+	}
+	
+	void CalcPlaneRange(const std::vector<seg_pair_t>& roofBorder,
+			const std::vector<seg_pair_t>& rootBorder,
+			const std::vector<std::vector<seg_pair_t>>& allWallBorder,
+			const PointCloud::Ptr pRoof,
+			const PointCloud::Ptr pRoot,
+			const double calcHeight,
+			const double calcLengthTh)
+	{
+		
+		std::vector<Eigen::Vector3d> vecPt;
+		Eigen::Vector3d calcPt = allWallBorder.front().front().first;
+		calcPt[2] += calcHeight;
+		vecPt.emplace_back(calcPt);	
+		for(std::size_t i = 1; i< allWallBorder.size(); i++)
+		{
+			auto& seg = allWallBorder[i].front();
+			auto rootPt = calcPerpendicular(calcPt, seg.first, seg.second);
+			vecPt.emplace_back(rootPt);
+			calcPt = rootPt;
+		}
+		
+		pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud(new pcl::PointCloud<pcl::PointXYZ>());
+		for (size_t i = 0; i < vecPt.size(); ++i)
+		{
+			pcl::PointXYZ p2;
+			p2.x = vecPt[i][0];
+			p2.y = vecPt[i][1];
+			p2.z = vecPt[i][2];
+			pCloud->push_back(p2);
+		}
+		Eigen::Vector4d calcPlane = calcPlaneParam(pCloud);
+	
+		std::vector<seg_pair_t> vecSeg;
+		for (std::size_t i = 1; i < vecPt.size(); i++) {
+			vecSeg.emplace_back(seg_pair_t(vecPt[i - 1], vecPt[i]));
+
+		}
+		vecSeg.emplace_back(seg_pair_t(vecPt.back(), vecPt.front()));
+		writePCDFile("rangePlane.pcd",rootBorder, vecSeg);
+		
+		{
+			const std::string name = "roof_height_range.pcd";
+			auto ret = CalcNetHeight(roofBorder,pRoof,calcPlane, name,calcLengthTh);
+			calcAvgDiff(ret);
+		}
+		
+		{
+			const std::string name = "root_height_range.pcd";
+			auto ret = CalcNetHeight(rootBorder,pRoot,calcPlane, name, calcLengthTh);
+			calcAvgDiff(ret);
+		}
 	}
 }//namespace
