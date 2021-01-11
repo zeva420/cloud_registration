@@ -69,6 +69,8 @@ source/CalcNetHeight.cpp
 source/CalcHoleMeasure.cpp
 source/CalcBayAndDepthMeasure.cpp
 source/CalcMeasureHelper.cpp
+source/CalcWallVerticality.cpp
+source/CalcRootFlatness.cpp
 )
 
 target_link_libraries(${PROJECT_NAME}

@@ -127,6 +127,12 @@ namespace CloudReg
                                         const PointCloud::Ptr pCloud,
                                         Eigen::Vector4d cadPlane, int hAixs)
     {
+        // //// get the wall thickness?
+        // pcl::PointXYZ min0;
+		// pcl::PointXYZ max0;		
+		// pcl::getMinMax3D(*pCloud, min0, max0);
+        // double thickness = (hAixs == 0) ? std::fabs(max0.y - min0.y) : std::fabs(max0.x - min0.x);
+
         Eigen::Vector3d pt1 = (Vertical1.first[2] < Vertical1.second[2] + 1e-6) ? Vertical1.first : Vertical1.second;
         Eigen::Vector3d pt2 = (Vertical1.first == pt1) ? Vertical1.second : Vertical1.first;
         if (type == 1)  //left ruler

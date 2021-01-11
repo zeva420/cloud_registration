@@ -132,7 +132,7 @@ namespace CloudReg
         clipper.setNegative(false);
         clipper.setInputCloud(pCloud);
         clipper.filter(*cloud_final);
-		LOG(INFO) << "inPut: " << pCloud->points.size() << " outPut: " << cloud_final->points.size();
+		// LOG(INFO) << "inPut: " << pCloud->points.size() << " outPut: " << cloud_final->points.size();
 		return cloud_final;
 	}
 
