@@ -21,7 +21,11 @@ public:
 	};
 
 	struct SegmentResult {
+		explicit SegmentResult(const Eigen::Matrix4f& T): T_(T) {} // in case i forget to assign T_..., todo: fix this.
+
 		std::map<ModelItemType, std::vector<PlaneCloud> > clouds_;
+
+		Eigen::Matrix4f T_; // T* org = cur, note we already transformed after segment.
 
 		bool valid() const { return !clouds_.empty(); }
 
@@ -31,6 +35,8 @@ public:
 				all.insert(all.end(), pr.second.begin(), pr.second.end());
 			return all;
 		}
+
+		Eigen::Vector3f originalCenter() const { return -T_.block<3, 3>(0, 0).transpose()* T_.block<3, 1>(0, 3); }
 
 		std::string to_string() const;
 	};
@@ -61,6 +67,8 @@ private:
 	double zfloor_, zroof_; // org cloud
 
 	PointCloud::Ptr sparsedCloud_{ nullptr }; // most time we work on this.
+
+	Eigen::Matrix4f T_; // T* org = cur, note we already transformed after segment.
 
 	// constants
 	static constexpr double METER_100 = 100.;

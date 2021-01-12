@@ -32,7 +32,7 @@ void CloudSegment::Segment::beCounterClockwise(const Eigen::Vector3f& cen) {
 
 std::string CloudSegment::SegmentResult::to_string() const {
 	std::stringstream ss;
-	ss << "SegmentResult: {";
+	ss << "SegmentResult: { \nplanes: ";
 	for (int i = 0; i < ITEM_MAX_E; ++i) {
 		ModelItemType mit = static_cast<ModelItemType>(i);
 
@@ -46,7 +46,7 @@ std::string CloudSegment::SegmentResult::to_string() const {
 
 		ss << ", ";
 	}
-	ss << "}";
+	ss << "\nT: \n" << T_ << "\n}";
 
 	return ss.str();
 }
@@ -62,7 +62,9 @@ CloudSegment::SegmentResult CloudSegment::run() {
 		LOG(ERROR) << "failed to align cloud to cadModel.";
 	}
 
-	return segmentByCADModel();
+	auto sr = segmentByCADModel();
+	sr.T_ = T_;
+	return sr;
 }
 
 bool CloudSegment::calibrateDirectionToAxisZ() {
@@ -271,6 +273,8 @@ bool CloudSegment::alignCloudToCADModel() {
 	//! note we do transform here
 	sparsedCloud_ = geo::transfromPointCloud(sparsedCloud(), T);
 	orgCloud_ = geo::transfromPointCloud(orgCloud_, T);
+	// and we assign T_ here, 
+	T_ = T;
 
 	// debug show
 	if (0) {
@@ -545,7 +549,7 @@ std::vector<CloudSegment::PlaneCloud> CloudSegment::detectRegionPlanes(PointClou
 #endif
 
 	return planes;
-	}
+}
 
 trans2d::Matrix2x3f CloudSegment::chooseTransformByHoles(const Eigen::vector<trans2d::Matrix2x3f>& Ts, const std::vector<PlaneCloud>& walls) const {
 	constexpr float HALF_SLICE_THICKNESS = 0.02f;
@@ -1006,7 +1010,7 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 		return planes.empty() ? PlaneCloud() : planes.front();
 	};
 
-	SegmentResult sr;
+	SegmentResult sr(T_);
 
 	for (int i = 0; i < ITEM_MAX_E; ++i) {
 		ModelItemType mit = static_cast<ModelItemType>(i);
