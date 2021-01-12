@@ -33,8 +33,8 @@ namespace CloudReg
 		Eigen::Vector4d cloudPlane_;
 		Eigen::Vector4d cadPlane_;
 		// if type is WALL include windows and door
-		std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> cloudBorder_; 
-		std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> cadBorder_;
+		std::vector<std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>> cloudBorder_; 
+		std::vector<std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>> cadBorder_;
 	};
 
 	

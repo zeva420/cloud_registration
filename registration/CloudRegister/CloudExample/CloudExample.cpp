@@ -66,9 +66,11 @@ int main()
 		{
 			auto& item = value.second[index];
 			std::vector<Eigen::Vector3d> cadPoints;
-			for (auto& pt_pair : item.cadBorder_) {
-				auto vec_tmp = ininterpolateSeg(pt_pair.first, pt_pair.second, .1);
-				cadPoints.insert(cadPoints.end(), vec_tmp.begin(), vec_tmp.end());
+			for (auto& vecSegs : item.cadBorder_) {
+				for (auto& pt_pair : vecSegs) {
+					auto vec_tmp = ininterpolateSeg(pt_pair.first, pt_pair.second, .1);
+					cadPoints.insert(cadPoints.end(), vec_tmp.begin(), vec_tmp.end());
+				}
 			}
 
 			std::string file_name = name + "_" + std::to_string(index) + ".pcd";
@@ -94,9 +96,11 @@ int main()
 			pcl::io::savePCDFile(file_name, *item.pCADCloud_);
 
 			std::vector<Eigen::Vector3d> cloudBorder;
-			for (auto& pt_pair : item.cloudBorder_) {
-				auto vec_tmp = ininterpolateSeg(pt_pair.first, pt_pair.second, 0.05);
-				cloudBorder.insert(cloudBorder.end(), vec_tmp.begin(), vec_tmp.end());
+			for (auto& vecSegs : item.cloudBorder_) {
+				for (auto& pt_pair : vecSegs) {
+					auto vec_tmp = ininterpolateSeg(pt_pair.first, pt_pair.second, 0.05);
+					cloudBorder.insert(cloudBorder.end(), vec_tmp.begin(), vec_tmp.end());
+				}
 			}
 			pcl::PointCloud<pcl::PointXYZ>::Ptr pCloudBorder(new pcl::PointCloud<pcl::PointXYZ>());
 			for (size_t i = 0; i < cloudBorder.size(); ++i)
