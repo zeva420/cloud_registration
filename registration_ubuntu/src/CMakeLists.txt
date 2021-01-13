@@ -71,6 +71,7 @@ source/CalcBayAndDepthMeasure.cpp
 source/CalcMeasureHelper.cpp
 source/CalcWallVerticality.cpp
 source/CalcRootFlatness.cpp
+source/Threshold.cpp
 )
 
 target_link_libraries(${PROJECT_NAME}
