@@ -13,6 +13,7 @@
 #include "CalcWallVerticality.h"
 #include "CalcRootFlatness.h"
 #include "CalcWallFlatness.h"
+#include "CalcCorner.h"
 
 #include <pcl/common/transforms.h>
 
@@ -119,6 +120,7 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	// 	for(auto& hole : item.second)
 	// 		holeBorder[item.first].emplace_back(hole.segments_);
 
+	//CalcCorner(allWallBorder,holeBorder,wall);
 	//calcDepthorBay(vecRoot.front().segments_, allWallBorder, holeBorder ,wall,vecPlane,0);
 	//calcDepthorBay(vecRoot.front().segments_, allWallBorder, holeBorder ,wall,vecPlane,1);
 
