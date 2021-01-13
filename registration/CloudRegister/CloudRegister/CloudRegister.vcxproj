@@ -154,7 +154,6 @@
     <ClCompile Include="CADModel.cpp" />
     <ClCompile Include="CloudRegister.cpp" />
     <ClCompile Include="CloudSegment.cpp" />
-    <ClCompile Include="CoarseMatching.cpp" />
     <ClCompile Include="EdgeConstraint.cpp" />
     <ClCompile Include="funHelper.cpp" />
     <ClCompile Include="GeometryUtils.cpp" />
@@ -165,7 +164,6 @@
     <ClInclude Include="CADModel.h" />
     <ClInclude Include="CloudRegister.h" />
     <ClInclude Include="CloudSegment.h" />
-    <ClInclude Include="CoarseMatching.h" />
     <ClInclude Include="EdgeConstraint.h" />
     <ClInclude Include="funHelper.h" />
     <ClInclude Include="GeometryUtils.h" />

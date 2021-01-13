@@ -3,7 +3,6 @@
 
 #include "BaseType.h"
 #include "CADModel.h"
-#include "CoarseMatching.h"
 #include "TransformOptimize.h"
 #include "funHelper.h"
 #include "CloudSegment.h"
@@ -47,21 +46,6 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 		return false;
 	}
 
-#if 0
-	return true;
->>>>>>> ea8262eb8f89a4140549fad78cb7b911ee8947c2
-
-	// coarse match: ([PointCloud], CADModel)-> ([transformed & filtered PointCloud])
-	CoarseMatching cm;
-	cm.segment(vecCloudPtr.front(), model);
-	return true;
-
-	auto re = cm.run(vecCloudPtr, model);
-	if (!re.isValid()) {
-		LOG(INFO) << "coarse matching failed.";
-		return false;
-	}
-#endif
 	// registration
 	std::string logStr = "";
 	TransformOptimize obj("refined Transform Opt", logStr);

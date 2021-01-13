@@ -66,7 +66,7 @@ bool TransformOptimize::run(
     //view Dist with sampling Cloud
     viewModelAndChangedCloud();
 
-    return optRets_.valid() ? false : true;
+    return optRets_.valid() ? true : false;
 }
 
 bool TransformOptimize::downSampling()
@@ -478,8 +478,8 @@ void TransformOptimize::projectCloudToXOYPlane(Eigen::Vector3d &startPt,
 bool TransformOptimize::viewModelAndChangedCloud()
 {
     LOG(INFO) << "********viewModelAndChangedCloud*******";
-#if 1
-// #ifdef VISUALIZATION_ENABLED
+//#if 1
+#ifdef VISUALIZATION_ENABLED
     std::map<ModelItemType, std::vector<PointsAndPlane>> tmpVisualMap = type2SamplingItems_;
     for (auto &it : type2ModelItems_)
     {

@@ -75,7 +75,7 @@ bool CADModel::initCAD(const std::string& fileName) {
 	
 	// scale model to meters
 	scaleModel(0.001);
-#define VISUALIZATION_ENABLED
+//#define VISUALIZATION_ENABLED
 #ifdef VISUALIZATION_ENABLED
 	for (auto& item : mapModelItem_)
 	{
@@ -803,7 +803,7 @@ PointCloud::Ptr CADModel::InterpolateShape(const Eigen::vector<Eigen::Vector3d>&
 			intersections.insert(intersections.end(), ins.begin(), ins.end());
 		}
 		
-		if(!intersections.empty() || intersections.size()%2!=0)
+		if(!intersections.empty() && intersections.size()%2!=0)
 			LOG(INFO)<<"intersections issue, failed to interpolate a segment, size: "<< intersections.size();
 
 		Eigen::Vector3d se = e - s;
