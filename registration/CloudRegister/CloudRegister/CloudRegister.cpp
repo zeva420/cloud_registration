@@ -47,6 +47,10 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 		return false;
 	}
 
+#if 0
+	return true;
+>>>>>>> ea8262eb8f89a4140549fad78cb7b911ee8947c2
+
 	// coarse match: ([PointCloud], CADModel)-> ([transformed & filtered PointCloud])
 	CoarseMatching cm;
 	cm.segment(vecCloudPtr.front(), model);
@@ -57,14 +61,22 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 		LOG(INFO) << "coarse matching failed.";
 		return false;
 	}
-
+#endif
 	// registration
 	std::string logStr = "";
 	TransformOptimize obj("refined Transform Opt", logStr);
-	auto cloud = re.getAllPieces();
-    Eigen::Vector3f tmpPt = re.T_.block<3,3>(0,0) * Eigen::Vector3f(0,0,0) + re.T_.block<3,1>(0,3);
+	std::map<ModelItemType, std::vector<PointCloud::Ptr> > clouds;
+	for (auto &it : sr.clouds_)
+	{
+		clouds[it.first] = std::vector<PointCloud::Ptr>();
+		for (auto &piece : it.second)
+		{
+			clouds[it.first].push_back(piece.cloud_);
+		}
+	}
+    Eigen::Vector3f tmpPt = sr.T_.block<3,3>(0,0) * Eigen::Vector3f(0,0,0) + sr.T_.block<3,1>(0,3);
     Eigen::Vector3d center(tmpPt(0), tmpPt(1), tmpPt(2));
-	if(!obj.run(cloud, model, center))
+	if(!obj.run(clouds, model, center))
 	{
 		LOG(INFO) << "transform opt failed.";
 		return false;
@@ -375,103 +387,80 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 	auto optRets = optimitor.getRet();
 	auto cadCloud = cad.genFragCloud();
 
-	if (optRets.count(TransformOptimize::CloudType::BOTTOM_E))
+	if (optRets.mapClouds_.count(ITEM_BOTTOM_E))
 	{
-		auto &ret = optRets[TransformOptimize::BOTTOM_E];
+		auto &ret = optRets.mapClouds_[ITEM_BOTTOM_E];
 		auto Botton = cad.getTypedModelItems(ITEM_BOTTOM_E).front();
-		pcl::PointCloud<pcl::PointXYZ>::Ptr pData = ret.vecCloud_.front();
+		pcl::PointCloud<pcl::PointXYZ>::Ptr pData = ret.front().cloud_;
 		CloudItem item(pData);
 		item.pCADCloud_ = cadCloud[ITEM_BOTTOM_E].front();
 		item.type_ = CLOUD_BOTTOM_E;
-		item.cloudPlane_ = ret.vecCloudPlane_.front();
-		item.cadPlane_ = ret.vecCadPlane_.front();
+		item.cloudPlane_ = ret.front().cloudPlane_;
+		item.cadPlane_ = ret.front().cadPlane_;
 		item.cadBorder_.push_back(Botton.segments_);
-		// item.cadBorder_.insert(item.cadBorder_.end(), Botton.segments_.begin(), Botton.segments_.end());
-		// LOG(INFO) << "*********************bottom************************";
-		// auto boundPoints = calcCloudBorder("bottom",
-		// 		pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
 		mapCloudItem_[CLOUD_BOTTOM_E].emplace_back(item);
-// #ifdef VISUALIZATION_ENABLED
-// 		pcl::io::savePCDFile("boundPoints-bottom.pcd", *boundPoints);
-// #endif
 	}
 
-	if (optRets.count(TransformOptimize::CloudType::TOP_E))
+	if (optRets.mapClouds_.count(ITEM_TOP_E))
 	{
-		auto &ret = optRets[TransformOptimize::CloudType::TOP_E];
+		auto &ret = optRets.mapClouds_[ITEM_TOP_E];
 		auto Top = cad.getTypedModelItems(ITEM_TOP_E).front();
-		pcl::PointCloud<pcl::PointXYZ>::Ptr pData = ret.vecCloud_.front();
+		pcl::PointCloud<pcl::PointXYZ>::Ptr pData = ret.front().cloud_;
 		CloudItem item(pData);
 		item.type_ = CLOUD_TOP_E;
 		item.pCADCloud_ = cadCloud[ITEM_TOP_E].front();
-		item.cloudPlane_ = ret.vecCloudPlane_.front();
-		item.cadPlane_ = ret.vecCadPlane_.front();
+		item.cloudPlane_ = ret.front().cloudPlane_;
+		item.cadPlane_ = ret.front().cadPlane_;
 		item.cadBorder_.push_back(Top.segments_);
-		// item.cadBorder_.insert(item.cadBorder_.end(), Top.segments_.begin(), Top.segments_.end());
-		// LOG(INFO) << "*********************top************************";
-		// auto boundPoints = calcCloudBorder("top",
-		// 		pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
 		mapCloudItem_[CLOUD_TOP_E].emplace_back(item);
-// #ifdef VISUALIZATION_ENABLED
-// 		pcl::io::savePCDFile("boundPoints-top.pcd", *boundPoints);
-// #endif
 	}
 
 	auto vecWall = cad.getTypedModelItems(ITEM_WALL_E);
 	auto vecHole = cad.getTypedModelItems(ITEM_HOLE_E);
-	if (optRets.count(TransformOptimize::CloudType::WALL_E) 
-			&& vecWall.size() == optRets[TransformOptimize::CloudType::WALL_E].vecCloud_.size())
+	if (optRets.mapClouds_.count(ITEM_WALL_E) 
+			&& vecWall.size() == optRets.mapClouds_[ITEM_WALL_E].size())
 	{
-		auto &ret = optRets[TransformOptimize::CloudType::WALL_E];
+		auto &ret = optRets.mapClouds_[ITEM_WALL_E];
 		for (int i = 0; i < vecWall.size(); i++)
 		{
 			auto& wall = vecWall[i];
-			pcl::PointCloud<pcl::PointXYZ>::Ptr pData = ret.vecCloud_[i];;
+			pcl::PointCloud<pcl::PointXYZ>::Ptr pData = ret[i].cloud_;
 			CloudItem item(pData);
 			item.type_ = CLOUD_WALL_E;
 			item.pCADCloud_ = cadCloud[ITEM_WALL_E][i];
-			item.cloudPlane_ = ret.vecCloudPlane_[i];
-			item.cadPlane_ = ret.vecCadPlane_[i];
+			item.cloudPlane_ = ret[i].cloudPlane_;
+			item.cadPlane_ = ret[i].cadPlane_;
 			item.cadBorder_.push_back(wall.segments_);
-			// item.cadBorder_.insert(item.cadBorder_.end(), wall.segments_.begin(), wall.segments_.end());
 			for (auto& hole : vecHole)
 			{
 				if (i != hole.parentIndex_) continue;
 				item.cadBorder_.push_back(hole.segments_);
 			}	
-			// LOG(INFO) << "*********************wall:" << i << "************************";
-			// auto boundPoints = calcCloudBorder("wall-" + std::to_string(i),
-			// 		pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
 			mapCloudItem_[CLOUD_WALL_E].emplace_back(item);		
-// #ifdef VISUALIZATION_ENABLED
-// 			pcl::io::savePCDFile("boundPoints-wall-" + std::to_string(i) + ".pcd", *boundPoints);
-// #endif
 		}
 	}
 	
 	auto vecBeam = cad.getTypedModelItems(ITEM_BEAM_E);
-	if (optRets.count(TransformOptimize::CloudType::BEAM_E) 
-			&& vecWall.size() == optRets[TransformOptimize::CloudType::BEAM_E].vecCloud_.size())
+	if (optRets.mapClouds_.count(ITEM_BEAM_E) 
+			&& vecWall.size() == optRets.mapClouds_[ITEM_BEAM_E].size())
 	{
-		auto &ret = optRets[TransformOptimize::CloudType::BEAM_E];
+		auto &ret = optRets.mapClouds_[ITEM_BEAM_E];
 		for (int i = 0; i < vecBeam.size(); i++)
 		{
 			auto& beam = vecBeam[i];
-			pcl::PointCloud<pcl::PointXYZ>::Ptr pData = ret.vecCloud_[i];
+			pcl::PointCloud<pcl::PointXYZ>::Ptr pData = ret[i].cloud_;
 			CloudItem item(pData);
 			item.type_ = CLOUD_BEAM_E;
 			item.pCADCloud_ = cadCloud[ITEM_BEAM_E][i];
 			item.parentIndex_ = item.parentIndex_;
-			item.cloudPlane_ = ret.vecCloudPlane_[i];
-			item.cadPlane_ = ret.vecCadPlane_[i];
+			item.cloudPlane_ = ret[i].cloudPlane_;
+			item.cadPlane_ = ret[i].cadPlane_;
 			item.cadBorder_.push_back(beam.segments_);
+
 // 			LOG(INFO) << "*********************beam:" << i << "************************";
 // 			auto boundPoints = calcCloudBorder("beam-" + std::to_string(i),
 // 					pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
 			mapCloudItem_[CLOUD_BEAM_E].emplace_back(item);
-// #ifdef VISUALIZATION_ENABLED
-// 			pcl::io::savePCDFile("boundPoints-beam-" + std::to_string(i) + ".pcd", *boundPoints);
-// #endif
 		}
 	}
 
