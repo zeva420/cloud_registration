@@ -38,8 +38,17 @@ namespace CloudReg
 		auto vecPt = createRulerBox(std::make_pair(pt1,pt2),indexOther,thickness,calcWidth*2);
 		auto rangeSeg = calcBoxSegPair(vecPt);
 
-		
-		auto pCloud = filerCloudByConvexHull(pWall, vecPt);
+		pcl::PointCloud<pcl::PointXYZ>::Ptr pTmp(new pcl::PointCloud<pcl::PointXYZ>());
+		for(auto& pt : vecPt)
+		{
+			pcl::PointXYZ p2;
+			p2.x = pt[0];
+			p2.y = pt[1];
+			p2.z = pt[2];
+			pTmp->push_back(p2);
+		}
+		pcl::getMinMax3D(*pTmp, min, max);
+		auto pCloud = filerCloudByRange(pWall,min,max);
 		//writePCDFile("test.pcd", pCloud, rangeSeg);
 	
 		return std::make_tuple(pCloud,rangeSeg);
@@ -138,13 +147,13 @@ namespace CloudReg
 			//0.3
 			{
 				auto left = calcCornerArea(leftWall.back(), vecCloud[idx.first],0.3,true);
-				auto right = calcCornerArea(rightWall.back(), vecCloud[idx.second],0.3,false);
+				auto right = calcCornerArea(rightWall.back(), vecCloud[idx.second],0.295,false);
 			}
 			
 			//1.5
 			{
 				auto left = calcCornerArea(leftWall.back(), vecCloud[idx.first],1.5,true);
-				auto right = calcCornerArea(rightWall.back(), vecCloud[idx.second],1.5,false);
+				auto right = calcCornerArea(rightWall.back(), vecCloud[idx.second],0.295,false);
 			}
 
 		}
