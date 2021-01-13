@@ -158,22 +158,22 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	// return true;
 
 	
-	for (std::size_t i = 0; i < vecWall.size(); i++)
-	{
-		pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud(new pcl::PointCloud<pcl::PointXYZ>());
+	// for (std::size_t i = 0; i < vecWall.size(); i++)
+	// {
+	// 	pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud(new pcl::PointCloud<pcl::PointXYZ>());
 
-		auto& vecPt = vecRoot.front().points_;
-		for (size_t i = 0; i < vecPt.size(); ++i)
-		{
-			pcl::PointXYZ p2;
-			p2.x = vecPt[i][0];
-			p2.y = vecPt[i][1];
-			p2.z = vecPt[i][2];
-			pCloud->push_back(p2);
-		}
-		Eigen::Vector4d roofPlane = calcPlaneParam(pCloud);
-		CalcNetHeight(vecRoof.front().segments_,roof.front(),roofPlane);
-	}
+	// 	auto& vecPt = vecRoot.front().points_;
+	// 	for (size_t i = 0; i < vecPt.size(); ++i)
+	// 	{
+	// 		pcl::PointXYZ p2;
+	// 		p2.x = vecPt[i][0];
+	// 		p2.y = vecPt[i][1];
+	// 		p2.z = vecPt[i][2];
+	// 		pCloud->push_back(p2);
+	// 	}
+	// 	Eigen::Vector4d roofPlane = calcPlaneParam(pCloud);
+	// 	CalcNetHeight(vecRoof.front().segments_,roof.front(),roofPlane);
+	// }
 
 	/*for(std::size_t i  = 0 ; i< vecHole.size(); i++)
 	{
