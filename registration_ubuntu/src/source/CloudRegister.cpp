@@ -12,6 +12,7 @@
 #include "CalcNetHeight.h"
 #include "CalcWallVerticality.h"
 #include "CalcRootFlatness.h"
+#include "CalcWallFlatness.h"
 
 #include <pcl/common/transforms.h>
 
@@ -62,6 +63,36 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	auto vecRoof = model.getTypedModelItems(ITEM_TOP_E);
 	auto holeIndexWall = model.getHoleWithWallIndex();
 
+	// Eigen::vector<Eigen::Vector4d> vecPlane;
+	// for(auto& wall : vecWall)
+	// {
+	// 	pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud(new pcl::PointCloud<pcl::PointXYZ>());
+	// 	for (size_t i = 0; i < wall.points_.size(); ++i)
+	// 	{
+	// 		pcl::PointXYZ p2;
+	// 		p2.x = wall.points_[i][0];
+	// 		p2.y = wall.points_[i][1];
+	// 		p2.z = wall.points_[i][2];
+	// 		pCloud->push_back(p2);
+	// 	}
+	// 	auto plane = calcPlaneParam(pCloud);
+	// 	vecPlane.emplace_back(plane);
+	// }
+	// for (std::size_t i = 0; i < vecWall.size(); i++)
+	// {
+	// 	auto &wal = vecWall[i];
+	// 	std::vector<std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>> holeBorders;
+	// 	for (std::size_t j = 0; j < vecHole.size(); j++)
+	// 	{
+	// 		auto& hole = vecHole[j];
+	// 		if (hole.parentIndex_ == i)
+	// 			holeBorders.emplace_back(hole.segments_);
+	// 	}
+	// 	calcWallFlatness(wal.segments_, holeBorders, wall[i], vecPlane[i], i);
+	// 	break;
+	// }
+	// return true;
+
 	// std::vector<vec_seg_pair_t> allWallBorder;
 	// Eigen::vector<Eigen::Vector4d> vecPlane;
 	// for(auto& wall : vecWall)
@@ -110,8 +141,6 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	// }
 	// calcRootFlatness(vecRoot.front().segments_, vecRootPlane[0], root.front());
 
-	/*for(std::size_t i  = 0 ; i< vecHole.size(); i++)
-
 	// //
 	// for (std::size_t i = 0; i < vecWall.size(); i++)
 	// {
@@ -124,7 +153,7 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	// 			holeBorders.emplace_back(hole.segments_);
 	// 	}
 	// 	calcVerticality(wal.segments_.back(), wal.segments_, holeBorders, wall[i], i);
-	// 	// break;
+	// 	break;
 	// }
 	// return true;
 
@@ -145,9 +174,7 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 		Eigen::Vector4d roofPlane = calcPlaneParam(pCloud);
 		CalcNetHeight(vecRoof.front().segments_,roof.front(),roofPlane);
 	}
-	//CalcPlaneRange(vecRoof.front().segments_,vecRoot.front().segments_, allWallBorder, roof.front(), root.front());
-	//calcDepthorBay(vecRoot.front().segments_, allWallBorder, holeBorder ,wall,vecPlane,0);
-	//calcDepthorBay(vecRoot.front().segments_, allWallBorder, holeBorder ,wall,vecPlane,1);
+
 	/*for(std::size_t i  = 0 ; i< vecHole.size(); i++)
 	{
 		if ( i < 1) continue;

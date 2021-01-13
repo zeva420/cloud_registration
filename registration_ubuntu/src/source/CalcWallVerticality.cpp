@@ -9,30 +9,6 @@
 
 namespace CloudReg
 {
-    std::vector<seg_pair_t> calValidHoleVertical(
-                        std::vector<std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>>& holeBorders,
-                        const std::pair<Eigen::Vector3d, Eigen::Vector3d>& horizen, int hAixs)
-    {
-        std::vector<seg_pair_t> validHoleVertical;
-        const auto horizenSeg = horizen.first - horizen.second;
-        for (size_t i = 0; i < holeBorders.size(); ++i)
-        {
-            auto &holeBorder = holeBorders[i];
-            std::vector<seg_pair_t> vecHoleVertical, vecHoleHorizen;
-            groupDirection(horizenSeg, holeBorder, vecHoleVertical, vecHoleHorizen);
-            if (vecHoleHorizen.size() < 2 || vecHoleVertical.size() < 2)
-            {
-                LOG(ERROR) << "group Hole Direction Failed: " << vecHoleHorizen.size() << " -- " << vecHoleVertical.size();
-			    continue;
-            }
-            std::sort(vecHoleVertical.begin(), vecHoleVertical.end(), [&](const seg_pair_t& left, const seg_pair_t& right){
-				return left.first[hAixs] < right.first[hAixs];});
-            validHoleVertical.emplace_back(vecHoleVertical[0]);
-            validHoleVertical.emplace_back(vecHoleVertical.back());
-        }
-
-        return validHoleVertical;
-    }
 
     Eigen::Vector4d calcWallPlane(std::vector<seg_pair_t> vecVertical)
 	{
@@ -61,46 +37,26 @@ namespace CloudReg
         return cadPlane;
 	}
 
-    void calBox(Eigen::Vector3d midPt, pcl::PointXYZ& min, pcl::PointXYZ& max, int type, int hAixs)
+    std::vector<Eigen::Vector3d> calBox(Eigen::Vector3d midPt, int type, int hAixs)
     {
         double boxWidth = 0.025;
         double boxHight = 0.025;
-        std::vector<seg_pair_t> calcSeg;
-        seg_pair_t seg1, seg2;
-        
-        seg1.first = midPt;
-        seg1.second = midPt;
-        seg1.first[hAixs] = midPt[hAixs] - boxWidth / 2;
-        seg1.second[hAixs] = midPt[hAixs] + boxWidth / 2;
-        calcSeg.emplace_back(seg1);
-    
-        seg2.first = seg1.first;
+       
+        Eigen::Vector3d p1 = midPt;
+        Eigen::Vector3d p2 = midPt;
+        Eigen::Vector3d p3;
+        Eigen::Vector3d p4;
+        p1[hAixs] = midPt[hAixs] + boxWidth / 2;
+        p2[hAixs] = midPt[hAixs] - boxWidth / 2;
         if (type == 1)
-            seg2.second = Eigen::Vector3d(seg1.first[0], seg1.first[1], seg1.first[2] + boxHight/2);
+            p3 = Eigen::Vector3d(p2[0], p2[1], p2[2] + boxHight/2);
         else
-            seg2.second = Eigen::Vector3d(seg1.first[0], seg1.first[1], seg1.first[2] - boxHight/2);
-        calcSeg.emplace_back(seg2);
-
-        pcl::PointCloud<pcl::PointXYZ> cloud;
-		cloud.width = calcSeg.size()*2;
-		cloud.height = 1;
-		cloud.is_dense = false;
-		cloud.points.resize(cloud.width * cloud.height);
-		
-		for (size_t i = 0; i < calcSeg.size(); ++i)
-		{
-			auto& ptA = calcSeg[i].first;
-			auto& ptB = calcSeg[i].second;
-
-			cloud.points[i*2].x = ptA[0];
-			cloud.points[i*2].y = ptA[1];
-			cloud.points[i*2].z = ptA[2];
-			
-			cloud.points[i*2 + 1].x = ptB[0];
-			cloud.points[i*2 + 1].y = ptB[1];
-			cloud.points[i*2 + 1].z = ptB[2];
-		}
-		pcl::getMinMax3D(cloud, min, max);
+            p3 = Eigen::Vector3d(p2[0], p2[1], p2[2] - boxHight/2);
+        p4 = p3;
+        p4[hAixs] = p3[hAixs] + boxWidth;
+        
+        std::vector<Eigen::Vector3d> corners = {p1, p2, p3, p4};
+        return corners;
     }
 
     void adjustHeight(const std::vector<seg_pair_t>& vecWallHorizen, double adjDis, 
@@ -127,12 +83,6 @@ namespace CloudReg
                                         const PointCloud::Ptr pCloud,
                                         Eigen::Vector4d cadPlane, int hAixs)
     {
-        // //// get the wall thickness?
-        // pcl::PointXYZ min0;
-		// pcl::PointXYZ max0;		
-		// pcl::getMinMax3D(*pCloud, min0, max0);
-        // double thickness = (hAixs == 0) ? std::fabs(max0.y - min0.y) : std::fabs(max0.x - min0.x);
-
         Eigen::Vector3d pt1 = (Vertical1.first[2] < Vertical1.second[2] + 1e-6) ? Vertical1.first : Vertical1.second;
         Eigen::Vector3d pt2 = (Vertical1.first == pt1) ? Vertical1.second : Vertical1.first;
         if (type == 1)  //left ruler
@@ -162,14 +112,11 @@ namespace CloudReg
         vecCalcPt.emplace_back(pt1);
         vecCalcPt.emplace_back(pt2);
         
-        auto vecRawPt = getNearestPt(vecCalcPt, pCloud, 0.1*0.1);
         std::vector<double> sumAll;
-		for(auto& pt : vecRawPt)
+		for(auto& pt : vecCalcPt)
 		{
-			pcl::PointXYZ min;
-		    pcl::PointXYZ max;
-            calBox(pt, min, max, type, hAixs);
-            auto rangeCloud = filerCloudByRange(pCloud,min,max);
+            auto corners = calBox(pt, type, hAixs);
+            auto rangeCloud = filerCloudByConvexHull(pCloud, corners);
             if (rangeCloud->points.empty()) 
             {
                 LOG(ERROR) << "filerCloudByRange failed";
@@ -195,15 +142,8 @@ namespace CloudReg
         //just for Visualization
         int minIndex = (hAixs == 0) ? 1 : 0;
         std::vector<Eigen::Vector3d> rPoints = createRulerBox(std::make_pair(pt1, pt2), minIndex, 0.025, 0.025);
-        for (size_t i = 0; i < rPoints.size(); ++i)
-        {
-            for(size_t j = 0; j < rPoints.size(); ++j)
-            {
-                if (i == j) continue;
-                seg_pair_t pp = std::make_pair(rPoints[i], rPoints[j]);
-                item.rangeSeg.emplace_back(pp);
-            }
-        }
+        std::vector<seg_pair_t> pair =  calcBoxSegPair(rPoints);
+        item.rangeSeg.insert(item.rangeSeg.end(), pair.begin(), pair.end());
 
         return item;
     }
@@ -244,23 +184,6 @@ namespace CloudReg
         return vecRet;
     }
 
-    bool judgeHoleBorder(std::vector<std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>>& holeBorders,
-                    std::pair<seg_pair_t, seg_pair_t> validWalls)
-    {
-        if (holeBorders.empty())
-            return false;
-       
-        for(std::size_t i = 0; i < holeBorders.size(); i++)
-        {
-            auto &hole = holeBorders[i];
-            auto iter1 = std::find(hole.begin(), hole.end(), validWalls.first);
-            auto iter2 = std::find(hole.begin(), hole.end(), validWalls.second);
-            if (iter1 != hole.end() && iter2 != hole.end())
-                return true;
-        }
-        return false;
-    }
-
     int calHorizontalAxis(const seg_pair_t& seg)
     {
         double length = (seg.first - seg.second).norm();
@@ -272,8 +195,8 @@ namespace CloudReg
     }
 
     void calcVerticality(const std::pair<Eigen::Vector3d, Eigen::Vector3d>& horizen,
-			std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>& wallBorder, 
-            std::vector<std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>>& holeBorders,
+			const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>& wallBorder, 
+            const std::vector<std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>>& holeBorders,
 			pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud, int index)
     {
         // step0: cal Horizontal Axis
@@ -325,50 +248,4 @@ namespace CloudReg
         writePCDFile(std::to_string(index) +"-testWall.pcd", pCloud, vecRange);
     }
 
-    //test ruler
-    /*
-    void testRuler(std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>& wallBorder,
-                    std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>& holeBorder,
-                    pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud, int index)
-    {
-        if (wallBorder.empty())
-        {
-            LOG(ERROR) << "empty input for ruler";
-        }
-        std::cout << "pCloud " << pCloud->points.size() << std::endl;
-        std::cout << "wallBorder " << wallBorder.size() << std::endl;
-        std::cout << "holeBorder " << holeBorder.size() << std::endl;
-        std::vector<double> vecSum = {0,0,0};
-		for (std::size_t i = 0; i < wallBorder.size(); i++)
-		{
-			seg_pair_t line = wallBorder[i];
-			vecSum[0] += std::fabs(line.first[0] - line.second[0]);
-			vecSum[1] += std::fabs(line.first[1] - line.second[1]);
-			vecSum[2] += std::fabs(line.first[2] - line.second[2]);
-		}
-		std::size_t minIndex = std::min_element(vecSum.begin(), vecSum.end()) - vecSum.begin();
-
-        seg_pair_t baseLine = wallBorder[1];
-        Eigen::Vector3d P0 = baseLine.first;
-        float theta = 45;
-        seg_pair_t ruler;
-        
-        if(calRuler3d(wallBorder, holeBorder,  baseLine, P0, theta, ruler))
-        {
-            std::vector<Eigen::Vector3d> rPoints =  createRulerBox(ruler, minIndex, 0.025, 0.025);
-            std::vector<seg_pair_t> vecRange;
-            vecRange.emplace_back(ruler);
-            for (size_t i = 0; i < rPoints.size(); ++i)
-            {
-                for(size_t j = 0; j < rPoints.size(); ++j)
-                {
-                    if (i == j) continue;
-                    seg_pair_t pp = std::make_pair(rPoints[i], rPoints[j]);
-                    vecRange.emplace_back(pp);
-                }
-            }
-            writePCDFile(std::to_string(index) +"testruler.pcd", pCloud, vecRange);
-        }
-    }*/
-    
 }

@@ -72,6 +72,7 @@ source/CalcMeasureHelper.cpp
 source/CalcWallVerticality.cpp
 source/CalcRootFlatness.cpp
 source/Threshold.cpp
+source/CalcWallFlatness.cpp
 )
 
 target_link_libraries(${PROJECT_NAME}

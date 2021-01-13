@@ -6,10 +6,12 @@
 #include <pcl/filters/passthrough.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
+#include <pcl/filters/crop_hull.h>
+#include <pcl/surface/concave_hull.h>
 
 namespace CloudReg
 {
-    
+
     int calHorizontalAxisRoot(const seg_pair_t& seg)
     {
         double length = (seg.first - seg.second).norm();
@@ -20,19 +22,9 @@ namespace CloudReg
         return 2;
     }
 
-    void cutOffRuler(seg_pair_t& ruler)
-    {
-        double length = (ruler.first - ruler.second).norm();
-        if (length + 1e-4 <= 2 )  //200cm
-            return;
-
-        Eigen::Vector3d rulern = (ruler.second - ruler.first).normalized();
-        Eigen::Vector3d rulerSecondEnd = ruler.first + 2*rulern;
-        ruler.second = rulerSecondEnd;
-    }
-
     std::vector<seg_pair_t> getDiagonalRuler(const std::pair<seg_pair_t, seg_pair_t>& zoomSeg)
     {
+        std::vector<seg_pair_t> ruler;
         seg_pair_t seg1 = zoomSeg.first;
         seg_pair_t seg2 = std::make_pair(seg1.second, zoomSeg.second.second);
         seg_pair_t seg3 = std::make_pair(zoomSeg.second.second, zoomSeg.second.first);
@@ -41,18 +33,23 @@ namespace CloudReg
 
         seg_pair_t ruler1, ruler2;
         std::vector<seg_pair_t> holeBorder;
-        calRuler3d(zoomBorder, holeBorder, seg2, seg2.first, 45, ruler1);
+        if(!calRuler3d(zoomBorder, holeBorder, seg2, seg2.first, 45, ruler1))
+            return ruler;
         Eigen::Vector3d rulern1 = (ruler1.second - ruler1.first).normalized();
         ruler1.first = ruler1.first + 0.05*rulern1; // Move down 50mm
+        ruler1.second = ruler1.second - 0.05*rulern1; // Move up 50mm
 
-        calRuler3d(zoomBorder, holeBorder, seg4, seg4.first, 45, ruler2);
+        if(!calRuler3d(zoomBorder, holeBorder, seg4, seg4.first, 45, ruler2))
+            return ruler;
         Eigen::Vector3d rulern2 = (ruler2.second - ruler2.first).normalized();
         ruler2.first = ruler2.first + 0.05*rulern2; // Move up 50mm
+        ruler2.second = ruler2.second - 0.05*rulern2; // Move down 50mm
 
-        cutOffRuler(ruler1);
-        cutOffRuler(ruler2);
+        cutOffRuler(ruler1, 2);
+        cutOffRuler(ruler2, 2);
         
-        std::vector<seg_pair_t> ruler = {ruler1, ruler2};
+        ruler.emplace_back(ruler1);
+        ruler.emplace_back(ruler2);
         return ruler;
     }
 
@@ -65,10 +62,12 @@ namespace CloudReg
         if (length + 1e-3 < 3)
             return ruler;
         LOG(INFO) << "Zoom length " << length << " height " << height;
+        double baseHeight = (zoomSeg.first.first[vAixs] < zoomSeg.first.second[vAixs]) ? 
+                            zoomSeg.first.first[vAixs] : zoomSeg.first.second[vAixs];
         Eigen::Vector3d hypRuler0 = zoomSeg.first.first;
-        hypRuler0[vAixs] = hypRuler0[vAixs] + height / 2;
+        hypRuler0[vAixs] = baseHeight + height / 2;
         Eigen::Vector3d hypRuler1 = zoomSeg.second.first;
-        hypRuler1[vAixs] = hypRuler1[vAixs] + height / 2;
+        hypRuler1[vAixs] = baseHeight + height / 2;
         Eigen::Vector3d hypRuler = hypRuler1 - hypRuler0;
         Eigen::Vector3d rulern = hypRuler.normalized();
         if (length + 1e-3 >= 3  && length + 1e-4 < 6 ) //Measure once
@@ -93,101 +92,6 @@ namespace CloudReg
         return ruler;
     }
 
-    std::vector<std::vector<Eigen::Vector3d>> getAllRulerBox(seg_pair_t ruler, int thicknessDir, 
-                                        double step, double boxLen, double boxWidth)
-    {
-        std::vector<std::vector<Eigen::Vector3d>> rulerBoxes;
-        Eigen::Vector3d rulern = (ruler.second - ruler.first).normalized();
-        double halfLen = boxLen / 2;
-        auto vecPts = ininterpolateSeg(ruler.first,ruler.second,step);
-        for (size_t i = 0; i < vecPts.size() - 1; ++i) //box length is 10mm
-        {
-            Eigen::Vector3d midPoint = vecPts[i];
-            Eigen::Vector3d pt1 = midPoint - halfLen * rulern;
-            Eigen::Vector3d pt2 = midPoint + halfLen * rulern;
-            std::vector<Eigen::Vector3d> rulerB = createRulerBox(std::make_pair(pt1, pt2), 
-                                                    thicknessDir, 0., boxWidth); //thickness is tmp 0
-            rulerBoxes.emplace_back(rulerB);
-        }
-
-        return rulerBoxes;
-    }
-
-    calcMeassurment_t calFlatness(seg_pair_t ruler, int thicknessDir, Eigen::Vector4d plane, 
-                                    pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud)
-    {
-        calcMeassurment_t measure;
-        std::vector<std::vector<Eigen::Vector3d>> allBoxes;
-        allBoxes = getAllRulerBox(ruler, thicknessDir, 0.005, 0.01, 0.025);
-        if (allBoxes.empty())
-        {
-            LOG(ERROR) << "empty boxes";
-            return measure;
-        }
-        LOG(INFO) << "ruler get boxes num: " << allBoxes.size();
-
-        std::vector<double> sumAll;
-        for(size_t i = 0; i < allBoxes.size(); ++i)
-        {
-            auto box = allBoxes[i];
-            
-            seg_pair_t seg1, seg2;
-            seg1 = std::make_pair(box[0], box[2]); //pt1 pt3
-            seg2 = std::make_pair(box[2], box[6]); //pt3 pt7
-            std::vector<seg_pair_t> calcSeg = {seg1, seg2};
-
-            pcl::PointXYZ min;
-		    pcl::PointXYZ max;
-            pcl::PointCloud<pcl::PointXYZ> cloud;
-            cloud.width = calcSeg.size()*2;
-            cloud.height = 1;
-            cloud.is_dense = false;
-            cloud.points.resize(cloud.width * cloud.height);
-            
-            for (size_t i = 0; i < calcSeg.size(); ++i)
-            {
-                auto& ptA = calcSeg[i].first;
-                auto& ptB = calcSeg[i].second;
-
-                cloud.points[i*2].x = ptA[0];
-                cloud.points[i*2].y = ptA[1];
-                cloud.points[i*2].z = ptA[2];
-                
-                cloud.points[i*2 + 1].x = ptB[0];
-                cloud.points[i*2 + 1].y = ptB[1];
-                cloud.points[i*2 + 1].z = ptB[2];
-            }
-            pcl::getMinMax3D(cloud, min, max);
-            auto rangeCloud = filerCloudByRange(pCloud,min,max);
-            if (rangeCloud->points.empty()) 
-            {
-                LOG(ERROR) << "filerCloudByRange failed";
-                continue;
-            }
-            double sum = 0;
-            for (auto &p : rangeCloud->points)
-                sum += pointToPLaneDist(plane, p);
-            double avg = sum / rangeCloud->points.size();
-            sumAll.emplace_back(avg);
-        }
-
-        if (sumAll.empty())
-        {
-            LOG(ERROR) << "empty sumAll, please check!";
-            return measure;
-        }
-            
-        double max =  *std::max_element(sumAll.begin(),sumAll.end());
-        double min = *std::min_element(sumAll.begin(),sumAll.end());
-        double difference = std::fabs(max - min);
-        LOG(INFO) << "max avg: " << max << " min avg: " << min
-                << " difference: " << difference;
-        measure.value = difference;
-        measure.rangeSeg.emplace_back(ruler);
-
-        return measure;
-    }
-
     void calcRootFlatness(const std::vector<seg_pair_t>& rootBorder,
                           Eigen::Vector4d plane, pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud,
                           const double calcLengthTh)
@@ -197,7 +101,7 @@ namespace CloudReg
         int hAxis = calHorizontalAxisRoot(rootBorder.front());
         int vAxis = (hAxis == 0) ? 1 : 0;
         LOG(INFO) << "Horizontal Axis is " << hAxis;
-        LOG(INFO) << "Horizontal vAxis is " << vAxis;
+        LOG(INFO) << "Vertical Axis is " << vAxis;
 
         //step1:  get vecCutBay
 		std::vector<std::size_t> vecVerticalIndex;
@@ -277,16 +181,9 @@ namespace CloudReg
         for(auto ruler : rulerAll)
         {
             std::vector<Eigen::Vector3d> rPoints =  createRulerBox(ruler, 2, 0.025, 0.025);
-            for (size_t i = 0; i < rPoints.size(); ++i)
-            {
-                for(size_t j = 0; j < rPoints.size(); ++j)
-                {
-                    if (i == j) continue;
-                    seg_pair_t pp = std::make_pair(rPoints[i], rPoints[j]);
-                    vecRange.emplace_back(pp);
-                }
-            }
+            std::vector<seg_pair_t> pair =  calcBoxSegPair(rPoints);
+            vecRange.insert(vecRange.end(), pair.begin(), pair.end());
         }
-        writePCDFile("testFla.pcd", pCloud, vecRange);
+        writePCDFile("testRootFla.pcd", pCloud, vecRange);
     }
 }

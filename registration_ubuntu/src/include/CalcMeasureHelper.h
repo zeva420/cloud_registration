@@ -42,9 +42,24 @@ namespace CloudReg
 	std::vector<Eigen::Vector3d> createRulerBox(seg_pair_t ruler, int thicknessDir, 
 						double thickness, double width);
 	bool calIntersection(seg_pair_t line1, seg_pair_t line2, Eigen::Vector3d& intersec);
+	
+	//Edges need to be sorted clockwise, just like walls
 	bool calRuler3d(const std::vector<seg_pair_t>& wallBorder, const std::vector<seg_pair_t>& holeBorder, 
 					 const seg_pair_t& rotateLine, const Eigen::Vector3d& P0,
 					 const float& theta, seg_pair_t& ruler);
+
+	//fun for flatness
+	PointCloud::Ptr filerCloudByConvexHull(pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud, 
+											const std::vector<Eigen::Vector3d>& corners);
+	std::vector<seg_pair_t> calValidHoleVertical(const std::vector<std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>>& holeBorders,
+                        const std::pair<Eigen::Vector3d, Eigen::Vector3d>& horizen, int hAixs);
+	void cutOffRuler(seg_pair_t& ruler, double length);
+	std::vector<std::vector<Eigen::Vector3d>> getAllRulerBox(seg_pair_t ruler, int thicknessDir, double thickness, 
+                                        double step, double boxLen, double boxWidth);
+	calcMeassurment_t calFlatness(seg_pair_t ruler, int thicknessDir, Eigen::Vector4d plane, 
+                                    pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud);
+	bool judgeHoleBorder(const std::vector<std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>>& holeBorders,
+                    std::pair<seg_pair_t, seg_pair_t> validWalls);
 }
 
 

@@ -6,6 +6,8 @@
 #include <pcl/filters/passthrough.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
+#include <pcl/filters/crop_hull.h>
+#include <pcl/surface/concave_hull.h>
 
 namespace CloudReg
 {
@@ -121,6 +123,39 @@ namespace CloudReg
 				return left.first[2] < right.first[2];});
 	}
 
+	PointCloud::Ptr filerCloudByConvexHull(pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud, 
+											const std::vector<Eigen::Vector3d>& corners)
+	{
+		Eigen::Vector3d p1 = corners[0];
+        Eigen::Vector3d p2 = corners[1];
+        Eigen::Vector3d p3 = corners[2];
+        Eigen::Vector3d p4 = corners[3];
+        
+        pcl::PointCloud<pcl::PointXYZ>::Ptr boundingbox_ptr (new pcl::PointCloud<pcl::PointXYZ>);
+        boundingbox_ptr->push_back(pcl::PointXYZ(p1[0], p1[1], p1[2]));
+        boundingbox_ptr->push_back(pcl::PointXYZ(p2[0], p2[1], p2[2] ));
+        boundingbox_ptr->push_back(pcl::PointXYZ(p3[0], p3[1], p3[2] ));
+        boundingbox_ptr->push_back(pcl::PointXYZ(p4[0], p4[1], p4[2] ));
+
+        pcl::ConvexHull<pcl::PointXYZ> hull;                  
+        hull.setInputCloud(boundingbox_ptr);                 
+        hull.setDimension(2);                                 
+        std::vector<pcl::Vertices> polygons;                 
+        pcl::PointCloud<pcl::PointXYZ>::Ptr surface_hull (new pcl::PointCloud<pcl::PointXYZ>);
+        hull.reconstruct(*surface_hull, polygons);           
+
+        pcl::PointCloud<pcl::PointXYZ>::Ptr objects (new pcl::PointCloud<pcl::PointXYZ>);
+        pcl::CropHull<pcl::PointXYZ> bb_filter;               
+        bb_filter.setDim(2);                                 
+        bb_filter.setInputCloud(pCloud);                       
+        bb_filter.setHullIndices(polygons);                   
+        bb_filter.setHullCloud(surface_hull);                 
+        bb_filter.filter(*objects);                           
+
+		// LOG(INFO) << "inPut: " << pCloud->points.size() << " outPut: " << objects->points.size();
+		return objects;
+	}
+
 	PointCloud::Ptr filerCloudByRange(pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud,
 			const pcl::PointXYZ& min, const pcl::PointXYZ& max)
 	{
@@ -132,7 +167,7 @@ namespace CloudReg
         clipper.setNegative(false);
         clipper.setInputCloud(pCloud);
         clipper.filter(*cloud_final);
-		// LOG(INFO) << "inPut: " << pCloud->points.size() << " outPut: " << cloud_final->points.size();
+		LOG(INFO) << "inPut: " << pCloud->points.size() << " outPut: " << cloud_final->points.size();
 		return cloud_final;
 	}
 
@@ -148,7 +183,6 @@ namespace CloudReg
 			for(std::size_t i = 0; i < vecCalcPt.size(); i++)
 			{
 				double tmp = (ePt - vecCalcPt[i]).squaredNorm();
-				//LOG(INFO) << tmp;
 				if (tmp < maxDist && tmp < vecDist[i])
 				{
 					vecDist[i] = tmp;
@@ -357,7 +391,7 @@ namespace CloudReg
 		double scale = cross2.dot(cross1)/cross2.squaredNorm();
 		if (scale < 0 || scale > 1)
 		{
-			LOG(INFO) << "There is no intersec";
+			// LOG(INFO) << "There is no intersec";
 			return false;
 		}
 
@@ -431,7 +465,7 @@ namespace CloudReg
 			}
 			
 			Eigen::Vector3d intersec;
-			if (calIntersection(rotateQ,line , intersec))
+			if (calIntersection(rotateQ, line, intersec))
 			{
 				double length = (intersec - P0).norm();
 				if (length <= 0 + 1e-6)
@@ -444,7 +478,7 @@ namespace CloudReg
 			}
 		}
 
-		if (std::fabs(1000000.0 - rulerLength)< 1e-8)
+		if (std::fabs(1000000.0 - rulerLength)< 1)
 		{
 			LOG(ERROR) << "can not find ruler, please check theta";
 			return false;
@@ -453,5 +487,138 @@ namespace CloudReg
 		ruler = std::make_pair(P0, new3d);
 		return true;
 	}
+
+	//
+	std::vector<seg_pair_t> calValidHoleVertical(
+                        const std::vector<std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>>& holeBorders,
+                        const std::pair<Eigen::Vector3d, Eigen::Vector3d>& horizen, int hAixs)
+    {
+        std::vector<seg_pair_t> validHoleVertical;
+        const auto horizenSeg = horizen.first - horizen.second;
+        for (size_t i = 0; i < holeBorders.size(); ++i)
+        {
+            auto &holeBorder = holeBorders[i];
+            std::vector<seg_pair_t> vecHoleVertical, vecHoleHorizen;
+            groupDirection(horizenSeg, holeBorder, vecHoleVertical, vecHoleHorizen);
+            if (vecHoleHorizen.size() < 2 || vecHoleVertical.size() < 2)
+            {
+                LOG(ERROR) << "group Hole Direction Failed: " << vecHoleHorizen.size() << " -- " << vecHoleVertical.size();
+			    continue;
+            }
+            std::sort(vecHoleVertical.begin(), vecHoleVertical.end(), [&](const seg_pair_t& left, const seg_pair_t& right){
+				return left.first[hAixs] < right.first[hAixs];});
+            validHoleVertical.emplace_back(vecHoleVertical[0]);
+            validHoleVertical.emplace_back(vecHoleVertical.back());
+        }
+
+        return validHoleVertical;
+    }
+
+	void cutOffRuler(seg_pair_t& ruler, double length)
+    {
+        double rLength = (ruler.first - ruler.second).norm();
+        if (rLength <= length + 1e-4)  //200cm
+            return;
+
+        Eigen::Vector3d rulern = (ruler.second - ruler.first).normalized();
+        Eigen::Vector3d rulerSecondEnd = ruler.first + 2*rulern;
+        ruler.second = rulerSecondEnd;
+    }
+
+	std::vector<std::vector<Eigen::Vector3d>> getAllRulerBox(seg_pair_t ruler, int thicknessDir, 
+									double thickness, double step, double boxLen, double boxWidth)
+    {
+        std::vector<std::vector<Eigen::Vector3d>> rulerBoxes;
+        Eigen::Vector3d rulern = (ruler.second - ruler.first).normalized();
+        double halfLen = boxLen / 2;
+        auto vecPts = ininterpolateSeg(ruler.first,ruler.second,step);
+        for (size_t i = 0; i < vecPts.size() - 1; ++i) //box length is 10mm
+        {
+            Eigen::Vector3d midPoint = vecPts[i];
+            Eigen::Vector3d pt1 = midPoint - halfLen * rulern;
+            Eigen::Vector3d pt2 = midPoint + halfLen * rulern;
+            std::vector<Eigen::Vector3d> rulerB = createRulerBox(std::make_pair(pt1, pt2), 
+                                                    thicknessDir, thickness, boxWidth); //
+            rulerBoxes.emplace_back(rulerB);
+        }
+
+        return rulerBoxes;
+    }
+
+    calcMeassurment_t calFlatness(seg_pair_t ruler, int thicknessDir, Eigen::Vector4d plane, 
+                                    pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud)
+    {
+		//// get the cloud thickness
+        // pcl::PointXYZ min0;
+		// pcl::PointXYZ max0;		
+		// pcl::getMinMax3D(*pCloud, min0, max0);
+        // double thickness = std::fabs(max0.x - min0.x);
+		// if (thicknessDir == 1)
+		// 	thickness = std::fabs(max0.y - min0.y);
+		// else if(thicknessDir == 2)
+		// 	thickness = std::fabs(max0.z - min0.z);
+
+        calcMeassurment_t measure;
+        std::vector<std::vector<Eigen::Vector3d>> allBoxes;
+        allBoxes = getAllRulerBox(ruler, thicknessDir, 0., 0.005, 0.01, 0.025);
+        if (allBoxes.empty())
+        {
+            LOG(ERROR) << "empty boxes";
+            return measure;
+        }
+        LOG(INFO) << "ruler get boxes num: " << allBoxes.size();
+
+        std::vector<double> sumAll;
+        for(size_t i = 0; i < allBoxes.size(); ++i)
+        {
+            auto box = allBoxes[i];
+			std::vector<Eigen::Vector3d> corners = {box[0], box[2], box[4], box[6]};
+			auto rangeCloud = filerCloudByConvexHull(pCloud, corners);
+
+            if (rangeCloud->points.empty()) 
+            {
+                LOG(ERROR) << "filerCloudByRange failed";
+                continue;
+            }
+            double sum = 0;
+            for (auto &p : rangeCloud->points)
+                sum += pointToPLaneDist(plane, p);
+            double avg = sum / rangeCloud->points.size();
+            sumAll.emplace_back(avg);
+        }
+
+        if (sumAll.empty())
+        {
+            LOG(ERROR) << "empty sumAll, please check!";
+            return measure;
+        }
+            
+        double max =  *std::max_element(sumAll.begin(),sumAll.end());
+        double min = *std::min_element(sumAll.begin(),sumAll.end());
+        double difference = std::fabs(max - min);
+        LOG(INFO) << "max avg: " << max << " min avg: " << min
+                << " difference: " << difference;
+        measure.value = difference;
+        measure.rangeSeg.emplace_back(ruler);
+
+        return measure;
+    }
+
+	bool judgeHoleBorder(const std::vector<std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>>& holeBorders,
+                    std::pair<seg_pair_t, seg_pair_t> validWalls)
+    {
+        if (holeBorders.empty())
+            return false;
+       
+        for(std::size_t i = 0; i < holeBorders.size(); i++)
+        {
+            auto &hole = holeBorders[i];
+            auto iter1 = std::find(hole.begin(), hole.end(), validWalls.first);
+            auto iter2 = std::find(hole.begin(), hole.end(), validWalls.second);
+            if (iter1 != hole.end() && iter2 != hole.end())
+                return true;
+        }
+        return false;
+    }
 
 }
