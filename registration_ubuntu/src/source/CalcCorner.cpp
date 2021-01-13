@@ -138,13 +138,13 @@ namespace CloudReg
 			//0.3
 			{
 				auto left = calcCornerArea(leftWall.back(), vecCloud[idx.first],0.3,true);
-				auto right = calcCornerArea(rightWall.back(), vecCloud[idx.second],0.295,false);
+				auto right = calcCornerArea(rightWall.back(), vecCloud[idx.second],0.3,false);
 			}
 			
 			//1.5
 			{
 				auto left = calcCornerArea(leftWall.back(), vecCloud[idx.first],1.5,true);
-				auto right = calcCornerArea(rightWall.back(), vecCloud[idx.second],0.295,false);
+				auto right = calcCornerArea(rightWall.back(), vecCloud[idx.second],1.5,false);
 			}
 
 		}
