@@ -37,23 +37,22 @@ struct ModelItem {
 
 
 
-	using ItemPair_t = std::pair<Eigen::Vector3d, Eigen::Vector3d>;
 	void buildSegment() {
 		segments_.clear();
 
 		if (points_.size() < 2) return;
 
 		for (std::size_t i = 1; i < points_.size(); i++) {
-			segments_.emplace_back(ItemPair_t(points_[i - 1], points_[i]));
+			segments_.emplace_back(seg_pair_t(points_[i - 1], points_[i]));
 
 		}
-		segments_.emplace_back(ItemPair_t(points_.back(), points_.front()));
+		segments_.emplace_back(seg_pair_t(points_.back(), points_.front()));
 	}
 
 	std::string toString() const;
 	
 	Eigen::vector<Eigen::Vector3d> points_;
-	std::vector<ItemPair_t> segments_;
+	std::vector<seg_pair_t> segments_;
 	ModelItemType itemtype_;
 	std::size_t parentIndex_ = 9999;
 	std::pair<double, double> highRange_ = std::make_pair(0, 0);
@@ -79,7 +78,7 @@ public:
 
 	// test
 	PointCloud::Ptr genTestFrameCloud() const;
-	std::map<ModelItemType, std::vector<PointCloud::Ptr>> genTestFragCloud(double delta=0.01) const;
+	std::map<ModelItemType, std::vector<PointCloud::Ptr>> genFragCloud(double delta=0.01) const;
 	std::string toString() const;
 
 	void scaleModel(const double scale);

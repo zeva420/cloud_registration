@@ -1,5 +1,6 @@
 #include "CADModel.h"
 
+
 #include "funHelper.h"
 #include "GeometryUtils.h"
 
@@ -605,7 +606,7 @@ PointCloud::Ptr CADModel::genTestFrameCloud() const {
 	return cloud;
 }
 
-std::map<ModelItemType, std::vector<PointCloud::Ptr>> CADModel::genTestFragCloud(double delta) const{
+std::map<ModelItemType, std::vector<PointCloud::Ptr>> CADModel::genFragCloud(double delta) const{
 	std::map<ModelItemType, std::vector<PointCloud::Ptr>> mapCADPoint;
 
 	// walls
@@ -740,7 +741,7 @@ void CADModel::scaleModel(const double scale)
 	for (auto& pr : mapModelItem_) {
 		for (auto& model : pr.second) {
 			for (auto& v : model.points_) v = v * scale;
-			for (auto& v : model.segments_) v = ModelItem::ItemPair_t(v.first * scale, v.second * scale);
+			for (auto& v : model.segments_) v = seg_pair_t(v.first * scale, v.second * scale);
 			model.highRange_ = std::make_pair(model.highRange_.first * scale, model.highRange_.second * scale);
 		}
 	}

@@ -276,6 +276,7 @@ bool CloudSegment::alignCloudToCADModel() {
 	// and we assign T_ here, 
 	T_ = T;
 
+#if VISUALIZATION_ENABLED	
 	// debug show
 	if (0) {
 		SimpleViewer viewer;
@@ -291,7 +292,7 @@ bool CloudSegment::alignCloudToCADModel() {
 
 		viewer.show();
 	}
-
+#endif
 	return true;
 }
 
@@ -340,7 +341,7 @@ CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
 
 	LOG(INFO) << ll::unsafe_format("would cluster %d clusters.", clusters.size());
 
-	pcl::Indices searchIndices;
+	std::vector<int> searchIndices;
 	std::vector<float> searchDis;
 	constexpr double MAX_DIS_SQUARED = 0.015 * 0.015;
 
@@ -391,7 +392,7 @@ CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
 		}
 	}
 
-	_show_result(sr);
+	//_show_result(sr);
 
 	return sr;
 }
@@ -1048,7 +1049,7 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 
 	LOG(INFO) << "segmented: " << sr.to_string();
 
-	_show_result(sr);
+	//_show_result(sr);
 
 	return sr;
 }
@@ -1109,6 +1110,7 @@ bool CloudSegment::statisticsForPointZ(float binSizeTh, PointCloud::Ptr cloud,
 }
 
 void CloudSegment::_show_result(const SegmentResult& sr) const {
+#if VISUALIZATION_ENABLED	
 	SimpleViewer viewer;
 
 	for (const auto& pr : sr.clouds_)
@@ -1116,9 +1118,10 @@ void CloudSegment::_show_result(const SegmentResult& sr) const {
 			if (pc.cloud_)
 				viewer.addCloud(pc.cloud_);
 
-	viewer.addCloud(cadModel_.genTestFrameCloud(), 255., 0., 0.);
+	viewer.addCloud(cadModel_.genFrameCloud(), 255., 0., 0.);
 
 	viewer.show();
+#endif
 }
 
 }

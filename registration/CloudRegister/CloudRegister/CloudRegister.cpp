@@ -32,16 +32,7 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 		LOG(ERROR) << "empty cloud input";
 		return false;
 	}
-#if 0
-	//for calc corner
-	std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> vecOrigCloud;
-	for (auto cloud1 : vecCloudPtr)
-	{
-		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud2(new pcl::PointCloud<pcl::PointXYZ>());
-		pcl::copyPointCloud(*cloud1, *cloud2);
-		vecOrigCloud.push_back(cloud2);
-	}
-#endif
+
 	CADModel model;
 	model.initCAD(CAD_File);
 
@@ -56,11 +47,8 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 		return false;
 	}
 
-	return true;
-
 	// coarse match: ([PointCloud], CADModel)-> ([transformed & filtered PointCloud])
 	CoarseMatching cm;
-
 	cm.segment(vecCloudPtr.front(), model);
 	return true;
 
@@ -85,26 +73,6 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	//fill return value
 	fillRet(model, obj);
 
-	//calc corner
-#if 0
-	auto optRets = obj.getRet();
-	if (optRets.count(TransformOptimize::CloudType::BOTTOM_E))
-	{
-		auto &ret = optRets[TransformOptimize::BOTTOM_E];
-		for (auto cloud : vecOrigCloud)
-		{
-			pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>());
-			pcl::transformPointCloud(*cloud, *transformed_cloud, re.T_);
-			cloud->swap(*transformed_cloud);
-			transformed_cloud->clear();
-			pcl::transformPointCloud(*cloud, *transformed_cloud, ret.T_);
-			cloud->swap(*transformed_cloud);
-		}
-
-		center = ret.T_.block<3, 3>(0, 0) * center + ret.T_.block<3, 1>(0, 3);
-		calcAllCorner(model, center, vecOrigCloud);
-	}
-#endif
 	return true;
 }
 
@@ -405,7 +373,7 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 {
 	mapCloudItem_.clear();
 	auto optRets = optimitor.getRet();
-	auto cadCloud = cad.genTestFragCloud();
+	auto cadCloud = cad.genFragCloud();
 
 	if (optRets.count(TransformOptimize::CloudType::BOTTOM_E))
 	{
@@ -497,7 +465,6 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 			item.cloudPlane_ = ret.vecCloudPlane_[i];
 			item.cadPlane_ = ret.vecCadPlane_[i];
 			item.cadBorder_.push_back(beam.segments_);
-			// item.cadBorder_.insert(item.cadBorder_.end(), beam.segments_.begin(), beam.segments_.end());
 // 			LOG(INFO) << "*********************beam:" << i << "************************";
 // 			auto boundPoints = calcCloudBorder("beam-" + std::to_string(i),
 // 					pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
