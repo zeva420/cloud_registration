@@ -11,7 +11,8 @@ namespace CloudReg {
 CloudRegister::CloudRegister() {
 	google::InitGoogleLogging("Cloud");
 	FLAGS_log_dir = "./";
-	
+
+//#define VISUALIZATION_ENABLED
 #ifdef VISUALIZATION_ENABLED
 	google::LogToStderr();
 #endif
@@ -241,12 +242,18 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 			}
 			//refine cut
 			{	
-				std::vector<Eigen::Vector3d> vecPts;
-				for (auto& seg : item.cloudBorder_.front())
-					vecPts.emplace_back(seg.first);
+				//if (it.first == CLOUD_WALL_E)
+				{
+					std::vector<Eigen::Vector3d> vecPts;
+					for (auto& seg : item.cloudBorder_.front())
+					{
+						vecPts.emplace_back(seg.first);												
+					}
+					
+					auto pNew = filerCloudByConvexHull(item.pCloud_, vecPts);
+					item.pCloud_->swap(*pNew);
+				}
 				
-				auto pNew = filerCloudByConvexHull(item.pCloud_, vecPts);
-				item.pCloud_->swap(*pNew);
 
 			}
 			if (item.cadBorder_.size() != item.cloudBorder_.size())

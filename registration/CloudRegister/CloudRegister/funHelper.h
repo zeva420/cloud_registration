@@ -109,16 +109,8 @@ namespace CloudReg
 	// cornerPoint(2, 0) == z
 	double calcCorner_beta(PointCloud::Ptr cloud1, PointCloud::Ptr cloud2, const Eigen::Vector3f& cornerPoint, float z);
 
-	PointCloud::Ptr filerCloudByRange(pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud,
-		const pcl::PointXYZ& min, const pcl::PointXYZ& max);
-
-	PointCloud::Ptr EigenToCloud(std::vector<seg_pair_t>& vecSeg);
-	
 	PointCloud::Ptr filerCloudByConvexHull(pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud,
-		const std::vector<Eigen::Vector3d>& corners, bool negative = false);
-
-	
-
+		const std::vector<Eigen::Vector3d>& corners, const bool negative = false);
 }
 
 
