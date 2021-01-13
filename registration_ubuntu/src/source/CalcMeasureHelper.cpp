@@ -124,7 +124,7 @@ namespace CloudReg
 	}
 
 	PointCloud::Ptr filerCloudByConvexHull(pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud, 
-											const std::vector<Eigen::Vector3d>& corners)
+											const std::vector<Eigen::Vector3d>& corners, const bool negative)
 	{
 		Eigen::Vector3d p1 = corners[0];
         Eigen::Vector3d p2 = corners[1];
@@ -146,7 +146,8 @@ namespace CloudReg
 
         pcl::PointCloud<pcl::PointXYZ>::Ptr objects (new pcl::PointCloud<pcl::PointXYZ>);
         pcl::CropHull<pcl::PointXYZ> bb_filter;               
-        bb_filter.setDim(2);                                 
+        bb_filter.setDim(2);
+		bb_filter.setNegative(negative);
         bb_filter.setInputCloud(pCloud);                       
         bb_filter.setHullIndices(polygons);                   
         bb_filter.setHullCloud(surface_hull);                 

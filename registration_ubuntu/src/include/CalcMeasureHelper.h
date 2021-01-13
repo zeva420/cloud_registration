@@ -50,7 +50,7 @@ namespace CloudReg
 
 	//fun for flatness
 	PointCloud::Ptr filerCloudByConvexHull(pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud, 
-											const std::vector<Eigen::Vector3d>& corners);
+											const std::vector<Eigen::Vector3d>& corners,const bool negative = false);
 	std::vector<seg_pair_t> calValidHoleVertical(const std::vector<std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>>& holeBorders,
                         const std::pair<Eigen::Vector3d, Eigen::Vector3d>& horizen, int hAixs);
 	void cutOffRuler(seg_pair_t& ruler, double length);
