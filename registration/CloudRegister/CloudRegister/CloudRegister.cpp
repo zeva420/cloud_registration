@@ -7,8 +7,6 @@
 #include "funHelper.h"
 #include "CloudSegment.h"
 
-#include <pcl/common/transforms.h>
-
 namespace CloudReg {
 CloudRegister::CloudRegister() {
 	google::InitGoogleLogging("Cloud");
@@ -107,71 +105,6 @@ int CloudRegister::findMatchCloud(const Eigen::Vector4d &plane,
 		}
 	}
 	return bestIdx;
-}
-
-void CloudRegister::calcAllCorner(CADModel& cad, Eigen::Vector3d center,
-	std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecOrigCloud)
-{
-	const auto &mapCloud = getAllCloudPlane();
-	const auto &it1 = mapCloud.find(CLOUD_BOTTOM_E);
-	const vecItems_t &cloudbottoms = it1->second;
-	double floorZ = cloudbottoms.front().pCloud_->front().z;
-	Eigen::Vector4d bottomPlane = cloudbottoms.front().cloudPlane_;
-
-	auto cadWalls = cad.getTypedModelItems(ITEM_WALL_E);
-	const auto &it2 = mapCloud.find(CLOUD_WALL_E);
-	const vecItems_t &cloudWalls = it2->second;
-	std::vector<std::pair<int, int>> wallIdxPairs;
-	for (std::size_t i = 0; i < cloudWalls.size()-1; i++)
-	{
-		wallIdxPairs.push_back(std::make_pair(i, i+1));
-	}
-	wallIdxPairs.push_back(std::make_pair(cloudWalls.size()-1, 0));
-
-	std::vector<std::pair<double, double>> cornerPairs;
-	std::vector<std::pair<double, double>> cornerPairs2;
-	for (auto &it : wallIdxPairs)
-	{
-		int i = it.first;
-		int j = it.second;
-		LOG(INFO) << "---------wall pair:" << i << "-" << j;
-		Eigen::VectorXd interSectionLine(6);
-		if (false == interSectionOfPlaneToPlane(cloudWalls[i].cloudPlane_,
-			cloudWalls[j].cloudPlane_, interSectionLine)) continue;
-
-		Eigen::Vector3d floorPt;
-		if (false == interSectionOfLineToPlane(interSectionLine,
-			bottomPlane, floorPt)) continue;
-
-		/*double v1 = calcCloudPairCorner(std::to_string(i) + "-" + std::to_string(j) + "-0.3m",
-			cloudWalls[i].pCloud_, cloudWalls[j].pCloud_, floorPt, 0.3, center, bottomPlane);
-		double v2 = calcCloudPairCorner(std::to_string(i) + "-" + std::to_string(j) + "-1.5m",
-			cloudWalls[i].pCloud_, cloudWalls[j].pCloud_, floorPt, 1.5, center, bottomPlane);
-		cornerPairs.push_back(std::make_pair(v1, v2));
-		*/
-		int matchIdx1 = findMatchCloud(cloudWalls[i].cadPlane_, vecOrigCloud);
-		int matchIdx2 = findMatchCloud(cloudWalls[j].cadPlane_, vecOrigCloud);
-		double v3 = calcCloudPairCorner(std::to_string(i) + "-" + std::to_string(j) + "-0.3m-orig",
-			vecOrigCloud[matchIdx1], vecOrigCloud[matchIdx2], floorPt, 0.3, center, bottomPlane);
-		double v4 = calcCloudPairCorner(std::to_string(i) + "-" + std::to_string(j) + "-1.5m-orig",
-			vecOrigCloud[matchIdx1], vecOrigCloud[matchIdx2], floorPt, 1.5, center, bottomPlane);
-		cornerPairs2.push_back(std::make_pair(v3, v4));
-	}
-
-	/*for (std::size_t i = 0; i < cornerPairs.size(); i++)
-	{
-		int idx1 = wallIdxPairs[i].first;
-		int idx2 = wallIdxPairs[i].second;
-		LOG(INFO) << "*****wall pair:" << idx1 << "-" << idx2
-			<< ", 0.3m-1.5m: " << cornerPairs[i].first << " " << cornerPairs[i].second;
-	}*/
-	for (std::size_t i = 0; i < cornerPairs2.size(); i++)
-	{
-		int idx1 = wallIdxPairs[i].first;
-		int idx2 = wallIdxPairs[i].second;
-		LOG(INFO) << "*****wall pair:" << idx1 << "-" << idx2
-			<< ", 0.3m-1.5m: " << cornerPairs2[i].first << " " << cornerPairs2[i].second;
-	}
 }
 
 pcl::PointCloud<pcl::PointXYZI>::Ptr

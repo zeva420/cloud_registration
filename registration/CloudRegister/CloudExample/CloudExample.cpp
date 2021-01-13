@@ -121,13 +121,13 @@ int main()
 				vecBorder.insert(vecBorder.end(), vecSegs.begin(), vecSegs.end());
 			}
 			pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_filtered(new pcl::PointCloud<pcl::PointXYZ>());
-			uniformSampling(0.005, item.pCloud_, pCloud_filtered);
+			uniformSampling(0.01, item.pCloud_, pCloud_filtered);
 
 			std::string file_name = name + "_" + std::to_string(index) + ".pcd";
 			writePCDFile(file_name, pCloud_filtered, vecBorder);
 
 			
-			file_name = "cad_"+ file_name;
+			file_name = "cad_cloud"+ file_name;
 			pcl::io::savePCDFile(file_name, *item.pCADCloud_);
 
 			std::vector<Eigen::Vector3d> cloudBorder;

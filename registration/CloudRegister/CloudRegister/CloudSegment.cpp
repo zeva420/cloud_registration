@@ -405,7 +405,7 @@ CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
 		}
 	}
 
-	//_show_result(sr);
+	_show_result(sr);
 
 	return sr;
 }
@@ -1066,7 +1066,7 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 
 	LOG(INFO) << "segmented: " << sr.to_string();
 
-	//_show_result(sr);
+	_show_result(sr);
 
 	return sr;
 }

@@ -75,7 +75,7 @@ bool CADModel::initCAD(const std::string& fileName) {
 	
 	// scale model to meters
 	scaleModel(0.001);
-//#define VISUALIZATION_ENABLED
+
 #ifdef VISUALIZATION_ENABLED
 	for (auto& item : mapModelItem_)
 	{

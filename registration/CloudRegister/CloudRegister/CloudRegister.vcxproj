@@ -157,6 +157,7 @@
     <ClCompile Include="EdgeConstraint.cpp" />
     <ClCompile Include="funHelper.cpp" />
     <ClCompile Include="GeometryUtils.cpp" />
+    <ClCompile Include="SimpleViewer.cpp" />
     <ClCompile Include="TransformOptimize.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -168,6 +169,7 @@
     <ClInclude Include="funHelper.h" />
     <ClInclude Include="GeometryUtils.h" />
     <ClInclude Include="ll.hpp" />
+    <ClInclude Include="SimpleViewer.h" />
     <ClInclude Include="TransformOptimize.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
