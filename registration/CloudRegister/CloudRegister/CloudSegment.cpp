@@ -63,7 +63,6 @@ CloudSegment::SegmentResult CloudSegment::run() {
 	}
 
 	auto sr = segmentByCADModel();
-	sr.T_ = T_;
 	return sr;
 }
 
@@ -344,6 +343,7 @@ CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
 	std::vector<int> searchIndices;
 	std::vector<float> searchDis;
 	constexpr double MAX_DIS_SQUARED = 0.015 * 0.015;
+	constexpr float ON_PLANE_CHECK_THRESH = 0.05f;
 
 	for (std::size_t idx = 0; idx < orgCloud_->size(); ++idx) {
 		const auto& p = orgCloud_->points[idx];
@@ -356,12 +356,17 @@ CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
 			if (!pc.cloud_ || pc.cloud_->empty()) return false;
 
 			float dis = phom.transpose().dot(pc.abcd_);
-			return std::fabs(dis) < 0.02f;
+			return std::fabs(dis) < ON_PLANE_CHECK_THRESH;
 		}, ll::range(allplanes.size()));
 
 		if (ins.empty()) continue;
-		if (ins.size() == 1) clusters[ins.front()].emplace_back(idx);
-		else {
+		if (ins.size() == 1) {
+			// we still need a dis check
+			std::size_t i = ins.front();
+			int cnt = trees[i].nearestKSearch(p, 1, searchIndices, searchDis);
+			if (cnt > 0 && searchDis.front() < MAX_DIS_SQUARED)
+				clusters[ins.front()].emplace_back(idx);
+		} else {
 			// then we have to judge by distance to cloud....
 			auto pr = ll::min_by([&](std::size_t i) {
 				int cnt = trees[i].nearestKSearch(p, 1, searchIndices, searchDis);
@@ -382,6 +387,14 @@ CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
 			ss << size << " -> " << clusters[i].size() << ", ";
 		}
 		LOG(INFO) << "re-cluster done: " << ss.str();
+	}
+
+	if (0) {
+		for (const auto& c : clusters) {
+			SimpleViewer viewer;
+			viewer.addCloud(geo::getSubSet(orgCloud_, c));
+			viewer.show();
+		}
 	}
 
 	// out
@@ -1017,8 +1030,7 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 		
 
 		ModelItemType mit = static_cast<ModelItemType>(i);
-		if (mit == ITEM_HOLE_E) continue; //don't care about holes
-
+		if (mit == ITEM_HOLE_E) continue; // we dont care about holes.
 
 		if (mit == ITEM_BOTTOM_E) {
 			// floor need handle carefully.
@@ -1077,7 +1089,7 @@ void CloudSegment::removeFarPoints(PointCloud::Ptr inputCloud, const CADModel& c
 	double height = std::fabs(Walls.front().highRange_.second - Walls.front().highRange_.first);
 
 	double distSquareTh = width * width + height * height;
-	if (distSquareTh < 1.0) distSquareTh = 20 * 20;
+	if (distSquareTh < 1.0) distSquareTh = 20. * 20.;
 
 	PointCloud::Ptr leftCloud(new PointCloud());
 	for (auto& p : inputCloud->points) {
