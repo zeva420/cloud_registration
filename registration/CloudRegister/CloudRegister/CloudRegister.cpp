@@ -239,6 +239,16 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 				}
 				item.cloudBorder_.push_back(cloudSegs);
 			}
+			//refine cut
+			{	
+				std::vector<Eigen::Vector3d> vecPts;
+				for (auto& seg : item.cloudBorder_.front())
+					vecPts.emplace_back(seg.first);
+				
+				auto pNew = filerCloudByConvexHull(item.pCloud_, vecPts);
+				item.pCloud_->swap(*pNew);
+
+			}
 			if (item.cadBorder_.size() != item.cloudBorder_.size())
 			{
 				LOG(ERROR) << "current item cadBorder_.size != cloudBorder_.size";
