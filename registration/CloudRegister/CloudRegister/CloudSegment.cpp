@@ -110,6 +110,11 @@ bool CloudSegment::calibrateDirectionToAxisZ() {
 
 	//transform orig cloud
 	orgCloud_ = geo::transfromPointCloud(orgCloud_, T);
+#if 0
+	pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_filtered(new pcl::PointCloud<pcl::PointXYZ>());
+	uniformSampling(0.005, orgCloud_, pCloud_filtered);
+	pcl::io::savePCDFile("origin.pcd", *pCloud_filtered);
+#endif
 	return true;
 }
 

@@ -238,6 +238,9 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 						cloudSegs.push_back(bestSeg);
 					}
 				}
+				if (cloudSegs.size() != vecSegs.size())
+					LOG(WARNING) << "the border size miss match: " << name;
+
 				item.cloudBorder_.push_back(cloudSegs);
 			}
 			//refine cut
@@ -375,8 +378,8 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 	}
 	
 	auto vecBeam = cad.getTypedModelItems(ITEM_BEAM_E);
-	if (optRets.mapClouds_.count(ITEM_BEAM_E) 
-			&& vecWall.size() == optRets.mapClouds_[ITEM_BEAM_E].size())
+	
+	if (optRets.mapClouds_.count(ITEM_BEAM_E))
 	{
 		auto &ret = optRets.mapClouds_[ITEM_BEAM_E];
 		for (int i = 0; i < vecBeam.size(); i++)
@@ -391,7 +394,7 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 			item.cadPlane_ = ret[i].cadPlane_;
 			item.cadBorder_.push_back(beam.segments_);
 
-// 			LOG(INFO) << "*********************beam:" << i << "************************";
+ 			//LOG(INFO) << "*********************beam:" << i << "************************";
 // 			auto boundPoints = calcCloudBorder("beam-" + std::to_string(i),
 // 					pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
 			mapCloudItem_[CLOUD_BEAM_E].emplace_back(item);

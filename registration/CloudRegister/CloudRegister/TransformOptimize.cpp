@@ -231,7 +231,11 @@ bool TransformOptimize::matchCloudToMode()
         auto it2 = type2CloudItems_.find(type);
         if (it2 == type2CloudItems_.end()) continue; 
         std::vector<PointsAndPlane> &vecCloudItems = it2->second;  
-        if (vecModelItems.size() != vecCloudItems.size()) continue;
+		if (vecModelItems.size() != vecCloudItems.size())
+		{
+			LOG(WARNING) << "the vecModelItems size mismatch";
+			continue;
+		}
 
         std::map<int, std::map<double, int>> model2CloudDists;
         for (int i = 0; i < vecModelItems.size(); i++)
