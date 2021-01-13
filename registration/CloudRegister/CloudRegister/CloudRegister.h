@@ -3,8 +3,6 @@
 #include <string>
 #include <vector>
 
-
-
 #include<pcl/point_types.h>
 #include<pcl/io/pcd_io.h>
 
@@ -70,8 +68,6 @@ namespace CloudReg
 		
 		void fillRet(CADModel& cad, TransformOptimize& optimitor);
 		void calcAllCloudBorder(CADModel& cad);
-		void calcAllCorner(CADModel& cad, Eigen::Vector3d center,
-			std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecOrigCloud);
 		int findMatchCloud(const Eigen::Vector4d &plane,
 			std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecOrigCloud);
 
