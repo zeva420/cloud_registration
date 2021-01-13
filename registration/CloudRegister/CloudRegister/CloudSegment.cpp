@@ -1014,7 +1014,12 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 	SegmentResult sr(T_);
 
 	for (int i = 0; i < ITEM_MAX_E; ++i) {
+		
+
 		ModelItemType mit = static_cast<ModelItemType>(i);
+		if (mit == ITEM_HOLE_E) continue; //don't care about holes
+
+
 		if (mit == ITEM_BOTTOM_E) {
 			// floor need handle carefully.
 			constexpr double MIN_WALL_HEIGHT = 1.;

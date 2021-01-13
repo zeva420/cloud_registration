@@ -385,14 +385,22 @@ bool TransformOptimize::transformCloud(Eigen::Matrix4d &finalT)
             }
         }
 
-        for (int i = 0; i < vecModelItems.size(); i++)
-        {
-            transfor(newT, vecModelItems[i].plane_, vecCloudItems[i].cloudPtr_);
-            auto distError = calcCloudToPLaneAveDist(vecModelItems[i].plane_, vecCloudItems[i].cloudPtr_);
-            LOG(INFO) << "second: " << toModelItemName(it.first) << " cloud to model plane, aveDist:" 
-                << distError.first << " medianDist:" << distError.second;
-        }        
+        
     }
+	for (auto &it : type2ModelItems_)
+	{
+		auto &vecModelItems = it.second;
+		auto &vecCloudItems = type2CloudItems_[it.first];
+		if (vecModelItems.size() != vecCloudItems.size()) continue;
+
+		for (int i = 0; i < vecModelItems.size(); i++)
+		{
+			transfor(newT, vecModelItems[i].plane_, vecCloudItems[i].cloudPtr_);
+			auto distError = calcCloudToPLaneAveDist(vecModelItems[i].plane_, vecCloudItems[i].cloudPtr_);
+			LOG(INFO) << "second: " << toModelItemName(it.first) << " cloud to model plane, aveDist:"
+				<< distError.first << " medianDist:" << distError.second;
+		}
+	}
 
 	return true;
 }
