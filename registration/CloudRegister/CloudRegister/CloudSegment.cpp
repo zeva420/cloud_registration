@@ -56,6 +56,12 @@ CloudSegment::SegmentResult CloudSegment::run() {
 		LOG(ERROR) << "failed to calibrate direction to axis-Z.";
 	}
 
+	{
+		SimpleViewer viewer;
+		viewer.addCloud(sparsedCloud());
+		viewer.show();
+	}
+
 	recordModelBoundingBox();
 
 	if (!alignCloudToCADModel()) {
@@ -394,14 +400,6 @@ CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
 		LOG(INFO) << "re-cluster done: " << ss.str();
 	}
 
-	if (0) {
-		for (const auto& c : clusters) {
-			SimpleViewer viewer;
-			viewer.addCloud(geo::getSubSet(orgCloud_, c));
-			viewer.show();
-		}
-	}
-
 	// out
 	int offset = 0;
 	for (auto& pr : sr.clouds_) {
@@ -413,6 +411,89 @@ CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
 	_show_result(sr);
 
 	return sr;
+}
+
+void CloudSegment::refineSegmentResult(SegmentResult& sr) const {
+	//todo: refactor this.
+	// use wall segment to slice floor & roof
+	auto itw = sr.clouds_.find(ITEM_WALL_E);
+
+	auto is_all_wall_found = [&]() {
+		if (itw == sr.clouds_.end()) return false;
+		const auto& walls = itw->second;
+		return walls.size() > 2 &&
+			std::all_of(walls.begin(), walls.end(), [](const PlaneCloud& pc) { return pc.cloud_; });
+	};
+
+	if (!is_all_wall_found()) {
+		LOG(WARNING) << "not all of the walls was segmented, skip the refine process.";
+		return;
+	}
+
+	// get the contour
+	Eigen::vector<Eigen::Vector2f> points;
+	{
+#define _A(n) abcd##n(0)
+#define _B(n) abcd##n(1)
+#define _D(n) abcd##n(3)
+		auto intersect_plane_on_xoy = [](const Eigen::Vector4f& abcd1, const Eigen::Vector4f& abcd2)->Eigen::Vector2f {
+			// no error check
+			Eigen::Vector2f p;
+			p(0) = (_B(1) * _D(2) - _B(2) * _D(1)) / (_B(2) * _A(1) - _B(1) * _A(2));
+			p(1) = (_A(1) * _D(2) - _A(2) * _D(1)) / (_A(2) * _B(1) - _A(1) * _B(2));
+			return p;
+		};
+#undef  _A
+#undef  _B
+#undef  _D
+
+		const auto& walls = itw->second;
+		points.reserve(walls.size());
+		for (std::size_t i = 0; i < walls.size(); ++i) {
+			Eigen::Vector2f p = intersect_plane_on_xoy(walls[i].abcd_, walls[(i + 1) % walls.size()].abcd_);
+			points.emplace_back(p);
+		}
+	}
+
+	auto is_in_contour = [&](const Point& p) {
+		float y = p.y;
+		std::vector<float> xs;
+		for (std::size_t i = 0; i < points.size(); ++i) {
+			const Eigen::Vector2f& s = points[i];
+			const Eigen::Vector2f& e = points[(i + 1) % points.size()];
+			if (std::fabs(e(1) - s(1)) < 1e-6) continue;
+
+			float t = (y - s(1)) / (e(1) - s(1));
+			if (t > 0 && t < 1) {
+				float x = (1 - t) * s(0) + t * e(0);
+				xs.push_back(x);
+			}
+		}
+
+		std::sort(xs.begin(), xs.end());
+		for (std::size_t i = 0; i < xs.size(); ++i) {
+			if (xs[i] > p.x) return i % 2 == 1;
+		}
+
+		return false;
+	};
+
+	auto itf = sr.clouds_.find(ITEM_BOTTOM_E);
+	auto itr = sr.clouds_.find(ITEM_TOP_E);
+	if (itf != sr.clouds_.end() && !itf->second.empty()) {
+		PlaneCloud& pc = itf->second.front();
+		if (pc.cloud_) {
+			pc.cloud_ = geo::filterPoints(pc.cloud_, is_in_contour);
+			LOG(INFO) << "floor refined: " << pc.cloud_->size() << " points left.";
+		}
+	}
+	if (itr != sr.clouds_.end() && !itr->second.empty()) {
+		PlaneCloud& pc = itr->second.front();
+		if (pc.cloud_) {
+			pc.cloud_ = geo::filterPoints(pc.cloud_, is_in_contour);
+			LOG(INFO) << "roof refined: " << pc.cloud_->size() << " points left.";
+		}
+	}
 }
 
 PointCloud::Ptr CloudSegment::sliceMainBody() {
@@ -568,7 +649,7 @@ std::vector<CloudSegment::PlaneCloud> CloudSegment::detectRegionPlanes(PointClou
 #endif
 
 	return planes;
-}
+	}
 
 trans2d::Matrix2x3f CloudSegment::chooseTransformByHoles(const Eigen::vector<trans2d::Matrix2x3f>& Ts, const std::vector<PlaneCloud>& walls) const {
 	constexpr float HALF_SLICE_THICKNESS = 0.02f;
@@ -1032,7 +1113,7 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 	SegmentResult sr(T_);
 
 	for (int i = 0; i < ITEM_MAX_E; ++i) {
-		
+
 
 		ModelItemType mit = static_cast<ModelItemType>(i);
 		if (mit == ITEM_HOLE_E) continue; // we dont care about holes.
@@ -1070,6 +1151,8 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 	}
 
 	LOG(INFO) << "segmented: " << sr.to_string();
+
+	refineSegmentResult(sr);
 
 	_show_result(sr);
 
@@ -1140,7 +1223,7 @@ void CloudSegment::_show_result(const SegmentResult& sr) const {
 			if (pc.cloud_)
 				viewer.addCloud(pc.cloud_);
 
-	viewer.addCloud(cadModel_.genFrameCloud(), 255., 0., 0.);
+	viewer.addCloud(cadModel_.genTestFrameCloud(), 255., 0., 0.);
 
 	viewer.show();
 #endif

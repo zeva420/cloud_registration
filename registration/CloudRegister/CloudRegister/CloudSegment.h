@@ -79,6 +79,7 @@ private:
 	void recordModelBoundingBox();
 	bool alignCloudToCADModel();
 	SegmentResult segmentByCADModel();
+	void refineSegmentResult(SegmentResult& sr) const;
 
 	PointCloud::Ptr sliceMainBody();
 	double detectRoofHeight(PointCloud::Ptr cloud) const;
