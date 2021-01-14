@@ -119,7 +119,7 @@ namespace CloudReg
 
 	struct calcMeassurment_t
 	{
-		double value;
+		double value = -1;
 		std::vector<seg_pair_t> rangeSeg;
 	};
 }
