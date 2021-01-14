@@ -8,6 +8,7 @@
 #include <Eigen/Dense>
 #include <Eigen/SparseCore>
 #include <Eigen/StdVector>
+#include <pcl/filters/uniform_sampling.h>
 
 std::vector<Eigen::Vector3d> ininterpolateSeg(const Eigen::Vector3d& sPoint, const Eigen::Vector3d& ePoint, const double step)
 {
@@ -26,6 +27,54 @@ std::vector<Eigen::Vector3d> ininterpolateSeg(const Eigen::Vector3d& sPoint, con
 	}
 	value.emplace_back(ePoint);
 	return value;
+}
+
+void writePCDFile(const std::string& name, const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud,
+	std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>& border)
+{
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloudRGB(new pcl::PointCloud<pcl::PointXYZRGB>());
+
+	for (auto& pt : pCloud->points)
+	{
+		pcl::PointXYZRGB p2;
+		p2.x = pt.x;
+		p2.y = pt.y;
+		p2.z = pt.z;
+		p2.r = 0;
+		p2.g = 255;
+		p2.b = 0;
+
+		pCloudRGB->push_back(p2);
+	}
+
+	for (auto& seg : border)
+	{
+		auto vecPts = ininterpolateSeg(seg.first, seg.second, 0.01);
+		for (auto& pt : vecPts)
+		{
+			pcl::PointXYZRGB p2;
+			p2.x = pt[0];
+			p2.y = pt[1];
+			p2.z = pt[2];
+			p2.r = 255;
+			p2.g = 0;
+			p2.b = 0;
+
+			pCloudRGB->push_back(p2);
+		}
+	}
+	pcl::io::savePCDFile(name, *pCloudRGB);
+
+}
+
+void uniformSampling(double radius,
+	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
+	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered)
+{
+	pcl::UniformSampling<pcl::PointXYZ> filter;
+	filter.setInputCloud(cloud);
+	filter.setRadiusSearch(radius);
+	filter.filter(*cloud_filtered);
 }
 
 int main()
@@ -65,38 +114,28 @@ int main()
 		for(std::size_t index = 0; index < value.second.size(); index++)
 		{
 			auto& item = value.second[index];
-			std::vector<Eigen::Vector3d> cadPoints;
-			for (auto& pt_pair : item.cadBorder_) {
-				auto vec_tmp = ininterpolateSeg(pt_pair.first, pt_pair.second, .1);
-				cadPoints.insert(cadPoints.end(), vec_tmp.begin(), vec_tmp.end());
+			std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> vecBorder;
+			
+			
+			for (auto& vecSegs : item.cadBorder_) {
+				vecBorder.insert(vecBorder.end(), vecSegs.begin(), vecSegs.end());
 			}
+			pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_filtered(new pcl::PointCloud<pcl::PointXYZ>());
+			uniformSampling(0.01, item.pCloud_, pCloud_filtered);
 
 			std::string file_name = name + "_" + std::to_string(index) + ".pcd";
-			pcl::PointCloud<pcl::PointXYZ> cloud;
-			cloud.width = cadPoints.size() + item.pCloud_->size();
-			cloud.height = 1;
-			cloud.is_dense = false;
-			cloud.points.resize(cloud.width * cloud.height);
+			writePCDFile(file_name, pCloud_filtered, vecBorder);
 
-			for (size_t i = 0; i < item.pCloud_->size(); ++i)
-				cloud.points[i] = item.pCloud_->points[i];
 			
-			for (size_t i = 0; i < cadPoints.size(); ++i)
-			{
-				cloud.points[item.pCloud_->size()+i].x = cadPoints[i][0];
-				cloud.points[item.pCloud_->size()+i].y = cadPoints[i][1];
-				cloud.points[item.pCloud_->size()+i].z = cadPoints[i][2];
-			}
-
-			pcl::io::savePCDFile(file_name, cloud);
-			
-			file_name = "cad_"+ file_name;
+			file_name = "cad_cloud"+ file_name;
 			pcl::io::savePCDFile(file_name, *item.pCADCloud_);
 
 			std::vector<Eigen::Vector3d> cloudBorder;
-			for (auto& pt_pair : item.cloudBorder_) {
-				auto vec_tmp = ininterpolateSeg(pt_pair.first, pt_pair.second, 0.05);
-				cloudBorder.insert(cloudBorder.end(), vec_tmp.begin(), vec_tmp.end());
+			for (auto& vecSegs : item.cloudBorder_) {
+				for (auto& pt_pair : vecSegs) {
+					auto vec_tmp = ininterpolateSeg(pt_pair.first, pt_pair.second, 0.05);
+					cloudBorder.insert(cloudBorder.end(), vec_tmp.begin(), vec_tmp.end());
+				}
 			}
 			pcl::PointCloud<pcl::PointXYZ>::Ptr pCloudBorder(new pcl::PointCloud<pcl::PointXYZ>());
 			for (size_t i = 0; i < cloudBorder.size(); ++i)

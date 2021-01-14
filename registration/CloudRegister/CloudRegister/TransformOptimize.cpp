@@ -24,134 +24,170 @@
 
 namespace CloudReg
 {
-bool TransformOptimize::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
-			                CADModel &cadModel, Eigen::Vector3d &center)
+bool TransformOptimize::run(
+                const std::map<ModelItemType, std::vector<PointCloud::Ptr>> &mapCloudItem,
+                const CADModel &cadModel, const Eigen::Vector3d &center)
 {
-    std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> model_vec;
-    convertToPclCloud(cadModel, model_vec);
-    if (vecCloudPtr.size() != model_vec.size())
+    for (auto &it : mapCloudItem)
     {
-        LOG(INFO) << "vecCloudPtr size:" << vecCloudPtr.size() 
-            << " != model_vec size:" << model_vec.size();
-        return false;
+        if (ITEM_HOLE_E == it.first) continue;
+        LOG(INFO) << "input " <<  toModelItemName(it.first) << " vecSize:" << it.second.size();
+        std::vector<PointsAndPlane> vecItems;
+        for (auto &cloud : it.second)
+        {
+            PointsAndPlane item;
+            item.cloudPtr_ = cloud;
+            vecItems.push_back(item);
+        }
+        type2CloudItems_[it.first] = vecItems;
     }
 
     //get model plane coeff
-    Eigen::vector<Eigen::Vector4d> modelPlanes;
-    getModelPlaneCoeff(model_vec, modelPlanes, center);
+    getModelPlaneCoeff(cadModel, center);
 
-    matchCloudToMode(modelPlanes, vecCloudPtr);
+    matchCloudToMode();
 
-    std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> vecSamplingCloud;
-    downSampling(vecCloudPtr, vecSamplingCloud);
+    downSampling();
 
     //optimize with sampling Cloud
     Eigen::Matrix4d transform;
-    optimize(vecSamplingCloud, modelPlanes, transform);
+    optimize(transform);
 
     //transform with input Cloud
-    transformCloud(modelPlanes, vecCloudPtr, transform);
+    transformCloud(transform);
 
     //get plane coeff with input Cloud
     Eigen::Vector3d newCenter = transform.block<3,3>(0,0) * center + transform.block<3,1>(0,3);
-    Eigen::vector<Eigen::Vector4d> cloudPlanes;
-    getModelPlaneCoeff(vecCloudPtr, cloudPlanes, newCenter);
+    getCloudPlaneCoeff(newCenter);
 
-    optRets_.clear();
-    fillResult(modelPlanes, cloudPlanes, model_vec, vecCloudPtr, transform, optRets_);
+    optRets_.mapClouds_.clear();
+    fillResult(transform, optRets_);
 
     //view Dist with sampling Cloud
-    viewModelAndChangedCloud(modelPlanes, cloudPlanes, model_vec, vecCloudPtr);
+    viewModelAndChangedCloud();
 
-    return optRets_.empty() ? false : true;
+    return optRets_.valid() ? true : false;
 }
 
-bool TransformOptimize::downSampling(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
-                        std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecSamplingCloud)
+bool TransformOptimize::downSampling()
 {
     LOG(INFO) << "********downSampling*******";
-	double radius = 0.01;
-    for (auto cloud : vecCloudPtr)
+	double radius = 0.05;
+    
+    for (auto &it : type2CloudItems_)
     {
-        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_sampling(new pcl::PointCloud<pcl::PointXYZ>);
-        uniformSampling(radius, cloud, cloud_sampling);
-        vecSamplingCloud.push_back(cloud_sampling);
-		LOG(INFO) << "uniformSampling, radius:" << radius
-			<< " cloud size before:" << cloud->size()
-			<< " after: " << cloud_sampling->size();
+        auto &vecItems = it.second;
+        std::vector<PointsAndPlane> vecSamplingItems;
+        for (auto &item : vecItems)
+        {
+            PointCloud::Ptr cloud_sampling(new pcl::PointCloud<pcl::PointXYZ>);
+            uniformSampling(radius, item.cloudPtr_, cloud_sampling);
+
+            PointsAndPlane samplingItem;
+            samplingItem.cloudPtr_ = cloud_sampling;
+            vecSamplingItems.push_back(samplingItem);
+            LOG(INFO) << "uniformSampling, radius:" << radius << ", "
+                << toModelItemName(it.first) << " cloud size before:" << item.cloudPtr_->size()
+                << " after: " << samplingItem.cloudPtr_->size();
+        }
+        type2SamplingItems_[it.first] = vecSamplingItems;
     }
 
 	return true;
 }
 
-bool TransformOptimize::convertToPclCloud(CADModel &cadModel, 
-                        std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec)
+bool TransformOptimize::getModelPlaneCoeff(const CADModel &cadModel,
+                                            const Eigen::Vector3d &center)
 {
+    LOG(INFO) << "********getModelPlaneCoeff*******";
     std::vector<ModelItem> walls3d = cadModel.getTypedModelItems(ITEM_WALL_E);
     std::vector<ModelItem> bottoms3d = cadModel.getTypedModelItems(ITEM_BOTTOM_E);
     std::vector<ModelItem> tops3d = cadModel.getTypedModelItems(ITEM_TOP_E);
+    std::vector<ModelItem> beams3d = cadModel.getTypedModelItems(ITEM_BEAM_E);
 
-    for (auto &item : walls3d)
+    auto getModelItemPoints = [](std::vector<ModelItem> &modelItems, const Eigen::Vector3d &center)
+        ->std::vector<PointsAndPlane>
     {
-        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
-        cloud->resize(item.points_.size());
-        std::transform(item.points_.begin(), item.points_.end(), cloud->begin(),
-            [](const Eigen::Vector3d& v) { return pcl::PointXYZ(v(0), v(1), v(2)); });
-        model_vec.push_back(cloud);
-    }
-    for (auto &item : bottoms3d)
+        std::vector<PointsAndPlane> vecItems;
+        for (auto &it : modelItems)
+        {
+            PointCloud::Ptr cloud(new PointCloud());
+            cloud->resize(it.points_.size());
+            std::transform(it.points_.begin(), it.points_.end(), cloud->begin(),
+                [](const Eigen::Vector3d& v) { return pcl::PointXYZ(v(0), v(1), v(2)); });
+
+            PointsAndPlane item;
+            item.cloudPtr_ = cloud;
+            vecItems.push_back(item);
+        }
+        return vecItems;     
+    };
+
+    auto wallItems = getModelItemPoints(walls3d, center);
+    auto bottomItems = getModelItemPoints(bottoms3d, center);
+    auto topItems = getModelItemPoints(tops3d, center);
+    auto beamItems = getModelItemPoints(beams3d, center);
+    type2ModelItems_[ITEM_WALL_E] = wallItems;
+    type2ModelItems_[ITEM_BOTTOM_E] = bottomItems;
+    type2ModelItems_[ITEM_TOP_E] = topItems;
+    type2ModelItems_[ITEM_BEAM_E] = beamItems;
+
+    for (auto &it : type2ModelItems_)
     {
-        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
-        cloud->resize(item.points_.size());
-        std::transform(item.points_.begin(), item.points_.end(), cloud->begin(),
-            [](const Eigen::Vector3d& v) { return pcl::PointXYZ(v(0), v(1), v(2)); });
-        model_vec.push_back(cloud);
+        LOG(INFO) << "for " << toModelItemName(it.first);
+        auto &vecModelItems = it.second;
+        for (auto &item : vecModelItems)
+        {
+            Eigen::Vector4d plane;    
+            calcPlaneCoeff(item.cloudPtr_, center, plane);
+            item.plane_ = plane;  
+        }
     }
-    for (auto &item : tops3d)
-    {
-        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
-        cloud->resize(item.points_.size());
-        std::transform(item.points_.begin(), item.points_.end(), cloud->begin(),
-            [](const Eigen::Vector3d& v) { return pcl::PointXYZ(v(0), v(1), v(2)); });
-        model_vec.push_back(cloud);
-    }
-    return true;
+	return true;
 }
 
-bool TransformOptimize::getModelPlaneCoeff(
-                    std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec, 
-                    Eigen::vector<Eigen::Vector4d> &modelPlanes,
-                    Eigen::Vector3d center)
+bool TransformOptimize::getCloudPlaneCoeff(const Eigen::Vector3d &center)
 {
-    LOG(INFO) << "********get model plane coeff*******";
-    int index = -1;
-    for (auto cloud : model_vec)
+    LOG(INFO) << "********getCloudPlaneCoeff*******";
+    for (auto &it : type2CloudItems_)
     {
-        index++;
-        pcl::PointCloud<pcl::PointXYZ>::Ptr ground_inliers(new pcl::PointCloud<pcl::PointXYZ>);
-        Eigen::VectorXf coeff;
-        std::vector<int> inlierIdxs;
-        planeFitting(0.003, cloud, coeff, inlierIdxs);
-        // auto inliers = geo::getSubSet(cloud, inlierIdxs, false);
-        // Eigen::Vector4d plane = calcPlaneParam(inliers);
-
-        Eigen::Vector4d plane(coeff(0), coeff(1), coeff(2), coeff(3));
-		Eigen::Vector3d n = plane.block<3,1>(0,0);
-        double d = plane(3);
-		double flag = ((n.dot(center) + d) > 0) ? 1.0 : -1.0;  
-        plane = flag * plane;     
-        LOG(INFO) << "plane coeff " << plane[0] << " " <<plane[1] 
-        << " " << plane[2] << " " << plane[3] 
-        << ", inlierRate:" << 100.0 * double(inlierIdxs.size()) / double(cloud->size()) << "%";
-
-        modelPlanes.push_back(plane);  
+        LOG(INFO) << "for " << toModelItemName(it.first);
+        auto &vecCloudItems = it.second;
+        for (auto &item : vecCloudItems)
+        {
+            Eigen::Vector4d plane;    
+            calcPlaneCoeff(item.cloudPtr_, center, plane);
+            item.plane_ = plane;  
+        }
     }
+
+	return true;
+}
+
+bool TransformOptimize::calcPlaneCoeff(PointCloud::Ptr inputCloud, 
+                    const Eigen::Vector3d &center, Eigen::Vector4d &planeCoeff)
+{
+    Eigen::VectorXf coeff;
+    std::vector<int> inlierIdxs;
+    planeFitting(0.003, inputCloud, coeff, inlierIdxs);
+    // auto inliers = geo::getSubSet(inputCloud, inlierIdxs, false);
+    // Eigen::Vector4d plane = calcPlaneParam(inliers);
+
+    Eigen::Vector4d plane(coeff(0), coeff(1), coeff(2), coeff(3));
+    Eigen::Vector3d n = plane.block<3,1>(0,0);
+    double d = plane(3);
+    double flag = ((n.dot(center) + d) > 0) ? 1.0 : -1.0;  
+    plane = flag * plane;     
+    LOG(INFO) << "plane coeff " << plane[0] << " " << plane[1] 
+        << " " << plane[2] << " " << plane[3] 
+        << ", inlierRate:" << 100.0 * double(inlierIdxs.size()) / double(inputCloud->size()) << "%";
+    planeCoeff = plane;
 
 	return true;
 }
 
 std::pair<double,double> TransformOptimize::calcCloudToPLaneAveDist(Eigen::Vector4d &plane,
-                                pcl::PointCloud<pcl::PointXYZ>::Ptr cloud)
+                                PointCloud::Ptr cloud)
 {
     double aveDist = 0.0;
 	double medianDist = 0.0;
@@ -185,61 +221,53 @@ std::pair<double,double> TransformOptimize::calcCloudToPLaneAveDist(Eigen::Vecto
     return std::make_pair(aveDist, medianDist);
 }
 
-bool TransformOptimize::matchCloudToMode(
-                    Eigen::vector<Eigen::Vector4d> &modePlanes,
-                    std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr)
+bool TransformOptimize::matchCloudToMode()
 {
     LOG(INFO) << "********matchCloudToMode*******";
-    if (modePlanes.size() != vecCloudPtr.size())
+    for (auto &it1 : type2ModelItems_)
     {
-        LOG(INFO) << "size is not eqaul!!";
-        return false;
-    }
+        auto type = it1.first;
+        std::vector<PointsAndPlane> &vecModelItems = it1.second;
+        auto it2 = type2CloudItems_.find(type);
+        if (it2 == type2CloudItems_.end()) continue; 
+        std::vector<PointsAndPlane> &vecCloudItems = it2->second;  
+		if (vecModelItems.size() != vecCloudItems.size())
+		{
+			LOG(WARNING) << "the vecModelItems size mismatch";
+			continue;
+		}
 
-    std::map<int, std::map<double, int>> model2CloudDists;
-    for (int i = 0; i < modePlanes.size(); i++)
-    {
-        auto &plane = modePlanes[i];
-        Eigen::Vector3d n = plane.block<3,1>(0,0);
-        double d  = plane(3);
-        for (int j = 0; j < vecCloudPtr.size(); j++)
+        std::map<int, std::map<double, int>> model2CloudDists;
+        for (int i = 0; i < vecModelItems.size(); i++)
         {
-            auto aveDist = calcCloudToPLaneAveDist(plane, vecCloudPtr[j]);
-            model2CloudDists[i][aveDist.first] = j;
+            auto &plane = vecModelItems[i].plane_;
+            Eigen::Vector3d n = plane.block<3,1>(0,0);
+            double d  = plane(3);
+            for (int j = 0; j < vecCloudItems.size(); j++)
+            {
+                auto aveDist = calcCloudToPLaneAveDist(plane, vecCloudItems[j].cloudPtr_);
+                model2CloudDists[i][aveDist.first] = j;
+            }  
         }
-    }
 
-    std::stringstream ss;
-    	ss << std::fixed << std::setprecision(4);
-    ss << "====print model2CloudDists info====\n";
-    for (auto &it : model2CloudDists)
-    {
-        ss << "model " << it.first << " match to:\n";
-        for (auto &item : it.second)
+        std::vector<PointsAndPlane> matchedCloudItems;
+        matchedCloudItems.resize(vecCloudItems.size());
+        for (auto &it : model2CloudDists)
         {
-            ss << "   cloud " << item.second << " dist:" << item.first << "\n";
+            int i = it.first;
+            int j = it.second.begin()->second;
+            double dist = it.second.begin()->first;
+            matchedCloudItems[i] = vecCloudItems[j];
+            LOG(INFO) << toModelItemName(type) << " cloud to model plane aveDist:" 
+                << dist << " match idxPair: " << i << "-" << j;
         }
+        it2->second = matchedCloudItems;
     }
-    // LOG(INFO) << ss.str();
-
-    std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> tmpCloudPtr;
-    tmpCloudPtr.resize(vecCloudPtr.size());
-    for (auto &it : model2CloudDists)
-    {
-        int i = it.first;
-        int j = it.second.begin()->second;
-        tmpCloudPtr[i] = vecCloudPtr[j];
-        LOG(INFO) << "cloud to model plane aveDist:" << it.second.begin()->first;
-    }
-    vecCloudPtr.clear();
-    vecCloudPtr.insert(vecCloudPtr.end(), tmpCloudPtr.begin(), tmpCloudPtr.end());
 
     return true;
 }
 
-bool TransformOptimize::optimize(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
-                                Eigen::vector<Eigen::Vector4d> &modelPlanes,
-                                Eigen::Matrix4d &transform)
+bool TransformOptimize::optimize(Eigen::Matrix4d &transform)
 {
     LOG(INFO) << "********optimize*******";
     clear();
@@ -251,7 +279,7 @@ bool TransformOptimize::optimize(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr
 
     //add edges
     LOG(INFO) << "********addWallPointToModelPlaneEdges*******";
-    addWallPointToModelPlaneEdges(vecCloudPtr, modelPlanes, transform);
+    addWallPointToModelPlaneEdges(transform);
 
     LOG(INFO) << "********optData*******";
     optData(10, false, true);
@@ -262,10 +290,7 @@ bool TransformOptimize::optimize(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr
 	return true;
 }
 
-bool TransformOptimize::addWallPointToModelPlaneEdges(
-                        std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
-                        Eigen::vector<Eigen::Vector4d> &modelPlanes,
-                        Eigen::Matrix4d &transform)
+bool TransformOptimize::addWallPointToModelPlaneEdges(Eigen::Matrix4d &transform)
 {
 	const VertexID_G2O_t id = getVertexID(&transform);
 	if (INVAILD_G2O_VERTEXID == id)
@@ -274,30 +299,33 @@ bool TransformOptimize::addWallPointToModelPlaneEdges(
 		return false;
 	}
 
-    for (int i = 0; i < vecCloudPtr.size(); i++)
+    for (auto &it : type2ModelItems_)
     {
-		if (i == (vecCloudPtr.size() - 2))
-		{
-			continue;
-		}
+        if (ITEM_BOTTOM_E == it.first) continue;
 
-        Eigen::Vector4d plane = modelPlanes[i];
-        auto cloud = vecCloudPtr[i];
+        auto &vecModelItems = it.second;
+        auto &vecSamplingItems = type2SamplingItems_[it.first];
+        if (vecSamplingItems.size() != vecModelItems.size()) continue;
 
-        double weight = 10000.0 / double(cloud->size());        		
-		if (i == (vecCloudPtr.size() - 1))
-			weight = 700000.0 / double(cloud->size());
+        double weight = 10000.0;        		
+        if (ITEM_TOP_E == it.first) weight = 700000.0;
 
-        for (auto &v : cloud->points)
+        for (int i = 0; i < vecModelItems.size(); i++)
         {
-            Eigen::Vector3d pt(v.x, v.y, v.z);
-            const Eigen::Matrix<double, 1, 1> information
-                =  weight* Eigen::Matrix<double, 1, 1>::Identity();
-            g2o::EdgePtToPlaneDist* e = new g2o::EdgePtToPlaneDist(pt, plane);
-            e->setVertex(0, optimizer_.vertex(id));
-            e->setMeasurement(0.0);
-            e->information() = information;
-            addEdge("EdgePtToPlaneDist", e);
+            Eigen::Vector4d plane = vecModelItems[i].plane_;
+            auto cloud = vecSamplingItems[i].cloudPtr_;
+            weight /= double(cloud->size());
+            for (auto &v : cloud->points)
+            {
+                Eigen::Vector3d pt(v.x, v.y, v.z);
+                const Eigen::Matrix<double, 1, 1> information
+                    =  weight* Eigen::Matrix<double, 1, 1>::Identity();
+                g2o::EdgePtToPlaneDist* e = new g2o::EdgePtToPlaneDist(pt, plane);
+                e->setVertex(0, optimizer_.vertex(id));
+                e->setMeasurement(0.0);
+                e->information() = information;
+                addEdge("EdgePtToPlaneDist", e);
+            } 
         }
     }
 
@@ -319,98 +347,88 @@ bool TransformOptimize::getSE3Transfor(Eigen::Matrix4d &transform)
 	return true;
 }
 
-bool TransformOptimize::transformCloud(
-                    Eigen::vector<Eigen::Vector4d> &modePlanes,
-                    std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
-                    Eigen::Matrix4d &finalT)
+bool TransformOptimize::transformCloud(Eigen::Matrix4d &finalT)
 {
     LOG(INFO) << "********transformCloud*******";
-    std::stringstream ss;
-    ss << std::fixed << std::setprecision(8);
-    ss << "\n------final R------\n";
-    ss << finalT (0,0) << " " << finalT (0,1) << " " << finalT (0,2) << "\n";
-    ss << finalT (1,0) << " " << finalT (1,1) << " " << finalT (1,2) << "\n";
-    ss << finalT (2,0) << " " << finalT (2,1) << " " << finalT (2,2) << "\n";
+    // std::stringstream ss;
+    // ss << std::fixed << std::setprecision(8);
+    // ss << "\n------final R------\n";
+    // ss << finalT (0,0) << " " << finalT (0,1) << " " << finalT (0,2) << "\n";
+    // ss << finalT (1,0) << " " << finalT (1,1) << " " << finalT (1,2) << "\n";
+    // ss << finalT (2,0) << " " << finalT (2,1) << " " << finalT (2,2) << "\n";
 
-    ss << "------final t------\n";
-    ss << finalT (0,3) << " " << finalT (1,3) << " " << finalT (2,3) << "\n";
-    LOG(INFO) << ss.str();
+    // ss << "------final t------\n";
+    // ss << finalT (0,3) << " " << finalT (1,3) << " " << finalT (2,3) << "\n";
+    // LOG(INFO) << ss.str();
+    LOG(INFO) << "------final T------\n" << finalT;
 
-	auto transfor = [&](Eigen::Matrix4d& finalT, Eigen::Vector4d& plane, pcl::PointCloud<pcl::PointXYZ>::Ptr cloud) {
+	auto transfor = [&](Eigen::Matrix4d& finalT, Eigen::Vector4d& plane, PointCloud::Ptr cloud) {
 		
-		pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>());
+		PointCloud::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>());
 		pcl::transformPointCloud(*cloud, *transformed_cloud, finalT);
 		cloud->swap(*transformed_cloud);
 	};
 
 	Eigen::Matrix4d newT = Eigen::Matrix4d::Identity();
-    for (int i = 0; i < vecCloudPtr.size(); i++)
-    {              
-		transfor(finalT, modePlanes[i], vecCloudPtr[i]);
-		auto distError = calcCloudToPLaneAveDist(modePlanes[i], vecCloudPtr[i]);
-        LOG(INFO) << "first: cloud to model plane, aveDist:" << distError.first << " medianDist:" << distError.second;
-		
-		if (i == vecCloudPtr.size() - 2)
-		{
-			newT(2, 3) = -distError.second;
-		}
-    }
+    for (auto &it : type2ModelItems_)
+    {
+        auto &vecModelItems = it.second;
+        auto &vecCloudItems = type2CloudItems_[it.first];
+        if (vecModelItems.size() != vecCloudItems.size()) continue;
 
-	for (int i = 0; i < vecCloudPtr.size(); i++)
+        for (int i = 0; i < vecModelItems.size(); i++)
+        {              
+            transfor(finalT, vecModelItems[i].plane_, vecCloudItems[i].cloudPtr_);
+            auto distError = calcCloudToPLaneAveDist(vecModelItems[i].plane_, vecCloudItems[i].cloudPtr_);
+            LOG(INFO) << "first: " << toModelItemName(it.first) << " cloud to model plane, aveDist:" 
+                << distError.first << " medianDist:" << distError.second;
+            
+            if (ITEM_BOTTOM_E == it.first)
+            {
+                newT(2, 3) = -distError.second;
+            }
+        }
+
+        
+    }
+	for (auto &it : type2ModelItems_)
 	{
-		transfor(newT, modePlanes[i], vecCloudPtr[i]);
-		auto distError = calcCloudToPLaneAveDist(modePlanes[i], vecCloudPtr[i]);
-		LOG(INFO) << "second: cloud to model plane, aveDist:" << distError.first << " medianDist:" << distError.second;
+		auto &vecModelItems = it.second;
+		auto &vecCloudItems = type2CloudItems_[it.first];
+		if (vecModelItems.size() != vecCloudItems.size()) continue;
+
+		for (int i = 0; i < vecModelItems.size(); i++)
+		{
+			transfor(newT, vecModelItems[i].plane_, vecCloudItems[i].cloudPtr_);
+			auto distError = calcCloudToPLaneAveDist(vecModelItems[i].plane_, vecCloudItems[i].cloudPtr_);
+			LOG(INFO) << "second: " << toModelItemName(it.first) << " cloud to model plane, aveDist:"
+				<< distError.first << " medianDist:" << distError.second;
+		}
 	}
 
 	return true;
 }
 
-bool TransformOptimize::fillResult(
-                Eigen::vector<Eigen::Vector4d> &modePlanes,
-                Eigen::vector<Eigen::Vector4d> &cloudPlanes,
-                std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec,
-                std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr, 
-                Eigen::Matrix4d &finalT,
-                optCloudRets &optRets)
+bool TransformOptimize::fillResult(Eigen::Matrix4d &finalT, optCloudRets &optRets)
 {
-    OptCloud walls;
-    walls.type_ = WALL_E;
-    for (int i = 0; i < vecCloudPtr.size() - 2; i++)
+    for (auto &it : type2ModelItems_)
     {
-        auto cloud = vecCloudPtr[i];
-        walls.vecCloud_.push_back(cloud);
-        walls.vecCloudPlane_.push_back(cloudPlanes[i]);
-        walls.vecCadPlane_.push_back(modePlanes[i]);
-        walls.T_ = finalT;
-    }
-    optRets[WALL_E] = walls;
+        auto &vecModelItems = it.second;
+        auto &vecCloudItems = type2CloudItems_[it.first];
+        if (vecModelItems.size() != vecCloudItems.size()) continue;
 
-    if (vecCloudPtr.size() > 2)
-    {
-        OptCloud bottom;
-        bottom.type_ = BOTTOM_E;
-        int index = vecCloudPtr.size() - 2;
-        auto cloud  = vecCloudPtr[index];
-        bottom.vecCloud_.push_back(cloud);
-        bottom.vecCloudPlane_.push_back(cloudPlanes[index]);
-        bottom.vecCadPlane_.push_back(modePlanes[index]);   
-        bottom.T_ = finalT;
-        optRets[BOTTOM_E] = bottom; 
+        std::vector<OptPlane> vecOptPlane;
+        for (int i = 0; i < vecModelItems.size(); i++)
+        {
+            OptPlane piece;
+            piece.cloud_ = vecCloudItems[i].cloudPtr_;
+            piece.cloudPlane_ = vecCloudItems[i].plane_;
+            piece.cadPlane_ = vecModelItems[i].plane_;
+            vecOptPlane.push_back(piece);
+        }
+        optRets.mapClouds_[it.first] = vecOptPlane;
     }
-
-    if (vecCloudPtr.size() > 2)
-    {
-        OptCloud top;
-        top.type_ = TOP_E;
-        int index = vecCloudPtr.size() - 1;
-        auto cloud  = vecCloudPtr[index];
-        top.vecCloud_.push_back(cloud);
-        top.vecCloudPlane_.push_back(cloudPlanes[index]);
-        top.vecCadPlane_.push_back(modePlanes[index]);  
-        top.T_ = finalT; 
-        optRets[TOP_E] = top; 
-    }
+    optRets.T_ = finalT;
 
 	return true;
 }
@@ -418,13 +436,13 @@ bool TransformOptimize::fillResult(
 
 
 void TransformOptimize::projectCloudToXOYPlane(Eigen::Vector3d &startPt,
-                pcl::PointCloud<pcl::PointXYZ>::Ptr model,
+                PointCloud::Ptr model,
                 Eigen::Matrix4f &T)
 {
     pcl::PointXYZ firstPt = model->front();
     pcl::PointXYZ secondPt = model->points[1];
     pcl::PointXYZ lastPt = model->back();
-    pcl::PointCloud<pcl::PointXYZ>::Ptr source(new pcl::PointCloud<pcl::PointXYZ>());
+    PointCloud::Ptr source(new pcl::PointCloud<pcl::PointXYZ>());
     source->push_back(firstPt);
     source->push_back(secondPt);
     source->push_back(lastPt);
@@ -437,7 +455,7 @@ void TransformOptimize::projectCloudToXOYPlane(Eigen::Vector3d &startPt,
     pcl::PointXYZ A= pcl::PointXYZ(startPt(0),startPt(1),startPt(2));
     pcl::PointXYZ B = pcl::PointXYZ(startPt(0)+l12,startPt(1),startPt(2));
     pcl::PointXYZ C = pcl::PointXYZ(startPt(0),startPt(1)+l13,startPt(2));
-    pcl::PointCloud<pcl::PointXYZ>::Ptr traget(new pcl::PointCloud<pcl::PointXYZ>());
+    PointCloud::Ptr traget(new pcl::PointCloud<pcl::PointXYZ>());
     traget->push_back(A);
     traget->push_back(B);
     traget->push_back(C);
@@ -469,36 +487,44 @@ void TransformOptimize::projectCloudToXOYPlane(Eigen::Vector3d &startPt,
     startPt(0) += maxLen;
 }
 
-bool TransformOptimize::viewModelAndChangedCloud(
-                Eigen::vector<Eigen::Vector4d> &modePlanes,
-                Eigen::vector<Eigen::Vector4d> &cloudPlanes,
-                std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec,
-                std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr)
+bool TransformOptimize::viewModelAndChangedCloud()
 {
     LOG(INFO) << "********viewModelAndChangedCloud*******";
+//#if 1
 #ifdef VISUALIZATION_ENABLED
-    for (int i = 0; i < modePlanes.size(); i++)
+    std::map<ModelItemType, std::vector<PointsAndPlane>> tmpVisualMap = type2SamplingItems_;
+    for (auto &it : type2ModelItems_)
     {
-        Eigen::Vector4d &model_plane = modePlanes[i];
-        Eigen::Vector4d &cloud_plane = cloudPlanes[i];
-        Eigen::Vector3d n1 = model_plane.block<3,1>(0,0);
-        Eigen::Vector3d n2 = cloud_plane.block<3,1>(0,0);
-        double d1 = model_plane(3);
-        double d2 = cloud_plane(3);
-        double dot = n1.dot(n2);
-        double angle = std::acos(std::fabs(dot)) * 180.0 / 3.1415;
-        LOG(INFO) << "i:" << i << " dot:" << dot << " angle:" << angle 
-            << " d1:" << d1 << " d2:" << d2 << " diff:" << std::fabs(d1-d2);
+        auto &vecModelItems = it.second;
+        auto &vecCloudItems = tmpVisualMap[it.first];
+        if (vecModelItems.size() != vecCloudItems.size()) continue;
+
+        for (int i = 0; i < vecModelItems.size(); i++)
+        {
+            Eigen::Vector4d &model_plane = vecModelItems[i].plane_;
+            Eigen::Vector4d &cloud_plane = vecCloudItems[i].plane_;
+            Eigen::Vector3d n1 = model_plane.block<3,1>(0,0);
+            Eigen::Vector3d n2 = cloud_plane.block<3,1>(0,0);
+            double d1 = model_plane(3);
+            double d2 = cloud_plane(3);
+            double dot = n1.dot(n2);
+            double angle = std::acos(std::fabs(dot)) * 180.0 / 3.1415;
+            LOG(INFO) << "i:" << i << " dot:" << dot << " angle:" << angle 
+                << " d1:" << d1 << " d2:" << d2 << " diff:" << std::fabs(d1-d2);
+        }
     }
 
     // pcl::visualization::PCLVisualizer viewer("demo");
-    // for (int i = 0; i < model_vec.size(); i++)
-    // {
-    //     auto cloud = model_vec[i];
-    //     for (int j = 0; j < cloud->size(); j++)
+    // for (auto &it : type2ModelItems_)
+    // {  
+    //     auto &vecModelItems = it.second;
+    //     for (auto &item : vecModelItems)
     //     {
-    //         auto &p = cloud->points[j];
-    //         viewer.addSphere(p, 0.3f, std::to_string(i) + std::to_string(j));
+    //         for (int j = 0; j < item.cloudPtr_->size(); j++)
+    //         {
+    //             auto &p = item.cloudPtr_->points[j];
+    //             viewer.addSphere(p, 0.3f, toModelItemName(it.first) + std::to_string(j));
+    //         }            
     //     }
     // }
 
@@ -509,99 +535,116 @@ bool TransformOptimize::viewModelAndChangedCloud(
     // viewer.addText(
     //     "[-inf, -0.01]:blue, [-0.01, 0]:cyan, [0, 0.01]:green, [0.01, 0.02]:yellow, [0.02, 0.03]:pink, [0.03, +inf]:red", 
     //     0, 0.8);
+
     Eigen::Vector3d startPt(0,0,0);
-    for (int i = 0; i < vecCloudPtr.size(); i++)
+    for (auto &it : type2ModelItems_)
     {
-        auto cloud = vecCloudPtr[i];
-        auto model = model_vec[i];
-        Eigen::Vector4d model_plane = modePlanes[i];
-        Eigen::Vector4d cloud_plane = cloudPlanes[i];
+        auto &vecModelItems = it.second;
+        auto &vecCloudItems = tmpVisualMap[it.first];
+        if (vecModelItems.size() != vecCloudItems.size()) continue;
 
-        Eigen::Matrix4f T;
-        projectCloudToXOYPlane(startPt, model, T);
-        
+        for (int i = 0; i < vecModelItems.size(); i++)
         {
-            pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_rgb(new pcl::PointCloud<pcl::PointXYZRGB>);
-            for (auto &p : cloud->points)
+            auto model = vecModelItems[i].cloudPtr_;
+            auto cloud = vecCloudItems[i].cloudPtr_;
+            Eigen::Vector4d model_plane = vecModelItems[i].plane_;
+            Eigen::Vector4d cloud_plane = vecCloudItems[i].plane_;
+            Eigen::Matrix4f T;
+            projectCloudToXOYPlane(startPt, model, T);
+            
             {
-                double dist = pointToPLaneDist(model_plane, p);
-                pcl::PointXYZRGB p_rgb = getColorPtByDist(p, dist);
-                cloud_rgb->push_back(p_rgb);
+                pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_rgb(new pcl::PointCloud<pcl::PointXYZRGB>);
+                for (auto &p : cloud->points)
+                {
+                    double dist = pointToPLaneDist(model_plane, p);
+                    pcl::PointXYZRGB p_rgb = getColorPtByDist(p, dist);
+                    cloud_rgb->push_back(p_rgb);
+                }
+                cloud3D_dist2Model->insert(cloud3D_dist2Model->end(), cloud_rgb->begin(), cloud_rgb->end());
+
+                pcl::PointCloud<pcl::PointXYZRGB>::Ptr transforCloud(new pcl::PointCloud<pcl::PointXYZRGB>());
+                pcl::transformPointCloud(*cloud_rgb, *transforCloud, T);
+                cloud2D_dist2Model->insert(cloud2D_dist2Model->end(), transforCloud->begin(), transforCloud->end());
             }
-            cloud3D_dist2Model->insert(cloud3D_dist2Model->end(), cloud_rgb->begin(), cloud_rgb->end());
 
-            pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZRGB>());
-            pcl::transformPointCloud(*cloud_rgb, *transformed_cloud, T);
-            cloud2D_dist2Model->insert(cloud2D_dist2Model->end(), transformed_cloud->begin(), transformed_cloud->end());
-        }
-
-        {
-            pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_rgb(new pcl::PointCloud<pcl::PointXYZRGB>);
-            for (auto &p : cloud->points)
             {
-                double dist = pointToPLaneDist(cloud_plane, p);
-                pcl::PointXYZRGB p_rgb = getColorPtByDist(p, dist);
-                cloud_rgb->push_back(p_rgb);
+                pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_rgb(new pcl::PointCloud<pcl::PointXYZRGB>);
+                for (auto &p : cloud->points)
+                {
+                    double dist = pointToPLaneDist(cloud_plane, p);
+                    pcl::PointXYZRGB p_rgb = getColorPtByDist(p, dist);
+                    cloud_rgb->push_back(p_rgb);
+                }
+                cloud3D_dist2Cloud->insert(cloud3D_dist2Cloud->end(), cloud_rgb->begin(), cloud_rgb->end());
+
+                std::string label = "finalT-cloud" + std::to_string(i);
+                // viewer.addPointCloud(cloud_rgb, label);
+
+                pcl::PointCloud<pcl::PointXYZRGB>::Ptr transforCloud(new pcl::PointCloud<pcl::PointXYZRGB>());
+                pcl::transformPointCloud(*cloud_rgb, *transforCloud, T);
+                cloud2D_dist2Cloud->insert(cloud2D_dist2Cloud->end(), transforCloud->begin(), transforCloud->end());
             }
-            cloud3D_dist2Cloud->insert(cloud3D_dist2Cloud->end(), cloud_rgb->begin(), cloud_rgb->end());
+        }        
 
-            std::string label = "finalT-cloud" + convertToSimpleIDStr(i);
-            // viewer.addPointCloud(cloud_rgb, label);
-
-            pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cloud (new pcl::PointCloud<pcl::PointXYZRGB>());
-            pcl::transformPointCloud(*cloud_rgb, *transformed_cloud, T);
-            cloud2D_dist2Cloud->insert(cloud2D_dist2Cloud->end(), transformed_cloud->begin(), transformed_cloud->end());
-        
-        }
     }
     savePCDFile<pcl::PointXYZRGB>("dist-to-modelPlane-3D.pcd", *cloud3D_dist2Model);
     savePCDFile<pcl::PointXYZRGB>("dist-to-modelPlane-2D.pcd", *cloud2D_dist2Model);
     savePCDFile<pcl::PointXYZRGB>("dist-to-cloudPlane-3D.pcd", *cloud3D_dist2Cloud);
     savePCDFile<pcl::PointXYZRGB>("dist-to-cloudPlane-2D.pcd", *cloud2D_dist2Cloud);
 
-    for (int i = 0; i < model_vec.size(); i++)
+    for (auto &it : type2ModelItems_)
     {
-        auto modelCloud = model_vec[i];
-        std::vector<Eigen::Vector3d> modelPoints;
-        for (int j = 0; j < modelCloud->size()-1 ; j++)
-        {
-            pcl::PointXYZ &p1 = modelCloud->points[j];
-            pcl::PointXYZ &p2 = modelCloud->points[j+1];
+        auto &vecModelItems = it.second;
+        auto &vecCloudItems = tmpVisualMap[it.first];
+        if (vecModelItems.size() != vecCloudItems.size()) continue;
 
+        for (int i = 0; i < vecModelItems.size(); i++)
+        {
+            auto model = vecModelItems[i].cloudPtr_;
+            auto cloud = vecCloudItems[i].cloudPtr_;
+            
+            std::vector<Eigen::Vector3d> modelPoints;
+            for (int j = 0; j < model->size()-1 ; j++)
+            {
+                pcl::PointXYZ &p1 = model->points[j];
+                pcl::PointXYZ &p2 = model->points[j+1];
+
+                auto vec_tmp = ininterpolateSeg(Eigen::Vector3d(p1.x, p1.y, p1.z), 
+                    Eigen::Vector3d(p2.x, p2.y, p2.z), 0.05);
+                modelPoints.insert(modelPoints.end(), vec_tmp.begin(), vec_tmp.end());
+            }
+            pcl::PointXYZ &p1 = model->back();
+            pcl::PointXYZ &p2 = model->front();
             auto vec_tmp = ininterpolateSeg(Eigen::Vector3d(p1.x, p1.y, p1.z), 
                 Eigen::Vector3d(p2.x, p2.y, p2.z), 0.05);
             modelPoints.insert(modelPoints.end(), vec_tmp.begin(), vec_tmp.end());
-        }
-        pcl::PointXYZ &p1 = modelCloud->back();
-        pcl::PointXYZ &p2 = modelCloud->front();
-        auto vec_tmp = ininterpolateSeg(Eigen::Vector3d(p1.x, p1.y, p1.z), 
-            Eigen::Vector3d(p2.x, p2.y, p2.z), 0.05);
-        modelPoints.insert(modelPoints.end(), vec_tmp.begin(), vec_tmp.end());
 
-        pcl::PointCloud<pcl::PointXYZRGB>::Ptr optCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-        for (auto &p : modelPoints)
-        {
-            pcl::PointXYZRGB p_rgb;
-            p_rgb.x = p(0);
-            p_rgb.y = p(1);
-            p_rgb.z = p(2);
-            p_rgb.r = 255;
-            p_rgb.g = 0;
-            p_rgb.b = 0;            
-            optCloud->push_back(p_rgb);
+            pcl::PointCloud<pcl::PointXYZRGB>::Ptr optCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+            for (auto &p : modelPoints)
+            {
+                pcl::PointXYZRGB p_rgb;
+                p_rgb.x = p(0);
+                p_rgb.y = p(1);
+                p_rgb.z = p(2);
+                p_rgb.r = 255;
+                p_rgb.g = 0;
+                p_rgb.b = 0;            
+                optCloud->push_back(p_rgb);
+            }
+            for (auto &p : cloud->points)
+            {
+                pcl::PointXYZRGB p_rgb;
+                p_rgb.x = p.x;
+                p_rgb.y = p.y;
+                p_rgb.z = p.z;
+                p_rgb.r = 0;
+                p_rgb.g = 255;
+                p_rgb.b = 0; 
+                optCloud->push_back(p_rgb);
+            }
+            savePCDFile<pcl::PointXYZRGB>("optimized-" + toModelItemName(it.first) 
+                                + "-" + std::to_string(i)  + ".pcd", *optCloud); 
         }
-        for (auto &p : vecCloudPtr[i]->points)
-        {
-            pcl::PointXYZRGB p_rgb;
-            p_rgb.x = p.x;
-            p_rgb.y = p.y;
-            p_rgb.z = p.z;
-            p_rgb.r = 0;
-            p_rgb.g = 255;
-            p_rgb.b = 0; 
-            optCloud->push_back(p_rgb);
-        }
-        savePCDFile<pcl::PointXYZRGB>("optimized-cloud-" + std::to_string(i)  + ".pcd", *optCloud); 
     }
 
     // while (!viewer.wasStopped())

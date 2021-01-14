@@ -112,3 +112,4 @@ namespace Eigen
 
 using Point = pcl::PointXYZ;
 using PointCloud = pcl::PointCloud<Point>;
+using seg_pair_t = std::pair<Eigen::Vector3d, Eigen::Vector3d>;

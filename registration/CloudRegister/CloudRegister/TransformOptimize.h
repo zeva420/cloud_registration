@@ -36,33 +36,32 @@ typedef int32_t VertexID_G2O_t;
 class TransformOptimize
 {
 public:
-	enum CloudType {
-		BEAM_E,
-		BOTTOM_E,
-		WALL_E,
-		TOP_E,
-		MAX_E
-	};
-
-	struct OptCloud
+	struct OptPlane 
 	{
 		EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
-		bool isValid() const { 
-			return !vecCloud_.empty() 
-				   && vecCloud_.size() == vecCloudPlane_.size()
-				   && vecCloud_.size() == vecCadPlane_.size(); 
-		}
-
-		CloudType type_;
-		std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> vecCloud_;
-		Eigen::vector<Eigen::Vector4d> vecCloudPlane_;
-		Eigen::vector<Eigen::Vector4d> vecCadPlane_;
-
-		Eigen::Matrix4d T_;
+		PointCloud::Ptr cloud_{ nullptr };
+		
+		Eigen::Vector4d cloudPlane_;
+		Eigen::Vector4d cadPlane_;
 	};
 
-	using optCloudRets = std::map<CloudType, OptCloud>;
+	struct optCloudRets 
+	{
+		std::map<ModelItemType, std::vector<OptPlane>> mapClouds_;
+		Eigen::Matrix4d T_; //cloud has been transformed in this model
+
+		bool valid() const { return !mapClouds_.empty(); }
+	};
+
+public:
+	struct PointsAndPlane 
+	{
+		EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
+		PointCloud::Ptr cloudPtr_{ nullptr };
+		Eigen::Vector4d plane_;
+	};
 
 public:
     TransformOptimize(const std::string& name, const std::string& logStr)
@@ -77,72 +76,42 @@ public:
 		clear();
     }
 
-    bool run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
-			CADModel &cadModel, Eigen::Vector3d &center);
+    bool run(const std::map<ModelItemType, std::vector<PointCloud::Ptr>> &mapCloudItem,
+			const CADModel &cadModel, const Eigen::Vector3d &center);
 
 	optCloudRets getRet() { return optRets_; }
 
 private:
 
-	bool downSampling(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
-						std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecSamplingCloud);
+	bool downSampling();
 
-	bool convertToPclCloud(CADModel &cadModel, 
-					std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec);
+	bool calcPlaneCoeff(PointCloud::Ptr inputCloud, 
+                    const Eigen::Vector3d &center, Eigen::Vector4d &planeCoeff);
 
-	bool getModelPlaneCoeff(
-					std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec,
-					Eigen::vector<Eigen::Vector4d> &modelPlanes,
-					Eigen::Vector3d center = Eigen::Vector3d(0,0,0));
+	bool getModelPlaneCoeff(const CADModel &cadModel, const Eigen::Vector3d &center);
+					
+	bool getCloudPlaneCoeff(const Eigen::Vector3d &center);
 
 	std::pair<double, double> calcCloudToPLaneAveDist(Eigen::Vector4d &plane,
-                                pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
+                                PointCloud::Ptr cloud);
 
-	bool matchCloudToMode(
-                    Eigen::vector<Eigen::Vector4d> &modePlanes,
-                    std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr);
+	bool matchCloudToMode();
 
-	bool optimize(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
-					Eigen::vector<Eigen::Vector4d> &modelPlanes,
-					Eigen::Matrix4d &transform);
+	bool optimize(Eigen::Matrix4d &transform);
 
-    bool addWallPointToModelPlaneEdges(
-                    std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
-					Eigen::vector<Eigen::Vector4d> &modelPlanes,
-					Eigen::Matrix4d &transform);
+    bool addWallPointToModelPlaneEdges(Eigen::Matrix4d &transform);
 
     bool getSE3Transfor(Eigen::Matrix4d &transform);
 
-	bool transformCloud(
-					Eigen::vector<Eigen::Vector4d> &modePlanes,
-					std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
-					Eigen::Matrix4d &finalT);
+	bool transformCloud(Eigen::Matrix4d &finalT);
 
-	bool fillResult(
-                Eigen::vector<Eigen::Vector4d> &modePlanes,
-                Eigen::vector<Eigen::Vector4d> &cloudPlanes,
-                std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec,
-                std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr,
-				Eigen::Matrix4d &finalT,
-				optCloudRets &optRets);
+	bool fillResult(Eigen::Matrix4d &finalT, optCloudRets &optRets);
 
 
 	void projectCloudToXOYPlane(Eigen::Vector3d &startPt,
-                pcl::PointCloud<pcl::PointXYZ>::Ptr model,
-				Eigen::Matrix4f &T);
+                				PointCloud::Ptr model, Eigen::Matrix4f &T);
 	
-	bool viewModelAndChangedCloud(
-					Eigen::vector<Eigen::Vector4d> &modePlanes,
-					Eigen::vector<Eigen::Vector4d> &cloudPlanes,
-					std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &model_vec,
-					std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecCloudPtr);
-
-	std::string convertToSimpleIDStr(uint64_t id)
-	{
-		std::stringstream ss;
-		ss << std::setfill('0') << std::setw(4) << std::to_string((id % 10000));
-		return ss.str();
-	}
+	bool viewModelAndChangedCloud();
 
 	template<typename pointT>
 	void savePCDFile(const std::string &fileName, pcl::PointCloud<pointT> &cloud)
@@ -304,12 +273,17 @@ private:
 	std::string logStr_;
     
 	g2o::SparseOptimizer optimizer_;
-	optCloudRets optRets_;
-
-    //added Vertex
 	std::map<uint64_t, VertexID_G2O_t>  mapValue2Id_;
-
 	std::map<std::string, std::set<g2o::OptimizableGraph::Edge*>> mapEdge_;
+
+private:
+	std::map<ModelItemType, std::vector<PointsAndPlane>> type2ModelItems_;
+	std::map<ModelItemType, std::vector<PointsAndPlane>> type2CloudItems_;
+
+	std::map<ModelItemType, std::vector<PointsAndPlane>> type2SamplingItems_;
+
+private:
+	optCloudRets optRets_;
 
 };
 

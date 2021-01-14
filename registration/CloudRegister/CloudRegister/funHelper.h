@@ -5,6 +5,7 @@
 //pcl
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
+#include <pcl/common/common.h>
 
 #include "GeometryUtils.h"
 
@@ -32,7 +33,32 @@ namespace CloudReg
 							pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_projected);
 
 	void searchBoundaries(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud,
+							pcl::PointCloud<pcl::Normal>::Ptr normals,
 							std::vector<int> &boundIndices);
+
+	void searchBoundaries(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud,
+							std::vector<int> &boundIndices);
+
+	std::vector<Eigen::Vector3d> convertCloudToEigenVec(
+									const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud);
+
+	std::pair<double, std::pair<Eigen::Vector3d, Eigen::Vector3d>> findNearestSeg(
+										const std::vector<Eigen::Vector3d> &vecPts, 
+										const std::pair<Eigen::Vector3d, Eigen::Vector3d> &seg);
+
+	std::pair<double, Eigen::Vector3d> findNearestPt(
+			const std::vector<Eigen::Vector3d> &vecPts, const Eigen::Vector3d &point);
+
+	bool groupPlanesBySamePt(const std::vector<std::vector<Eigen::Vector3d>> &segPtsOfPlanes,
+						std::set<std::set<int>> &planeIdxGroup);
+
+	bool interSectionOf3Planes(const std::vector<Eigen::Vector4d> &cloudPlaneVec,
+							const std::set<std::set<int>> &idGroups, 
+							std::vector<Eigen::Vector3d> &focalPointVec);
+
+	std::vector<Eigen::Vector3d> calcWallNodes(const std::string &name, 
+			pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
+			Eigen::Vector4d &cloudPlane);
 
 	pcl::PointCloud<pcl::PointXYZ>::Ptr calcCloudBorder(
 			const std::string &name,
@@ -82,6 +108,9 @@ namespace CloudReg
 
 	// cornerPoint(2, 0) == z
 	double calcCorner_beta(PointCloud::Ptr cloud1, PointCloud::Ptr cloud2, const Eigen::Vector3f& cornerPoint, float z);
+
+	PointCloud::Ptr filerCloudByConvexHull(pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud,
+		const std::vector<Eigen::Vector3d>& corners, const bool negative = false);
 }
 
 

@@ -21,25 +21,24 @@ public:
 	};
 
 	struct SegmentResult {
-		std::vector<PlaneCloud> walls_;
-		std::vector<PlaneCloud> beams_;
-		PlaneCloud roof_, floor_;
+		explicit SegmentResult(const Eigen::Matrix4f& T): T_(T) {} // in case i forget to assign T_..., todo: fix this.
 
-		bool valid() const {
-			return !walls_.empty() && !roof_.cloud_ && !floor_.cloud_;
-		}
+		std::map<ModelItemType, std::vector<PlaneCloud> > clouds_;
 
-		//! careful 
+		Eigen::Matrix4f T_; // T* org = cur, note we already transformed after segment.
+
+		bool valid() const { return !clouds_.empty(); }
+
 		std::vector<PlaneCloud> allPlanes() const {
 			std::vector<PlaneCloud> all;
-			all.reserve(walls_.size() + beams_.size() + 2);
-			all.insert(all.end(), walls_.begin(), walls_.end());
-			all.insert(all.end(), beams_.begin(), beams_.end());
-			all.push_back(roof_);
-			all.push_back(floor_);
-
+			for (const auto& pr : clouds_)
+				all.insert(all.end(), pr.second.begin(), pr.second.end());
 			return all;
 		}
+
+		Eigen::Vector3f originalCenter() const { return -T_.block<3, 3>(0, 0).transpose()* T_.block<3, 1>(0, 3); }
+
+		std::string to_string() const;
 	};
 
 	SegmentResult run();
@@ -52,6 +51,9 @@ private:
 		inline Eigen::Vector3f mid() const { return (s_ + e_) * 0.5f; }
 		inline Eigen::Vector3f dir() const { return (e_ - s_).normalized(); }
 		inline float len() const { return (e_ - s_).norm(); }
+
+		// 2d logic
+		void beCounterClockwise(const Eigen::Vector3f& cen);
 	};
 
 	PointCloud::Ptr orgCloud_;
@@ -66,14 +68,18 @@ private:
 
 	PointCloud::Ptr sparsedCloud_{ nullptr }; // most time we work on this.
 
+	Eigen::Matrix4f T_; // T* org = cur, note we already transformed after segment.
+
 	// constants
 	static constexpr double METER_100 = 100.;
 	static constexpr float DOWNSAMPLE_SIZE = 0.01f;
 
 	// main processes
+	bool calibrateDirectionToAxisZ();
 	void recordModelBoundingBox();
 	bool alignCloudToCADModel();
 	SegmentResult segmentByCADModel();
+	void refineSegmentResult(SegmentResult& sr) const;
 
 	PointCloud::Ptr sliceMainBody();
 	double detectRoofHeight(PointCloud::Ptr cloud) const;
@@ -84,6 +90,11 @@ private:
 	void detectPlanesRecursively(PointCloud::Ptr cloud, std::vector<PlaneCloud>& planes,
 		double disthresh, std::size_t inlier_count_thresh, std::size_t countthresh) const;
 
+	trans2d::Matrix2x3f chooseTransformByHoles(const Eigen::vector<trans2d::Matrix2x3f>& Ts, const std::vector<PlaneCloud>& walls) const;
+
+	// get SORTED intersection points on cad
+	Eigen::vector<Eigen::Vector3d> intersectCADModelOnZ(const CADModel& cadModel, float z) const;
+
 	// line: p, n, 
 	// note that the cloud no need to be an "actual segment", either the detected segment cloud.
 	std::vector<Segment> splitSegments(PointCloud::Ptr cloud, const Eigen::Vector3f p, const Eigen::Vector3f& n,
@@ -91,11 +102,19 @@ private:
 
 	// 2d, segments & blueprint shall be sorted.
 	Eigen::vector<trans2d::Matrix2x3f> computeSegmentAlignCandidates(const std::vector<Segment>& segments,
-		const Eigen::vector<Eigen::Vector2f>& blueprint, float disthresh) const;
+		const std::vector<Segment>& blueprint, float disthresh) const;
 
 	SegmentResult segmentCloudByCADModel(PointCloud::Ptr cloud) const; // after the cloud was aligned properly.
 
 	inline PointCloud::Ptr sparsedCloud();
+
+	void removeFarPoints(PointCloud::Ptr inputCloud, const CADModel& cad);
+
+	bool statisticsForPointZ(float binSizeTh, PointCloud::Ptr cloud,
+		std::vector<std::pair<int, std::vector<int>>>& zToNumVec);
+
+	// debug
+	void _show_result(const SegmentResult& sr) const;
 };
 
 }

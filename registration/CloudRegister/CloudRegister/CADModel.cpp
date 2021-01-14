@@ -1,21 +1,14 @@
 #include "CADModel.h"
 
+
 #include "funHelper.h"
 #include "GeometryUtils.h"
 
 namespace CloudReg {
 
-// debug func
-inline std::string toString(ModelItemType type) {
-	const std::array<std::string, ITEM_MAX_E> TYPENAME{
-		"hole", "beam", "bottom", "wall","top", "--"
-	};
-	return TYPENAME[type - ITEM_HOLE_E];
-}
-
 std::string ModelItem::toString() const {
 	std::stringstream ss;
-	ss << "ModelItem{ type: " << CloudReg::toString(itemtype_) << ", "
+	ss << "ModelItem{ type: " << toModelItemName(itemtype_) << ", "
 		<< points_.size() << " points(" << segments_.size() << " segments), parent: " << parentIndex_ << ", "
 		<< "height range: " << highRange_.first << " -> " << highRange_.second << "}";
 	return ss.str();
@@ -82,6 +75,7 @@ bool CADModel::initCAD(const std::string& fileName) {
 	
 	// scale model to meters
 	scaleModel(0.001);
+
 #ifdef VISUALIZATION_ENABLED
 	for (auto& item : mapModelItem_)
 	{
@@ -612,13 +606,7 @@ PointCloud::Ptr CADModel::genTestFrameCloud() const {
 	return cloud;
 }
 
-std::map<ModelItemType, std::vector<PointCloud::Ptr>> CADModel::genTestFragCloud(double delta) const{
-	
-
-	auto sample_segment = [&](const Eigen::Vector3d& a, const Eigen::Vector3d& b, PointCloud::Ptr pCloud){
-		for(const auto& v: ininterpolateSeg(a, b, delta)) pCloud->points.emplace_back(v(0), v(1), v(2));
-	};
-
+std::map<ModelItemType, std::vector<PointCloud::Ptr>> CADModel::genFragCloud(double delta) const{
 	std::map<ModelItemType, std::vector<PointCloud::Ptr>> mapCADPoint;
 
 	// walls
@@ -631,127 +619,25 @@ std::map<ModelItemType, std::vector<PointCloud::Ptr>> CADModel::genTestFragCloud
 			else LOG(WARNING)<<"invalid hole parent index: "<< hole.parentIndex_;
 		}
 	}
-	
-	for(std::size_t i=0; i<walls.size(); ++i){
 
-		PointCloud::Ptr pCloud(new PointCloud());
-		
+	for(auto pr: ll::zip(walls.begin(), walls.end(), wallHoles.begin(), wallHoles.end())){
+		const auto& wall = *pr.first;
+		const auto& holes = *pr.second;
 
-		const auto& wall = walls[i];
-		const auto& holes = wallHoles[i];
-
-		LOG_IF(WARNING, wall.points_.size()!=4)<<"??? the wall is not a rectangle.";
-		Eigen::Vector3d a = wall.points_[0];
-		Eigen::Vector3d b = wall.points_[3];
-		Eigen::Vector3d c = wall.points_[2];
-		// 0	-- 3(c)
-		// |	   |
-		// 1(a) -- 2(b)
-
-		for(float z= b(2); z< c(2); z+= delta){
-			// test each hole
-			Eigen::vector<Eigen::Vector3d> segends;
-			for(const auto& hole: holes){
-				if(z<hole.highRange_.first || z> hole.highRange_.second) continue;
-
-				Eigen::vector<Eigen::Vector3d> ips;
-				for (const auto& seg : hole.segments_) {
-					auto sii = geo::zIntersectSegment(seg.first, seg.second, z);
-					if (sii.valid()) { //todo: use margin check
-						ips.emplace_back(sii.point_);
-					}
-				}
-
-				if(ips.size()%2!=0)
-					LOG(WARNING) << "intersection points is odd! may intersected with ends."; //todo: may just ignore this line.
-				else segends.insert(segends.end(), ips.begin(), ips.end());
-			}
-
-			Eigen::Vector3d s(a(0), a(1), z), e(b(0), b(1), z);
-
-			if(segends.empty()) sample_segment(s, e, pCloud);
-			else {
-				// need a simple sort.
-				Eigen::Vector3d n = (e-s).normalized();
-				segends.emplace_back(s);
-				segends.emplace_back(e);
-				
-				// sort by proj len
-				std::sort(segends.begin(), segends.end(), [&](const Eigen::Vector3d& p1, const Eigen::Vector3d& p2){
-					return (p1-s).dot(n)< (p2-s).dot(n); 
-				});
-
-				for(std::size_t i=0; i< segends.size(); i+=2) sample_segment(segends[i], segends[i+1], pCloud);
-			}
-		}
-
-		pCloud->height = pCloud->points.size();
-		pCloud->width = 1;
-		pCloud->is_dense = false;
-		mapCADPoint[ITEM_WALL_E].emplace_back(pCloud);
+		auto cloud = InterpolateShape(wall.points_, ll::mapf([](const ModelItem& mi) { return mi.points_; }, holes), delta);
+		mapCADPoint[ITEM_WALL_E].emplace_back(cloud);
 	}
 
-	// roof & floor
-	auto y_intersect_segment = [](const Eigen::Vector3d& a, const Eigen::Vector3d& b, double y){
-		geo::SegmentIntersectInfo sii;
-
-		double dy = b(1)- a(1);
-		if(std::fabs(dy)<1e-6) return sii;
-
-		sii.lambda_ = (y-a(1))/ dy;
-		if(sii.valid()) sii.point_ = a * (1 - sii.lambda_) + b * sii.lambda_;
-
-		return sii;
-	};
-
-	auto sample_hor_shape = [&](const ModelItem& mi, PointCloud::Ptr pCloud){
-		// aabb
-		float z = mi.points_.front()(2);
-		float x1 = ll::min_by([](const Eigen::Vector3d& v){ return v(0); }, mi.points_).second;
-		float x2 = ll::max_by([](const Eigen::Vector3d& v) { return v(0); }, mi.points_).second;
-		float y1 = ll::min_by([](const Eigen::Vector3d& v) { return v(1); }, mi.points_).second;
-		float y2 = ll::max_by([](const Eigen::Vector3d& v) { return v(1); }, mi.points_).second;
-		for(float y=y1; y<=y2; y+=delta){
-			Eigen::vector<Eigen::Vector3d> ips;
-			for (const auto& seg : mi.segments_) {
-				auto sii = y_intersect_segment(seg.first, seg.second, y);
-				if (sii.valid()) { //todo: use margin check
-					ips.emplace_back(sii.point_);
-				}
-			}
-
-			if (ips.size() % 2 != 0)
-				LOG(WARNING) << "intersection points is odd! may intersected with ends.";
-			else{
-				// sort by x
-				std::sort(ips.begin(), ips.end(), [&](const Eigen::Vector3d& p1, const Eigen::Vector3d& p2) { return p1(0)<p2(0); });
-
-				for (std::size_t i = 0; i < ips.size(); i += 2) sample_segment(ips[i], ips[i + 1], pCloud);
-			}
-		}
-	};
-
+	// floor, roof & beams
+	std::vector<Eigen::vector<Eigen::Vector3d>> noholes;
 	for (const auto& mi : getTypedModelItems(ITEM_TOP_E))
-	{
-		PointCloud::Ptr pCloud(new PointCloud());
-		sample_hor_shape(mi, pCloud);
-		pCloud->height = pCloud->points.size();
-		pCloud->width = 1;
-		pCloud->is_dense = false;
-		mapCADPoint[ITEM_TOP_E].emplace_back(pCloud);
-	}
+		mapCADPoint[ITEM_TOP_E].emplace_back(InterpolateShape(mi.points_, noholes, delta));
+
 	for (const auto& mi : getTypedModelItems(ITEM_BOTTOM_E))
-	{
-		PointCloud::Ptr pCloud(new PointCloud());
-		sample_hor_shape(mi, pCloud);
-		pCloud->height = pCloud->points.size();
-		pCloud->width = 1;
-		pCloud->is_dense = false;
-		mapCADPoint[ITEM_BOTTOM_E].emplace_back(pCloud);
+		mapCADPoint[ITEM_BOTTOM_E].emplace_back(InterpolateShape(mi.points_, noholes, delta));
 
-	}
-
-	
+	for(const auto& mi: getTypedModelItems(ITEM_BEAM_E))
+		mapCADPoint[ITEM_BEAM_E].emplace_back(InterpolateShape(mi.points_, noholes, delta));
 
 	return mapCADPoint;
 }
@@ -760,7 +646,7 @@ std::string CADModel::toString() const {
 	std::stringstream ss;
 	ss << "CADModel{ ";
 	for (const auto& pr : mapModelItem_)
-		ss << CloudReg::toString(pr.first) << " : " << pr.second.size() << ", ";
+		ss << CloudReg::toModelItemName(pr.first) << " : " << pr.second.size() << ", ";
 	ss << "}";
 
 	return ss.str();
@@ -789,6 +675,7 @@ void CADModel::reSortWall()
 	
 	if (maxIndex > 0)
 	{
+
 		auto& wall = mapModelItem_[ITEM_WALL_E];
 		vecItems_t newWall;
 		newWall.insert(newWall.end(),wall.begin()+maxIndex, wall.end());
@@ -824,10 +711,11 @@ void CADModel::reSortWall()
 		newWall.insert(newWall.end(), wall.rbegin(), wall.rend()-1);
 		wall.swap(newWall);
 
-		auto& botton = mapModelItem_[ITEM_BOTTOM_E].front().points_;
-		Eigen::vector<Eigen::Vector3d> points{ botton.front()};
-		points.insert(points.end(), botton.rbegin(), botton.rend()-1);
-		botton.swap(points);
+		auto& bottom = mapModelItem_[ITEM_BOTTOM_E].front().points_;
+
+		bottom.clear();
+		for(auto& value : wall)
+			bottom.emplace_back(value.points_[0]);
 		mapModelItem_[ITEM_BOTTOM_E].front().buildSegment();
 
 		auto function = [&](ModelItem& value) {
@@ -853,10 +741,86 @@ void CADModel::scaleModel(const double scale)
 	for (auto& pr : mapModelItem_) {
 		for (auto& model : pr.second) {
 			for (auto& v : model.points_) v = v * scale;
-			for (auto& v : model.segments_) v = ModelItem::ItemPair_t(v.first * scale, v.second * scale);
+			for (auto& v : model.segments_) v = seg_pair_t(v.first * scale, v.second * scale);
 			model.highRange_ = std::make_pair(model.highRange_.first * scale, model.highRange_.second * scale);
 		}
 	}
+}
+
+PointCloud::Ptr CADModel::InterpolateShape(const Eigen::vector<Eigen::Vector3d>& points,
+	const std::vector<Eigen::vector<Eigen::Vector3d> >& holes, double delta) const{
+	PointCloud::Ptr cloud(new PointCloud());
+
+	Eigen::Vector3d minp = Eigen::Vector3d::Ones() * 100.;
+	Eigen::Vector3d maxp = Eigen::Vector3d::Ones() * -100.;
+	for (const Eigen::Vector3d& p : points) {
+		for (int i = 0; i < 3; ++i) {
+			if (p(i) < minp(i)) minp(i) = p(i);
+			if (p(i) > maxp(i)) maxp(i) = p(i);
+		}
+	}
+
+	// this is not very readable, may refactor someday. or, just write more duplicate codes...
+	int dim1{0}, dim2{1}, dimfix{2};
+	Eigen::Vector3d dp = maxp- minp;
+	if(dp(0)<1e-6) std::swap(dimfix, dim1);
+	else if(dp(1)<1e-6) std::swap(dimfix, dim2);
+
+	double fixvalue = points.front()[dimfix];
+
+	auto intersect_contour = [](const Eigen::Vector3d& s, const Eigen::Vector3d& e, 
+		const Eigen::vector<Eigen::Vector3d>& points){
+		Eigen::Vector3d se = e - s;
+
+		Eigen::vector<Eigen::Vector3d> intersections;
+		for (std::size_t i = 0; i < points.size(); ++i) {
+			Eigen::Vector3d s2 = points[i];
+			Eigen::Vector3d e2 = points[(i + 1) % points.size()];
+			Eigen::Vector3d s2e2 = e2 - s2;
+
+			Eigen::Vector3d c1 = (s2 - s).cross(se);
+			Eigen::Vector3d c2 = s2e2.cross(se);
+			double t = -c2.transpose().dot(c1) / c2.squaredNorm();
+
+			if (t > 0. && t < 1.) intersections.emplace_back(s2 + s2e2 * t);
+		}
+
+		return intersections;
+	};
+
+	for(double dim1s = minp[dim1]; dim1s< maxp[dim1]; dim1s+=delta){
+		Eigen::Vector3d s, e;
+		s[dim1] = dim1s;
+		s[dim2] = minp[dim2];
+		s[dimfix] = fixvalue;
+		e[dim1] = dim1s;
+		e[dim2] = maxp[dim2];
+		e[dimfix] = fixvalue;
+
+		Eigen::vector<Eigen::Vector3d> intersections = intersect_contour(s, e, points);
+		for(const auto& outline: holes){
+			Eigen::vector<Eigen::Vector3d> ins =  intersect_contour(s, e, outline);
+			intersections.insert(intersections.end(), ins.begin(), ins.end());
+		}
+		
+		if(!intersections.empty() && intersections.size()%2!=0)
+			LOG(INFO)<<"intersections issue, failed to interpolate a segment, size: "<< intersections.size();
+
+		Eigen::Vector3d se = e - s;
+		std::sort(intersections.begin(), intersections.end(), [&s, &se](const Eigen::Vector3d& v1, const Eigen::Vector3d& v2){
+			return (v1-s).dot(se) < (v2-s).dot(se);
+		});
+
+		for(std::size_t i=0; i<intersections.size(); i+=2){
+			for(const Eigen::Vector3d& v: ininterpolateSeg(intersections[i], intersections[i+1], delta))
+				cloud->points.emplace_back(v(0), v(1), v(2));
+		}
+	}
+
+	cloud->width = 1;
+	cloud->height = cloud->points.size();
+	cloud->is_dense = false;
+	return cloud;
 }
 
 }

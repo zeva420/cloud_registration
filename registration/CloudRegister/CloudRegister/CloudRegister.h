@@ -3,8 +3,6 @@
 #include <string>
 #include <vector>
 
-
-
 #include<pcl/point_types.h>
 #include<pcl/io/pcd_io.h>
 
@@ -33,8 +31,8 @@ namespace CloudReg
 		Eigen::Vector4d cloudPlane_;
 		Eigen::Vector4d cadPlane_;
 		// if type is WALL include windows and door
-		std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> cloudBorder_; 
-		std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> cadBorder_;
+		std::vector<std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>> cloudBorder_; 
+		std::vector<std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>> cadBorder_;
 	};
 
 	
@@ -69,12 +67,7 @@ namespace CloudReg
 	private:
 		
 		void fillRet(CADModel& cad, TransformOptimize& optimitor);
-		void calcAllCorner(CADModel& cad, Eigen::Vector3d center,
-			std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecOrigCloud);
-		bool findSameSegment(
-				const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &segments1,
-				const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &segments2,
-				std::pair<int, int> &idxPair);
+		void calcAllCloudBorder(CADModel& cad);
 		int findMatchCloud(const Eigen::Vector4d &plane,
 			std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecOrigCloud);
 
