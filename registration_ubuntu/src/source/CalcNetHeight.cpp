@@ -19,14 +19,7 @@ namespace CloudReg
 		max.x = pt[0] + calcHalfPara;
 		max.y = pt[1] + calcHalfPara;
 		
-		auto pCloud = filerCloudByRange(pRoof,min,max);
 		calcMeassurment_t item;
-		item.value = 0.0;
-		for(auto& pt : pCloud->points)
-		{
-			item.value += fabs(pointToPLaneDist(plane,pt));
-		}
-		item.value = item.value/pCloud->points.size();
 
 		double thickness = std::fabs(max.z - min.z);	
 		seg_pair_t seg;
@@ -34,7 +27,15 @@ namespace CloudReg
 		seg.second << max.x, min.y + (max.y - min.y)/2 ,min.z;
 		auto vecPt = createRulerBox(seg,2,thickness,calcHalfPara*2);
 		item.rangeSeg = calcBoxSegPair(vecPt);
-		
+
+		auto filerPt = getRulerCorners(vecPt);	
+		auto pCloud = filerCloudByConvexHull(pRoof, filerPt);
+		item.value = 0.0;
+		for(auto& pt : pCloud->points)
+		{
+			item.value += fabs(pointToPLaneDist(plane,pt));
+		}
+		item.value = item.value/pCloud->points.size();
 		//LOG(INFO) << "avgDist:" << item.value;
 		//writePCDFile("test.pcd", pCloud, item.rangeSeg);
 		return item;

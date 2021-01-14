@@ -11,54 +11,37 @@ namespace CloudReg
 {
 
 
-	void calcHoleMaxAndMin(std::vector<seg_pair_t> vecHorizen,
-			std::vector<seg_pair_t> vecVertical,
-			const double extendRange, pcl::PointXYZ& min, pcl::PointXYZ& max)
+	void calcHoleMaxAndMin(std::vector<seg_pair_t> vecHorizen, std::vector<seg_pair_t> vecVertical,
+			const double extendRange, std::vector<Eigen::Vector3d>& vecFilerPt)
 	{
-		std::vector<seg_pair_t> calcSeg;
 
 		std::sort(vecHorizen.begin(), vecHorizen.end(), [&](const seg_pair_t& left, const seg_pair_t& right){
 				double distLeft = (left.first - left.second).squaredNorm();	
 				double distRight = (right.first - right.second).squaredNorm();	
 				return distLeft < distRight;});
-		calcSeg.emplace_back(vecHorizen.back());
+		
 		
 		std::sort(vecVertical.begin(), vecVertical.end(), [&](const seg_pair_t& left, const seg_pair_t& right){
 				double distLeft = (left.first - left.second).squaredNorm();	
 				double distRight = (right.first - right.second).squaredNorm();	
 				return distLeft < distRight;});
 
-		calcSeg.emplace_back(vecVertical.back());
+		seg_pair_t segA, segB;
+		segA = vecHorizen.back();
+		segB = vecVertical.back();
+	
+		segA.first[2] = segB.first[2] > segB.second[2] ? segB.first[2]/2 : segB.second[2]/2;
+		segA.second[2] = segA.first[2];
+		std::size_t optIndex,indexOther; 
+		int dir;
+		std::tie(optIndex,indexOther,dir) = getGrowAxisAndDir(segA.first,segA.second);
+		segA.first[optIndex] -= extendRange;
+		segA.second[optIndex] += extendRange;
 		
-		pcl::PointCloud<pcl::PointXYZ> cloud;
-		cloud.width = calcSeg.size()*2;
-		cloud.height = 1;
-		cloud.is_dense = false;
-		cloud.points.resize(cloud.width * cloud.height);
-		
-		for (size_t i = 0; i < calcSeg.size(); ++i)
-		{
-			auto& ptA = calcSeg[i].first;
-			auto& ptB = calcSeg[i].second;
+		double width = (segB.first - segB.second).norm() + extendRange * 2; 
+		auto vecPt = createRulerBox(segA,indexOther,0.1,width);
+		vecFilerPt = getRulerCorners(vecPt);	
 
-			cloud.points[i*2].x = ptA[0];
-			cloud.points[i*2].y = ptA[1];
-			cloud.points[i*2].z = ptA[2];
-			
-			cloud.points[i*2 + 1].x = ptB[0];
-			cloud.points[i*2 + 1].y = ptB[1];
-			cloud.points[i*2 + 1].z = ptB[2];
-		}
-
-		pcl::getMinMax3D(cloud, min, max);
-		
-		min.x -= extendRange;
-		min.y -= extendRange;
-		min.z -= extendRange;
-		
-		max.x += extendRange;
-		max.y += extendRange;
-		max.z += extendRange;
 	}
 
 
@@ -140,18 +123,16 @@ namespace CloudReg
 			return;
 		}
 
-		pcl::PointXYZ min;
-		pcl::PointXYZ max;		
-		calcHoleMaxAndMin(vecHorizen,vecVertical, 0.03, min,max);
-		//calcMaxAndMin(holeBorder,0.05, min,max);
-		auto rangeCloud = filerCloudByRange(pCloud,min,max);
+		std::vector<Eigen::Vector3d> vecFilerPt;
+		calcHoleMaxAndMin(vecHorizen,vecVertical, 0.05, vecFilerPt);
+		auto rangeCloud = filerCloudByConvexHull(pCloud,vecFilerPt);
 		if (rangeCloud->points.empty()) 
 		{
 			LOG(ERROR) << "filerCloudByRange failed";
 			return;
 		}
 		//pcl::io::savePCDFile("cloud.pcd", *pCloud);
-		pcl::io::savePCDFile("test.pcd", *rangeCloud);
+		//pcl::io::savePCDFile("rangeCloud.pcd", *rangeCloud);
 
 		std::vector<seg_pair_t> vecRange;
 
