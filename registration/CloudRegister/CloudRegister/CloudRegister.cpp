@@ -2,17 +2,19 @@
 
 
 #include "BaseType.h"
+#include "funHelper.h"
+#include "CalcMeasureHelper.h"
 #include "CADModel.h"
 #include "TransformOptimize.h"
-#include "funHelper.h"
 #include "CloudSegment.h"
+#include "CalcNetHeight.h"
 
 namespace CloudReg {
 CloudRegister::CloudRegister() {
 	google::InitGoogleLogging("Cloud");
 	FLAGS_log_dir = "./";
 
-//#define VISUALIZATION_ENABLED
+#define VISUALIZATION_ENABLED
 #ifdef VISUALIZATION_ENABLED
 	google::LogToStderr();
 #endif
@@ -182,8 +184,8 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 
 	auto findNearestSegOfNodeOrCloudPt = [&](const std::vector<Eigen::Vector3d> &pCloud, 
 			const std::vector<Eigen::Vector3d> &vecNodes, 
-			const std::pair<Eigen::Vector3d, Eigen::Vector3d> &seg)
-			->std::pair<Eigen::Vector3d, Eigen::Vector3d> {
+			const seg_pair_t &seg)
+			->seg_pair_t {
 		auto ret1 = findNearestSeg(vecNodes, seg);
 		if (ret1.first < 0.3)
 		{
@@ -217,12 +219,12 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 			for (int k = 0; k < item.cadBorder_.size(); k++)
 			{
 				const auto &vecSegs = item.cadBorder_[k];
-				std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> cloudSegs;
+				std::vector<seg_pair_t> cloudSegs;
 				if (0 == k)
 				{
 					for (const auto &seg : vecSegs)
 					{
-						std::pair<Eigen::Vector3d, Eigen::Vector3d> bestSeg;
+						seg_pair_t bestSeg;
 						LOG(INFO) << "+++is outer contour seg";
 						bestSeg = findNearestSegOfNodeOrCloudPt(cloudPts, focalPointVec, seg);
 						cloudSegs.push_back(bestSeg);
@@ -232,7 +234,7 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 				{
 					for (const auto &seg : vecSegs)
 					{
-						std::pair<Eigen::Vector3d, Eigen::Vector3d> bestSeg;
+						seg_pair_t bestSeg;
 						LOG(INFO) << "---is hole seg";
 						bestSeg = findNearestSegOfNodeOrCloudPt(cloudPts, vecNodes, seg);
 						cloudSegs.push_back(bestSeg);
@@ -402,6 +404,18 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 	}
 
 	calcAllCloudBorder(cad);
+}
+
+std::vector<calcMeassurment_t> CloudRegister::calcRoofNetHeight(const double calcLengthTh)
+{
+	std::vector<calcMeassurment_t> vecRet;
+	const auto& itemRoof = mapCloudItem_[CLOUD_TOP_E].front();
+	const auto& itemRoot = mapCloudItem_[CLOUD_BOTTOM_E].front();
+
+	vecRet = CalcNetHeight(itemRoof.cloudBorder_.front(),itemRoof.pCloud_,
+		itemRoot.cloudPlane_,"roof_net_height.pcd", calcLengthTh);
+
+	return vecRet;
 }
 
 }

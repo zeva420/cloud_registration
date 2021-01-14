@@ -107,6 +107,7 @@ int main()
    
 	auto mapCloud = obj.getAllCloudPlane();
 	std::vector<std::string> itemName{"Beam","Bottom","Wall","Top","Unknow"};
+#if 0
 	for (auto& value : mapCloud)
 	{
 		const std::string name = itemName[value.first];
@@ -147,6 +148,8 @@ int main()
 			pcl::io::savePCDFile(file_name, *pCloudBorder);
 		}
 	}
+#endif
+	obj.calcRoofNetHeight();
 	return 0;
 }
 

@@ -1,10 +1,6 @@
 #pragma once
 
-#include <string>
-#include <vector>
-
-#include<pcl/point_types.h>
-#include<pcl/io/pcd_io.h>
+#include "BaseType.h"
 
 namespace CloudReg
 {
@@ -31,8 +27,8 @@ namespace CloudReg
 		Eigen::Vector4d cloudPlane_;
 		Eigen::Vector4d cadPlane_;
 		// if type is WALL include windows and door
-		std::vector<std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>> cloudBorder_; 
-		std::vector<std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>> cadBorder_;
+		std::vector<std::vector<seg_pair_t>> cloudBorder_;
+		std::vector<std::vector<seg_pair_t>> cadBorder_;
 	};
 
 	
@@ -63,6 +59,7 @@ namespace CloudReg
 			calcDistError(const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_,
 			const Eigen::Vector4d& plane, const double radius = 0.05) const;
 
+		std::vector<calcMeassurment_t> calcRoofNetHeight(const double calcLengthTh = 1.5);
 
 	private:
 		

@@ -1,5 +1,8 @@
 #include "funHelper.h"
 
+
+#include "glog/logging.h"
+
 #include <pcl/features/normal_3d.h>
 #include <pcl/features/boundary.h>
 #include <pcl/filters/project_inliers.h>
@@ -14,10 +17,6 @@
 #include <pcl/sample_consensus/sac_model_plane.h>
 
 #include <pcl/filters/passthrough.h>
-#include <pcl/filters/crop_box.h>
-#include <pcl/surface/concave_hull.h>
-#include <pcl/filters/crop_hull.h>
-
 
 
 namespace CloudReg
@@ -1476,34 +1475,4 @@ double calcCorner_beta(PointCloud::Ptr cloud1, PointCloud::Ptr cloud2, const Eig
 }
 
 
-PointCloud::Ptr filerCloudByConvexHull(pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud,
-	const std::vector<Eigen::Vector3d>& corners, const bool negative)
-{
-
-	pcl::PointCloud<pcl::PointXYZ>::Ptr boundingbox_ptr(new pcl::PointCloud<pcl::PointXYZ>);
-	for (auto& pt : corners)
-	{
-		boundingbox_ptr->push_back(pcl::PointXYZ(pt[0], pt[1], pt[2]));
-	}
-	
-
-	pcl::ConvexHull<pcl::PointXYZ> hull;
-	hull.setInputCloud(boundingbox_ptr);
-	hull.setDimension(2);
-	std::vector<pcl::Vertices> polygons;
-	pcl::PointCloud<pcl::PointXYZ>::Ptr surface_hull(new pcl::PointCloud<pcl::PointXYZ>);
-	hull.reconstruct(*surface_hull, polygons);
-
-	pcl::PointCloud<pcl::PointXYZ>::Ptr objects(new pcl::PointCloud<pcl::PointXYZ>);
-	pcl::CropHull<pcl::PointXYZ> bb_filter;
-	bb_filter.setDim(2);
-	bb_filter.setNegative(negative);
-	bb_filter.setInputCloud(pCloud);
-	bb_filter.setHullIndices(polygons);
-	bb_filter.setHullCloud(surface_hull);
-	bb_filter.filter(*objects);
-
-	// LOG(INFO) << "inPut: " << pCloud->points.size() << " outPut: " << objects->points.size();
-	return objects;
-}
 }
