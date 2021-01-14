@@ -56,6 +56,7 @@ CloudSegment::SegmentResult CloudSegment::run() {
 		LOG(ERROR) << "failed to calibrate direction to axis-Z.";
 	}
 
+	if(0)
 	{
 		SimpleViewer viewer;
 		viewer.addCloud(sparsedCloud());
@@ -116,9 +117,9 @@ bool CloudSegment::calibrateDirectionToAxisZ() {
 
 	//transform orig cloud
 	orgCloud_ = geo::transfromPointCloud(orgCloud_, T);
-#if 0
+#if 1
 	pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_filtered(new pcl::PointCloud<pcl::PointXYZ>());
-	uniformSampling(0.005, orgCloud_, pCloud_filtered);
+	uniformSampling(0.01, orgCloud_, pCloud_filtered);
 	pcl::io::savePCDFile("origin.pcd", *pCloud_filtered);
 #endif
 	return true;
@@ -1105,7 +1106,7 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 		}
 
 		//todo: we can optimize the normal calculation in the below process
-		auto planes = detectRegionPlanes(slice, 5. / 180. * geo::PI, 1., slice->size() / 2);
+		auto planes = detectRegionPlanes(slice, 5. / 180. * geo::PI, 1., slice->size() / 4);
 
 		return planes.empty() ? PlaneCloud() : planes.front();
 	};
