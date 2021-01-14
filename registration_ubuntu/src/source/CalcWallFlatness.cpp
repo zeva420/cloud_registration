@@ -12,16 +12,6 @@
 
 namespace CloudReg
 {
-    int calWallHorizontalAxis(const seg_pair_t& seg)
-    {
-        double length = (seg.first - seg.second).norm();
-        if (std::fabs(length - std::fabs(seg.first[0] - seg.second[0])) < 1e-4)
-            return 0;
-        else if (std::fabs(length - std::fabs(seg.first[1] - seg.second[1])) < 1e-4)
-            return 1;
-        return 2;
-    }
-
     std::vector<seg_pair_t> calcSingleWall(const std::vector<seg_pair_t>& wallBorder, const std::vector<vec_seg_pair_t>& holeBorders,
                                     int hAxis, std::pair<seg_pair_t, seg_pair_t> wallData, int type)
     {
@@ -369,7 +359,7 @@ namespace CloudReg
         {
             for(auto& ruler : item.rangeSeg)
             {
-                std::vector<Eigen::Vector3d> rPoints =  createRulerBox(ruler, 2, 0.025, 0.025);
+                std::vector<Eigen::Vector3d> rPoints =  createRulerBox(ruler, thicknessDir, 0.025, 0.025);
                 std::vector<seg_pair_t> pair =  calcBoxSegPair(rPoints);
                 vecRange.insert(vecRange.end(), pair.begin(), pair.end());
             }

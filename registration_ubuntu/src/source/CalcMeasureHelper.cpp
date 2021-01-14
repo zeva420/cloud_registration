@@ -126,17 +126,12 @@ namespace CloudReg
 	PointCloud::Ptr filerCloudByConvexHull(pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud, 
 											const std::vector<Eigen::Vector3d>& corners, const bool negative)
 	{
-		Eigen::Vector3d p1 = corners[0];
-        Eigen::Vector3d p2 = corners[1];
-        Eigen::Vector3d p3 = corners[2];
-        Eigen::Vector3d p4 = corners[3];
-        
         pcl::PointCloud<pcl::PointXYZ>::Ptr boundingbox_ptr (new pcl::PointCloud<pcl::PointXYZ>);
-        boundingbox_ptr->push_back(pcl::PointXYZ(p1[0], p1[1], p1[2]));
-        boundingbox_ptr->push_back(pcl::PointXYZ(p2[0], p2[1], p2[2] ));
-        boundingbox_ptr->push_back(pcl::PointXYZ(p3[0], p3[1], p3[2] ));
-        boundingbox_ptr->push_back(pcl::PointXYZ(p4[0], p4[1], p4[2] ));
-
+		for(const auto &corner : corners)
+		{
+			boundingbox_ptr->push_back(pcl::PointXYZ(corner[0], corner[1], corner[2]));
+		}
+        
         pcl::ConvexHull<pcl::PointXYZ> hull;                  
         hull.setInputCloud(boundingbox_ptr);                 
         hull.setDimension(2);                                 
@@ -153,7 +148,7 @@ namespace CloudReg
         bb_filter.setHullCloud(surface_hull);                 
         bb_filter.filter(*objects);                           
 
-		// LOG(INFO) << "inPut: " << pCloud->points.size() << " outPut: " << objects->points.size();
+		LOG(INFO) << "inPut: " << pCloud->points.size() << " outPut: " << objects->points.size();
 		return objects;
 	}
 
@@ -337,7 +332,6 @@ namespace CloudReg
 		return vecSeg;
 	}
 
-
 	std::vector<Eigen::Vector3d> createRulerBox(seg_pair_t ruler, int thicknessDir, double thickness, double width)
 	{
 		if ((ruler.first - ruler.second).norm() < 1e-8)
@@ -373,6 +367,18 @@ namespace CloudReg
 
 		std::vector<Eigen::Vector3d> rulerPoints = {pt1, pt2, pt3, pt4, pt5, pt6, pt7, pt8};
 		return rulerPoints;
+	}
+
+	std::vector<Eigen::Vector3d> getRulerCorners(const std::vector<Eigen::Vector3d>& rPoints)
+	{
+		std::vector<Eigen::Vector3d> corners;
+		if (rPoints.empty())
+		{
+			LOG(ERROR) << "empty ruler points";
+			return corners;
+		}
+		corners = {rPoints[0], rPoints[2], rPoints[4], rPoints[6]};
+		return corners;
 	}
 
 	bool calIntersection(seg_pair_t line1, seg_pair_t line2, Eigen::Vector3d& intersec)
@@ -515,6 +521,16 @@ namespace CloudReg
         return validHoleVertical;
     }
 
+	int calWallHorizontalAxis(const seg_pair_t& seg)
+    {
+        double length = (seg.first - seg.second).norm();
+        if (std::fabs(length - std::fabs(seg.first[0] - seg.second[0])) < 1e-4)
+            return 0;
+        else if (std::fabs(length - std::fabs(seg.first[1] - seg.second[1])) < 1e-4)
+            return 1;
+        return 2;
+    }
+
 	void cutOffRuler(seg_pair_t& ruler, double length)
     {
         double rLength = (ruler.first - ruler.second).norm();
@@ -522,7 +538,7 @@ namespace CloudReg
             return;
 
         Eigen::Vector3d rulern = (ruler.second - ruler.first).normalized();
-        Eigen::Vector3d rulerSecondEnd = ruler.first + 2*rulern;
+        Eigen::Vector3d rulerSecondEnd = ruler.first + length * rulern; 
         ruler.second = rulerSecondEnd;
     }
 
@@ -573,7 +589,7 @@ namespace CloudReg
         for(size_t i = 0; i < allBoxes.size(); ++i)
         {
             auto box = allBoxes[i];
-			std::vector<Eigen::Vector3d> corners = {box[0], box[2], box[4], box[6]};
+			std::vector<Eigen::Vector3d> corners = getRulerCorners(box);
 			auto rangeCloud = filerCloudByConvexHull(pCloud, corners);
 
             if (rangeCloud->points.empty()) 

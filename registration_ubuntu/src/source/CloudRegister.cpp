@@ -14,6 +14,7 @@
 #include "CalcRootFlatness.h"
 #include "CalcWallFlatness.h"
 #include "CalcCorner.h"
+#include "CalcSquareness.h"
 
 #include <pcl/common/transforms.h>
 
@@ -63,6 +64,22 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	auto vecRoot = model.getTypedModelItems(ITEM_BOTTOM_E);
 	auto vecRoof = model.getTypedModelItems(ITEM_TOP_E);
 	auto holeIndexWall = model.getHoleWithWallIndex();
+
+	// std::vector<vec_seg_pair_t> allWallBorder, allVecHole;
+	// for(auto& wall : vecWall)
+	// 	allWallBorder.push_back(wall.segments_);
+	// for(auto& hole : vecHole)
+	// 	allVecHole.push_back(hole.segments_);
+	// std::map<std::size_t, std::vector<std::size_t>> holeMap;
+	// for (std::size_t i = 0; i < vecWall.size(); i++)
+	// {
+	// 	for (std::size_t j = 0; j < vecHole.size(); j++)
+	// 	{
+	// 		if (vecHole[j].parentIndex_ == i)
+	// 			holeMap[i].emplace_back(j);
+	// 	}
+	// }
+	// calcSquareness(allWallBorder, allVecHole, wall, holeMap);
 
 	// Eigen::vector<Eigen::Vector4d> vecPlane;
 	// for(auto& wall : vecWall)

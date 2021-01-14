@@ -41,6 +41,7 @@ namespace CloudReg
 	//calculate ruler
 	std::vector<Eigen::Vector3d> createRulerBox(seg_pair_t ruler, int thicknessDir, 
 						double thickness, double width);
+	std::vector<Eigen::Vector3d> getRulerCorners(const std::vector<Eigen::Vector3d>& rPoints);
 	bool calIntersection(seg_pair_t line1, seg_pair_t line2, Eigen::Vector3d& intersec);
 	
 	//Edges need to be sorted clockwise, just like walls
@@ -53,6 +54,7 @@ namespace CloudReg
 											const std::vector<Eigen::Vector3d>& corners,const bool negative = false);
 	std::vector<seg_pair_t> calValidHoleVertical(const std::vector<std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>>& holeBorders,
                         const std::pair<Eigen::Vector3d, Eigen::Vector3d>& horizen, int hAixs);
+	int calWallHorizontalAxis(const seg_pair_t& seg);
 	void cutOffRuler(seg_pair_t& ruler, double length);
 	std::vector<std::vector<Eigen::Vector3d>> getAllRulerBox(seg_pair_t ruler, int thicknessDir, double thickness, 
                                         double step, double boxLen, double boxWidth);

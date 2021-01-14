@@ -74,6 +74,7 @@ source/CalcRootFlatness.cpp
 source/Threshold.cpp
 source/CalcWallFlatness.cpp
 source/CalcCorner.cpp
+source/CalcSquareness.cpp
 )
 
 target_link_libraries(${PROJECT_NAME}
