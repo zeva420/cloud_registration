@@ -43,7 +43,9 @@ public:
 
 	struct optCloudRets 
 	{
-		std::map<ModelItemType, std::vector<OptPlane>> mapClouds_;
+		EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
+		std::map<ModelItemType, Eigen::vector<OptPlane>> mapClouds_;
 		Eigen::Matrix4d T_; //cloud has been transformed in this model
 
 		bool valid() const { return !mapClouds_.empty(); }
@@ -270,10 +272,10 @@ private:
 	std::map<std::string, std::set<g2o::OptimizableGraph::Edge*>> mapEdge_;
 
 private:
-	std::map<ModelItemType, std::vector<PointsAndPlane>> type2ModelItems_;
-	std::map<ModelItemType, std::vector<PointsAndPlane>> type2CloudItems_;
+	std::map<ModelItemType, Eigen::vector<PointsAndPlane>> type2ModelItems_;
+	std::map<ModelItemType, Eigen::vector<PointsAndPlane>> type2CloudItems_;
 
-	std::map<ModelItemType, std::vector<PointsAndPlane>> type2SamplingItems_;
+	std::map<ModelItemType, Eigen::vector<PointsAndPlane>> type2SamplingItems_;
 
 private:
 	optCloudRets optRets_;
