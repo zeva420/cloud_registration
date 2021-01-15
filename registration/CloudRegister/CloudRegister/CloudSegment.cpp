@@ -1107,8 +1107,12 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 
 		//todo: we can optimize the normal calculation in the below process
 		auto planes = detectRegionPlanes(slice, 5. / 180. * geo::PI, 1., slice->size() / 4);
+		if (planes.empty()) return PlaneCloud();
 
-		return planes.empty() ? PlaneCloud() : planes.front();
+		return *std::max_element(planes.begin(), planes.end(), 
+			[](const PlaneCloud& pc1, const PlaneCloud& pc2) {
+			return pc1.cloud_->size() > pc2.cloud_->size();
+		});
 	};
 
 	SegmentResult sr(T_);
