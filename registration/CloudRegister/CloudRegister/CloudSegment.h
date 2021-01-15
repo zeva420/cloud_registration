@@ -27,7 +27,13 @@ public:
 
 		Eigen::Matrix4f T_; // T* org = cur, note we already transformed after segment.
 
-		bool valid() const { return !clouds_.empty(); }
+		bool valid() const { 
+			return !clouds_.empty() && 
+				std::all_of(clouds_.begin(), clouds_.end(), [](const auto& pr){ 
+					const auto& pcs = pr.second ;
+					return std::all_of(pcs.begin(), pcs.end(), [](const PlaneCloud& pc){ return pc.cloud_; });
+				}); 
+			}
 
 		std::vector<PlaneCloud> allPlanes() const {
 			std::vector<PlaneCloud> all;
