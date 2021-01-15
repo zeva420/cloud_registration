@@ -56,12 +56,13 @@ CloudSegment::SegmentResult CloudSegment::run() {
 		LOG(ERROR) << "failed to calibrate direction to axis-Z.";
 	}
 
-	if(0)
+#ifdef VISUALIZATION_ENABLED
 	{
 		SimpleViewer viewer;
 		viewer.addCloud(sparsedCloud());
 		viewer.show();
 	}
+#endif
 
 	recordModelBoundingBox();
 
@@ -1158,8 +1159,9 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 	LOG(INFO) << "segmented: " << sr.to_string();
 
 	refineSegmentResult(sr);
-
+#ifdef VISUALIZATION_ENABLED
 	_show_result(sr);
+#endif
 
 	return sr;
 }

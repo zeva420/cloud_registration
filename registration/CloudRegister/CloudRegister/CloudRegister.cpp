@@ -12,6 +12,7 @@ CloudRegister::CloudRegister() {
 	google::InitGoogleLogging("Cloud");
 	FLAGS_log_dir = "./";
 
+
 //#define VISUALIZATION_ENABLED
 #ifdef VISUALIZATION_ENABLED
 	google::LogToStderr();
