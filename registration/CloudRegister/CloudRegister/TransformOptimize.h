@@ -11,20 +11,15 @@
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
 
-/*
-#include "g2o/core/factory.h"
-#include "g2o/stuff/macros.h"
-#include "g2o/types/slam3d/types_slam3d.h"
-#include "g2o/core/sparse_optimizer.h"
-#include "g2o/core/optimization_algorithm_factory.h"
-#include "g2o/core/robust_kernel.h"
-#include "g2o/core/robust_kernel_factory.h"
-*/
 
 #include "g2o/core/block_solver.h"
-#include "g2o/solvers/eigen/linear_solver_eigen.h"
 #include "g2o/core/optimization_algorithm_levenberg.h"
 #include "g2o/core/robust_kernel_impl.h"
+#ifdef UBUNTU_SWITCH
+#include "g2o/solvers/linear_solver_eigen.h"
+#else
+#include "g2o/solvers/eigen/linear_solver_eigen.h"
+#endif
 
 namespace CloudReg
 {
@@ -130,15 +125,13 @@ private:
 
 	void initSolver()
 	{
-#if 0
+#ifdef UBUNTU_SWITCH
 		g2o::BlockSolverX::LinearSolverType * linearSolver = 
                         new g2o::LinearSolverEigen<g2o::BlockSolverX::PoseMatrixType>();
         g2o::BlockSolverX * blockSolver = new g2o::BlockSolverX(linearSolver);
         g2o::OptimizationAlgorithmLevenberg* algorithm 
 				= new g2o::OptimizationAlgorithmLevenberg(blockSolver);
-#endif
-
-#if 1
+#else
 		auto linearSolver = g2o::make_unique<g2o::LinearSolverEigen<g2o::BlockSolverX::PoseMatrixType>>();
 		auto blockSolver = g2o::make_unique<g2o::BlockSolverX>(std::move(linearSolver));
 		g2o::OptimizationAlgorithmLevenberg* algorithm 

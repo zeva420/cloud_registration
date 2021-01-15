@@ -8,8 +8,11 @@
 
 #include <pcl/common/transforms.h>
 
-//#include <pcl/keypoints/uniform_sampling.hpp>
+#ifdef UBUNTU_SWITCH
+#include <pcl/keypoints/impl/uniform_sampling.hpp>
+#else
 #include <pcl/filters/uniform_sampling.h>
+#endif
 
 #include <pcl/sample_consensus/method_types.h>
 #include <pcl/sample_consensus/model_types.h>

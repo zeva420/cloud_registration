@@ -924,7 +924,11 @@ Eigen::vector<trans2d::Matrix2x3f> CloudSegment::computeSegmentAlignCandidates(c
 		trans2d::Matrix2x3f T_;
 		float error_;
 
+		#ifdef UBUNTU_SWITCH
+		float a() const { return std::atan2(T_(1, 0), T_(0, 0)); }
+		#else
 		float a() const { return std::atan2f(T_(1, 0), T_(0, 0)); }
+		#endif
 
 		std::string to_string() const {
 			std::stringstream ss;

@@ -37,7 +37,11 @@ namespace CloudReg
 
 	class CADModel;
 	class TransformOptimize;
+	#ifdef UBUNTU_SWITCH
+	class CloudRegister
+	#else
 	class  __declspec(dllexport) CloudRegister
+	#endif
 	{
 	public:
 		CloudRegister();

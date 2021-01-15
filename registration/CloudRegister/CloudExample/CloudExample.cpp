@@ -8,7 +8,11 @@
 #include <Eigen/Dense>
 #include <Eigen/SparseCore>
 #include <Eigen/StdVector>
+#ifdef UBUNTU_SWITCH
+#include <pcl/keypoints/impl/uniform_sampling.hpp>
+#else
 #include <pcl/filters/uniform_sampling.h>
+#endif
 
 std::vector<Eigen::Vector3d> ininterpolateSeg(const Eigen::Vector3d& sPoint, const Eigen::Vector3d& ePoint, const double step)
 {
@@ -74,20 +78,41 @@ void uniformSampling(double radius,
 	pcl::UniformSampling<pcl::PointXYZ> filter;
 	filter.setInputCloud(cloud);
 	filter.setRadiusSearch(radius);
+
+	#ifdef UBUNTU_SWITCH
+	pcl::PointCloud<int> keypointIndices;
+	filter.compute(keypointIndices);
+	pcl::copyPointCloud(*cloud, keypointIndices.points, *cloud_filtered);
+	#else
 	filter.filter(*cloud_filtered);
+	#endif
 }
 
+#ifdef UBUNTU_SWITCH
+int main(int argc, char** argv)
+#else
 int main()
+#endif
 {
+	#ifdef UBUNTU_SWITCH
+	if (argc < 3)
+	#else
 	if (__argc < 3)
+	#endif
 	{
 		std::cout << "CloudExample PCD_Dir CAD_File"<< std::endl;
 		return -1;
 
 	}
 
+	#ifdef UBUNTU_SWITCH
+	std::string pcd_dir = argv[1];
+	std::string cad_file = argv[2];
+	#else
 	std::string pcd_dir = __argv[1];
 	std::string cad_file = __argv[2];
+	#endif
+
 	std::vector<std::string> pcd_list;
 	FileHelper::getFilenamesFromdir(pcd_dir,pcd_list);
 
