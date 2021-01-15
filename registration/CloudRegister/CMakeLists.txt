@@ -51,13 +51,13 @@ find_package(glog REQUIRED)
 include_directories(${PCL_INCLUDE_DIRS})
 link_directories(${PCL_LIBRARY_DIRS})
 
-link_directories(${PROJECT_SOURCE_DIR}/g2o_ubuntu/g2o/lib)
+link_directories(${PROJECT_SOURCE_DIR}/G2O/g2o_ubuntu/)
 
 add_definitions(${PCL_DEFINITIONS})
 
 include_directories(
 ${PROJECT_SOURCE_DIR}
-${PROJECT_SOURCE_DIR}/g2o_ubuntu/g2o
+${PROJECT_SOURCE_DIR}/G2O/include/g2o/
 ${PROJECT_SOURCE_DIR}/CloudRegister
 ${PROJECT_SOURCE_DIR}/CloudExample
 #${EIGEN3_INCLUDE_DIR}
@@ -89,7 +89,12 @@ CloudRegister/CalcSquareness.cpp
 
 target_link_libraries(${PROJECT_NAME}
 ${PCL_LIBRARIES}
-g2o
+g2o_core
+g2o_solver_eigen
+g2o_types_data
+g2o_stuff
+g2o_types_sba
+g2o_types_sim3
 #${OpenCV_LIBS}
 #${EIGEN3_LIBS}
 #${Pangolin_LIBRARIES}

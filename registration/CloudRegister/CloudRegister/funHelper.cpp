@@ -1334,13 +1334,8 @@ namespace CloudReg
 
 }
 
-#ifdef UBUNTU_SWITCH
-#include "g2o/solvers/linear_solver_eigen.h"
-#include "g2o/types/types_sba.h"
-#else
 #include "g2o/solvers/eigen/linear_solver_eigen.h"
 #include "g2o/types/sba/types_sba.h"
-#endif
 #include "g2o/core/base_vertex.h"
 #include "g2o/core/base_unary_edge.h"
 #include "g2o/core/block_solver.h"
@@ -1432,17 +1427,9 @@ double calcCorner_beta(PointCloud::Ptr cloud1, PointCloud::Ptr cloud2, const Eig
  	// now optimize
  	g2o::SparseOptimizer optimier; // actually no need to be sparse.
  	{
- 		#ifdef UBUNTU_SWITCH
- 		g2o::BlockSolverX::LinearSolverType * linearSolver = 
-                         new g2o::LinearSolverEigen<g2o::BlockSolverX::PoseMatrixType>();
-         g2o::BlockSolverX * blockSolver = new g2o::BlockSolverX(linearSolver);
-         g2o::OptimizationAlgorithmLevenberg* algo 
- 				= new g2o::OptimizationAlgorithmLevenberg(blockSolver);
- 		#else
  		auto ls = std::make_unique<g2o::LinearSolverEigen<g2o::BlockSolverX::PoseMatrixType>>();
  		auto bs = std::make_unique<g2o::BlockSolverX>(std::move(ls));
  		auto algo = new g2o::OptimizationAlgorithmLevenberg(std::move(bs));
- 		#endif
  		optimier.setAlgorithm(algo);
  	}
 
