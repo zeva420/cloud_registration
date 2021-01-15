@@ -113,7 +113,7 @@ namespace CloudReg
 		{
 			auto curSeg = seg.first - seg.second;
 			double cos = horizenSeg.dot(curSeg)/(horizenSeg.norm() * curSeg.norm());
-			if (fabs(cos) < 0.0001) 
+			if (fabs(cos) < 0.1) 
 				vecVertical.emplace_back(seg);
 			else 
 				vecHorizen.emplace_back(seg);
@@ -234,7 +234,7 @@ namespace CloudReg
 		return true;
 	}
 
-	std::tuple<std::size_t, std::size_t, int> getGrowAxisAndDir(const Eigen::Vector3d& sPt, const Eigen::Vector3d& ePt)
+	std::tuple<std::size_t, std::size_t, int> getWallGrowAxisAndDir(const Eigen::Vector3d& sPt, const Eigen::Vector3d& ePt)
 	{
 		std::size_t index = std::fabs(sPt[0] - ePt[0]) > 0.1 ? 0 : 1;
 		std::size_t indexOther = index == 0 ? 1 : 0;

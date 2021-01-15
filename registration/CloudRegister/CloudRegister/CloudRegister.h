@@ -59,7 +59,8 @@ namespace CloudReg
 			calcDistError(const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_,
 			const Eigen::Vector4d& plane, const double radius = 0.05) const;
 
-		std::vector<calcMeassurment_t> calcRoofNetHeight(const double calcLengthTh = 1.5);
+		std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>> 
+			calcRoofNetHeight(const double calcLengthTh = 1.5);
 
 	private:
 		

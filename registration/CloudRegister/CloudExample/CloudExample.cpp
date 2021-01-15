@@ -107,7 +107,7 @@ int main()
    
 	auto mapCloud = obj.getAllCloudPlane();
 	std::vector<std::string> itemName{"Beam","Bottom","Wall","Top","Unknow"};
-#if 0
+#if 1
 	for (auto& value : mapCloud)
 	{
 		const std::string name = itemName[value.first];

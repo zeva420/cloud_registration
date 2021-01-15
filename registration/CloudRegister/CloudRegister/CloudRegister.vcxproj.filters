@@ -66,6 +66,9 @@
     <ClCompile Include="CalcWallVerticality.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="CalcCorner.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CloudRegister.h">

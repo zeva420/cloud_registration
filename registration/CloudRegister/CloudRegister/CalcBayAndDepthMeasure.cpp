@@ -16,7 +16,7 @@ namespace CloudReg
 		const double calcPara = 0.2;
 		const double calcParaZ = 0.5;
 		const double calcHalfPara = 0.05;
-		std::tie(optIndex,indexOther,dir) = getGrowAxisAndDir(sPt,ePt);
+		std::tie(optIndex,indexOther,dir) = getWallGrowAxisAndDir(sPt,ePt);
 		Eigen::Vector3d calcPt;
 		if (bStart)
 		{

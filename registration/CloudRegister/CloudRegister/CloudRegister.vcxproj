@@ -153,6 +153,7 @@
   <ItemGroup>
     <ClCompile Include="CADModel.cpp" />
     <ClCompile Include="CalcBayAndDepthMeasure.cpp" />
+    <ClCompile Include="CalcCorner.cpp" />
     <ClCompile Include="CalcHoleMeasure.cpp" />
     <ClCompile Include="CalcMeasureHelper.cpp" />
     <ClCompile Include="CalcNetHeight.cpp" />

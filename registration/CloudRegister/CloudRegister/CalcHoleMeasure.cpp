@@ -34,7 +34,7 @@ namespace CloudReg
 		segA.second[2] = segA.first[2];
 		std::size_t optIndex,indexOther; 
 		int dir;
-		std::tie(optIndex,indexOther,dir) = getGrowAxisAndDir(segA.first,segA.second);
+		std::tie(optIndex,indexOther,dir) = getWallGrowAxisAndDir(segA.first,segA.second);
 		segA.first[optIndex] -= extendRange;
 		segA.second[optIndex] += extendRange;
 		

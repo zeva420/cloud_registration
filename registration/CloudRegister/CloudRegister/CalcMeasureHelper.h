@@ -26,7 +26,7 @@ namespace CloudReg
 	void groupDirectionIndex(const Eigen::Vector3d& horizenSeg, const std::vector<seg_pair_t>& border, 
 			std::vector<std::size_t>& vecVertical, std::vector<std::size_t>& vecHorizen);
 	
-	std::tuple<std::size_t, std::size_t, int> getGrowAxisAndDir(const Eigen::Vector3d& sPt, const Eigen::Vector3d& ePt);
+	std::tuple<std::size_t, std::size_t, int> getWallGrowAxisAndDir(const Eigen::Vector3d& sPt, const Eigen::Vector3d& ePt);
 
 	std::tuple<bool, Eigen::Vector3d, Eigen::Vector3d, Eigen::Vector3d, Eigen::Vector3d>
 		calcOverlap(seg_pair_t& toSeg, seg_pair_t& calcSeg);

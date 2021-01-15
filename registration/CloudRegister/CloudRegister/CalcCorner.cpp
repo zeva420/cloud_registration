@@ -2,6 +2,7 @@
 
 #include <pcl/common/common.h>
 
+
 namespace CloudReg
 {
 	std::tuple<PointCloud::Ptr, std::vector<seg_pair_t>> 
@@ -15,7 +16,7 @@ namespace CloudReg
 		const double calcLength = 0.13; 
 		std::size_t optIndex,indexOther; 
 		int dir;
-		std::tie(optIndex,indexOther,dir) = getGrowAxisAndDir(seg.first, seg.second);
+		std::tie(optIndex,indexOther,dir) = getWallGrowAxisAndDir(seg.first, seg.second);
 
 		Eigen::Vector3d pt1,pt2;
 		if(bLeft)
@@ -87,7 +88,7 @@ namespace CloudReg
 
 					std::size_t optIndex,indexOther; 
 					int dir;
-					std::tie(optIndex,indexOther,dir) = getGrowAxisAndDir(leftWall.back().first, leftWall.back().second);
+					std::tie(optIndex,indexOther,dir) = getWallGrowAxisAndDir(leftWall.back().first, leftWall.back().second);
 			
 					if(dir > 0)
 					{
@@ -117,7 +118,7 @@ namespace CloudReg
 
 					std::size_t optIndex,indexOther; 
 					int dir;
-					std::tie(optIndex,indexOther,dir) = getGrowAxisAndDir(rightWall.back().first, rightWall.back().second);
+					std::tie(optIndex,indexOther,dir) = getWallGrowAxisAndDir(rightWall.back().first, rightWall.back().second);
 				
 					if(dir > 0)
 					{
