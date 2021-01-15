@@ -56,12 +56,13 @@ CloudSegment::SegmentResult CloudSegment::run() {
 		LOG(ERROR) << "failed to calibrate direction to axis-Z.";
 	}
 
-	if(0)
+#ifdef VISUALIZATION_ENABLED
 	{
 		SimpleViewer viewer;
 		viewer.addCloud(sparsedCloud());
 		viewer.show();
 	}
+#endif
 
 	recordModelBoundingBox();
 
@@ -117,7 +118,7 @@ bool CloudSegment::calibrateDirectionToAxisZ() {
 
 	//transform orig cloud
 	orgCloud_ = geo::transfromPointCloud(orgCloud_, T);
-#if 1
+#if 0
 	pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_filtered(new pcl::PointCloud<pcl::PointXYZ>());
 	uniformSampling(0.01, orgCloud_, pCloud_filtered);
 	pcl::io::savePCDFile("origin.pcd", *pCloud_filtered);
@@ -1111,8 +1112,12 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 
 		//todo: we can optimize the normal calculation in the below process
 		auto planes = detectRegionPlanes(slice, 5. / 180. * geo::PI, 1., slice->size() / 4);
+		if (planes.empty()) return PlaneCloud();
 
-		return planes.empty() ? PlaneCloud() : planes.front();
+		return *std::max_element(planes.begin(), planes.end(), 
+			[](const PlaneCloud& pc1, const PlaneCloud& pc2) {
+			return pc1.cloud_->size() > pc2.cloud_->size();
+		});
 	};
 
 	SegmentResult sr(T_);
@@ -1158,8 +1163,9 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 	LOG(INFO) << "segmented: " << sr.to_string();
 
 	refineSegmentResult(sr);
-
+#ifdef VISUALIZATION_ENABLED
 	_show_result(sr);
+#endif
 
 	return sr;
 }
