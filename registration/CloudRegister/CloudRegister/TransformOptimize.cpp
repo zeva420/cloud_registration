@@ -1,8 +1,4 @@
-﻿// #include <vtkAutoInit.h>
-// VTK_MODULE_INIT(vtkRenderingOpenGL)
-#include <pcl/visualization/pcl_visualizer.h>
-
-#include "TransformOptimize.h"
+﻿#include "TransformOptimize.h"
 #include "glog/logging.h"
 #include "funHelper.h"
 
@@ -32,7 +28,7 @@ bool TransformOptimize::run(
     {
         if (ITEM_HOLE_E == it.first) continue;
         LOG(INFO) << "input " <<  toModelItemName(it.first) << " vecSize:" << it.second.size();
-        std::vector<PointsAndPlane> vecItems;
+        Eigen::vector<PointsAndPlane> vecItems;
         for (auto &cloud : it.second)
         {
             PointsAndPlane item;
@@ -77,7 +73,7 @@ bool TransformOptimize::downSampling()
     for (auto &it : type2CloudItems_)
     {
         auto &vecItems = it.second;
-        std::vector<PointsAndPlane> vecSamplingItems;
+		Eigen::vector<PointsAndPlane> vecSamplingItems;
         for (auto &item : vecItems)
         {
             PointCloud::Ptr cloud_sampling(new pcl::PointCloud<pcl::PointXYZ>);
@@ -106,9 +102,9 @@ bool TransformOptimize::getModelPlaneCoeff(const CADModel &cadModel,
     std::vector<ModelItem> beams3d = cadModel.getTypedModelItems(ITEM_BEAM_E);
 
     auto getModelItemPoints = [](std::vector<ModelItem> &modelItems, const Eigen::Vector3d &center)
-        ->std::vector<PointsAndPlane>
+        ->Eigen::vector<PointsAndPlane>
     {
-        std::vector<PointsAndPlane> vecItems;
+		Eigen::vector<PointsAndPlane> vecItems;
         for (auto &it : modelItems)
         {
             PointCloud::Ptr cloud(new PointCloud());
@@ -227,10 +223,10 @@ bool TransformOptimize::matchCloudToMode()
     for (auto &it1 : type2ModelItems_)
     {
         auto type = it1.first;
-        std::vector<PointsAndPlane> &vecModelItems = it1.second;
+		Eigen::vector<PointsAndPlane> &vecModelItems = it1.second;
         auto it2 = type2CloudItems_.find(type);
         if (it2 == type2CloudItems_.end()) continue; 
-        std::vector<PointsAndPlane> &vecCloudItems = it2->second;  
+		Eigen::vector<PointsAndPlane> &vecCloudItems = it2->second;
 		if (vecModelItems.size() != vecCloudItems.size())
 		{
 			LOG(WARNING) << "the vecModelItems size mismatch";
@@ -250,7 +246,7 @@ bool TransformOptimize::matchCloudToMode()
             }  
         }
 
-        std::vector<PointsAndPlane> matchedCloudItems;
+		Eigen::vector<PointsAndPlane> matchedCloudItems;
         matchedCloudItems.resize(vecCloudItems.size());
         for (auto &it : model2CloudDists)
         {
@@ -418,7 +414,7 @@ bool TransformOptimize::fillResult(Eigen::Matrix4d &finalT, optCloudRets &optRet
         auto &vecCloudItems = type2CloudItems_[it.first];
         if (vecModelItems.size() != vecCloudItems.size()) continue;
 
-        std::vector<OptPlane> vecOptPlane;
+		Eigen::vector<OptPlane> vecOptPlane;
         for (int i = 0; i < vecModelItems.size(); i++)
         {
             OptPlane piece;

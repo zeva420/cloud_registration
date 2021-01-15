@@ -2,7 +2,10 @@
 #pragma once
 
 #include "BaseType.h"
+
+#ifdef VISUALIZATION_ENABLED
 #include <pcl/visualization/pcl_visualizer.h>
+#endif
 
 namespace CloudReg {
 
@@ -24,10 +27,13 @@ public:
 	void show();
 
 private:
+#ifdef VISUALIZATION_ENABLED
 	pcl::visualization::PCLVisualizer viewer_;
+#endif
 	std::size_t id_{ 0 }; // avoid name setting...
 
 	std::string genName() { return std::to_string(id_++); }
 };
 
 }
+

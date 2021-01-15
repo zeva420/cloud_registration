@@ -10,7 +10,6 @@
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/segmentation/region_growing.h>
 #include <pcl/ModelCoefficients.h>
-#include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/filters/crop_box.h>
 #include <pcl/filters/radius_outlier_removal.h>
 #include <pcl/features/normal_3d.h>
