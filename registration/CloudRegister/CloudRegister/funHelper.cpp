@@ -108,7 +108,13 @@ namespace CloudReg
 		pcl::UniformSampling<pcl::PointXYZ> filter;
 		filter.setInputCloud(cloud);
 		filter.setRadiusSearch(radius);
+		#ifdef UBUNTU_SWITCH
+		pcl::PointCloud<int> keypointIndices;
+		filter.compute(keypointIndices);
+		pcl::copyPointCloud(*cloud, keypointIndices.points, *cloud_filtered);
+		#else
 		filter.filter(*cloud_filtered);
+		#endif
 	}
 
 	double pointToPLaneDist(const Eigen::Vector4d &plane, const pcl::PointXYZ &p)
