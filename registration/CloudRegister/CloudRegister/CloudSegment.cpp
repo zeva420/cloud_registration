@@ -663,8 +663,8 @@ trans2d::Matrix2x3f CloudSegment::chooseTransformByHoles(const Eigen::vector<tra
 		Eigen::vector<Eigen::Vector2f> transed_src(src.size());
 		std::transform(src.begin(), src.end(), transed_src.begin(), [&T](const Eigen::Vector2f& v) { return trans2d::transform(v, T); });
 
-		return std::count_if(transed_src.begin(), transed_src.end(), [&dst](Eigen::Vector2f& sp) {
-			return std::any_of(dst.begin(), dst.end(), [&sp](const Eigen::Vector2f& dp) { return (sp - dp).norm() < 0.1f; });
+		return std::count_if(transed_src.begin(), transed_src.end(), [MATCH_DIS_CHECK, &dst](Eigen::Vector2f& sp) {
+			return std::any_of(dst.begin(), dst.end(), [MATCH_DIS_CHECK, &sp](const Eigen::Vector2f& dp) { return (sp - dp).norm() < MATCH_DIS_CHECK; });
 		});
 	};
 
