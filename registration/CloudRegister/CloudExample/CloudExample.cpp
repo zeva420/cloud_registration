@@ -29,6 +29,99 @@ std::vector<Eigen::Vector3d> ininterpolateSeg(const Eigen::Vector3d& sPoint, con
 	return value;
 }
 
+double pointToPLaneDist(const Eigen::Vector4d &plane, const pcl::PointXYZ &p)
+{
+	Eigen::Vector3d n = plane.block<3,1>(0,0);
+	double d  = plane(3);
+	Eigen::Vector3d point(p.x, p.y, p.z);
+	double dist = (n.dot(point) + d) / n.norm();    
+	return dist;
+}
+
+void getWallColor(float dis, unsigned int & r, unsigned int & g, unsigned int & b)
+{
+	float rf = 0.0f;
+	float gf = 0.0f;
+	float bf = 0.0f;
+	float factor = 0.004f;//颜色刻度因子
+
+	#pragma region MyRegion 新色谱方案(以蓝色为主色调)
+	//色系组成为红色（255,0,0）—凹、紫色（255,0,255）—凹、蓝色（0,0,255）—平、绿色（0,255,0）—凸、黄色（255,255,0）—凸
+	if (dis < 0)
+	{
+		if (dis > -factor) //介于紫色和蓝色之间
+		{
+			rf = 1.0f - (dis + factor) / factor;
+			gf = 0.0f;
+			bf = 1.0f;
+		}
+		else if (dis > (-factor * 1.5))
+		{
+			rf = 1.0f;
+			gf = 0.0f;
+			bf = 1.0f - (dis + factor) / dis;
+		}
+		else //介于红色和紫色之间
+		{
+			rf = 1.0f;
+			gf = 0.0f;
+			bf = 1.0f - (dis + factor) / dis - 0.15;  //减去0.15作为颜色补偿
+		}
+	}
+	else if (dis == 0) //蓝色
+	{
+		rf = 0.0f;
+		gf = 0.0f;
+		bf = 1.0f;
+	}
+	else //介于蓝色和紫色之间
+	{
+		if (dis <= factor) //介于蓝色和绿色之间
+		{
+			rf = 0.0f;
+			gf = dis / factor;
+			bf = (factor - dis) / factor;
+		}
+		else //介于绿色和黄色之间
+		{
+			rf = (dis - factor) / dis + 0.4;  //增加0.4作为颜色补偿
+			gf = 1.0f;
+			bf = 0.0f;
+		}
+	}
+
+	#pragma endregion
+
+	rf = rf > 1.0 ? 1.0 : rf;
+	gf = gf > 1.0 ? 1.0 : gf;
+	bf = bf > 1.0 ? 1.0 : bf;
+
+	rf = rf < 0.0 ? 0.0 : rf;
+	gf = gf < 0.0 ? 0.0 : gf;
+	bf = bf < 0.0 ? 0.0 : bf;
+
+	r = (unsigned int)(rf*255.0);
+	g = (unsigned int)(gf*255.0);
+	b = (unsigned int)(bf*255.0);
+}
+
+pcl::PointXYZRGB getColorPtByDist(pcl::PointXYZ &p, double dist)
+{
+	unsigned int r = 255;
+	unsigned int g = 255; 
+	unsigned int b = 255;
+	getWallColor(dist, r, g, b);
+
+	pcl::PointXYZRGB p_rgb;
+	p_rgb.x = p.x;
+	p_rgb.y = p.y;
+	p_rgb.z = p.z;
+	p_rgb.r = r;
+	p_rgb.g = g;
+	p_rgb.b = b;
+	return p_rgb;
+}
+
 void writePCDFile(const std::string& name, const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud,
 	std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>& border)
 {
@@ -145,6 +238,20 @@ int main()
 			}			
 			file_name = "cloudBorder-" + name + "_" + std::to_string(index) + ".pcd";
 			pcl::io::savePCDFile(file_name, *pCloudBorder);
+
+			//dist rgb
+            {
+                pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_rgb(new pcl::PointCloud<pcl::PointXYZRGB>);
+                for (auto &p : pCloud_filtered->points)
+                {
+                    double dist = pointToPLaneDist(item.cloudPlane_, p);
+                    pcl::PointXYZRGB p_rgb = getColorPtByDist(p, dist);
+                    cloud_rgb->push_back(p_rgb);
+                }
+
+				std::string fileName = "dist-to-cloudPlane-" + name + "_" + std::to_string(index) + ".pcd";
+				pcl::io::savePCDFile(fileName, *cloud_rgb);
+            }			
 		}
 	}
 	return 0;

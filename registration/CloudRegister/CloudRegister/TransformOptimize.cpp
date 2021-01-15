@@ -362,7 +362,7 @@ bool TransformOptimize::transformCloud(Eigen::Matrix4d &finalT)
     // LOG(INFO) << ss.str();
     LOG(INFO) << "------final T------\n" << finalT;
 
-	auto transfor = [&](Eigen::Matrix4d& finalT, Eigen::Vector4d& plane, PointCloud::Ptr cloud) {
+	auto transfor = [&](Eigen::Matrix4d& finalT, PointCloud::Ptr cloud) {
 		
 		PointCloud::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>());
 		pcl::transformPointCloud(*cloud, *transformed_cloud, finalT);
@@ -378,7 +378,7 @@ bool TransformOptimize::transformCloud(Eigen::Matrix4d &finalT)
 
         for (int i = 0; i < vecModelItems.size(); i++)
         {              
-            transfor(finalT, vecModelItems[i].plane_, vecCloudItems[i].cloudPtr_);
+            transfor(finalT, vecCloudItems[i].cloudPtr_);
             auto distError = calcCloudToPLaneAveDist(vecModelItems[i].plane_, vecCloudItems[i].cloudPtr_);
             LOG(INFO) << "first: " << toModelItemName(it.first) << " cloud to model plane, aveDist:" 
                 << distError.first << " medianDist:" << distError.second;
@@ -399,12 +399,13 @@ bool TransformOptimize::transformCloud(Eigen::Matrix4d &finalT)
 
 		for (int i = 0; i < vecModelItems.size(); i++)
 		{
-			transfor(newT, vecModelItems[i].plane_, vecCloudItems[i].cloudPtr_);
+			transfor(newT, vecCloudItems[i].cloudPtr_);
 			auto distError = calcCloudToPLaneAveDist(vecModelItems[i].plane_, vecCloudItems[i].cloudPtr_);
 			LOG(INFO) << "second: " << toModelItemName(it.first) << " cloud to model plane, aveDist:"
 				<< distError.first << " medianDist:" << distError.second;
 		}
 	}
+    finalT *= newT;
 
 	return true;
 }

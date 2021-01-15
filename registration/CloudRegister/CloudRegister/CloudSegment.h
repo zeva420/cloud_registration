@@ -41,9 +41,7 @@ public:
 				all.insert(all.end(), pr.second.begin(), pr.second.end());
 			return all;
 		}
-
-		Eigen::Vector3f originalCenter() const { return -T_.block<3, 3>(0, 0).transpose()* T_.block<3, 1>(0, 3); }
-
+		
 		std::string to_string() const;
 	};
 
