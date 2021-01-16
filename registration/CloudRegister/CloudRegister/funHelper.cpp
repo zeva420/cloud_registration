@@ -473,7 +473,7 @@ namespace CloudReg
 		for (const auto &seg : outerSegs)
 		{
 			Eigen::VectorXf line(6);
-			Eigen::Vector3d n = seg.second - seg.first;
+			Eigen::Vector3d n = (seg.second - seg.first).normalized();
 			line << seg.first(0), seg.first(1), seg.first(2), n(0), n(1), n(2);
 			lineCoeffs.push_back(line);
 
