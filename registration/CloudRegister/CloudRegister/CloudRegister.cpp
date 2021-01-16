@@ -8,6 +8,7 @@
 #include "TransformOptimize.h"
 #include "CloudSegment.h"
 #include "CalcNetHeight.h"
+#include "CalcBayAndDepthMeasure.h"
 
 namespace CloudReg {
 CloudRegister::CloudRegister() {
@@ -16,7 +17,7 @@ CloudRegister::CloudRegister() {
 
 
 
-//#define VISUALIZATION_ENABLED
+#define VISUALIZATION_ENABLED
 #ifdef VISUALIZATION_ENABLED
 	google::LogToStderr();
 #endif
@@ -78,11 +79,6 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 const std::map<CloudItemType, vecItems_t>& CloudRegister::getAllCloudPlane() const
 {
 	return mapCloudItem_;
-}
-
-const std::map<pairCloud_t, std::pair<double, double>>& CloudRegister::getAllCorner() const
-{
-	return mapCorner_;
 }
 
 int CloudRegister::findMatchCloud(const Eigen::Vector4d &plane,
@@ -418,6 +414,92 @@ CloudRegister::calcRoofNetHeight(const double calcLengthTh)
 		itemRoot.cloudPlane_,"roof_net_height.pcd", calcLengthTh);
 
 	return vecRet;
+}
+
+//first roof second root
+std::tuple<std::vector<calcMeassurment_t>, std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>
+CloudRegister::calcPlaneRange(const double calcHeight, const double calcLengthTh)
+{
+	const auto& itemRoof = mapCloudItem_[CLOUD_TOP_E].front();
+	const auto& itemRoot = mapCloudItem_[CLOUD_BOTTOM_E].front();
+	const auto& itemWall = mapCloudItem_[CLOUD_WALL_E];
+	std::vector<std::vector<seg_pair_t>> allWallBorder;
+	for (auto& item : itemWall)
+	{
+		allWallBorder.emplace_back(item.cloudBorder_.front());
+	}
+
+	auto vecRet = CalcHeightRange(itemRoof.cloudBorder_.front(), itemRoot.cloudBorder_.front(),
+		allWallBorder,itemRoof.pCloud_, itemRoot.pCloud_, calcHeight, calcLengthTh);
+
+	return vecRet;
+}
+
+std::tuple<std::map<std::pair<std::size_t, std::size_t>,
+	std::vector<calcMeassurment_t>>, std::vector<seg_pair_t>>
+CloudRegister::calcDepth(const double calcLengthTh)
+{
+
+	const auto& itemRoot = mapCloudItem_[CLOUD_BOTTOM_E].front();
+	const auto& itemWall = mapCloudItem_[CLOUD_WALL_E];
+	std::vector<std::vector<seg_pair_t>> allWallBorder;
+	std::map<std::size_t, std::vector<vec_seg_pair_t>> holeBorder;
+	std::vector<PointCloud::Ptr> vecCloud;
+	Eigen::vector<Eigen::Vector4d> vecPlane;
+	for(std::size_t i = 0; i < itemWall.size(); i++)
+	{
+		const auto& item = itemWall[i];
+		allWallBorder.emplace_back(item.cloudBorder_.front());
+		vecCloud.emplace_back(item.pCloud_);
+		vecPlane.emplace_back(item.cloudPlane_);
+
+		for (std::size_t j = 1; j < item.cloudBorder_.size(); j++)
+		{
+			if (item.cloudBorder_[j].size() != item.cadBorder_[j].size())
+				LOG(ERROR) << "cloudBorder error, need check";
+
+			holeBorder[i].emplace_back(item.cloudBorder_[j]);
+		}
+	}
+	
+	auto ret = calcDepthorBay(itemRoot.cloudBorder_.front(), allWallBorder, holeBorder,vecCloud, vecPlane,0, calcLengthTh);
+
+	return ret;
+
+}
+
+std::tuple<std::map<std::pair<std::size_t, std::size_t>,
+	std::vector<calcMeassurment_t>>, std::vector<seg_pair_t>>
+	CloudRegister::calcBay(const double calcLengthTh)
+{
+	const auto& itemRoot = mapCloudItem_[CLOUD_BOTTOM_E].front();
+	const auto& itemWall = mapCloudItem_[CLOUD_WALL_E];
+
+	std::vector<std::vector<seg_pair_t>> allWallBorder;
+	std::map<std::size_t, std::vector<vec_seg_pair_t>> holeBorder;
+	std::vector<PointCloud::Ptr> vecCloud;
+	Eigen::vector<Eigen::Vector4d> vecPlane;
+	for (std::size_t i = 0; i < itemWall.size(); i++)
+	{
+		const auto& item = itemWall[i];
+		allWallBorder.emplace_back(item.cloudBorder_.front());
+		vecCloud.emplace_back(item.pCloud_);
+		vecPlane.emplace_back(item.cloudPlane_);
+
+		for (std::size_t j = 1; j < item.cloudBorder_.size(); j++)
+		{
+			if (item.cloudBorder_[j].size() != item.cadBorder_[j].size())
+				LOG(ERROR) << "cloudBorder error, need check";
+
+			holeBorder[i].emplace_back(item.cloudBorder_[j]);
+
+
+		}
+	}
+
+	auto ret = calcDepthorBay(itemRoot.cloudBorder_.front(), allWallBorder, holeBorder, vecCloud, vecPlane, 1, calcLengthTh);
+
+	return ret;
 }
 
 }

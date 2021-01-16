@@ -55,7 +55,11 @@ namespace CloudReg
 		
 		auto filerPt = getRulerCorners(vecPt);	
 		auto pCloud = filerCloudByConvexHull(pWall, filerPt);
-		
+		if (pCloud->points.empty())
+		{
+			LOG(WARNING) << "filerCloudByConvexHull failed";
+			return item;
+		}
 		item.value = 0.0;
 		for(auto& pt : pCloud->points)
 		{
@@ -64,7 +68,7 @@ namespace CloudReg
 		item.value = item.value/pCloud->points.size();
 		
 
-		//LOG(INFO) << "avgDist:" << item.value;
+		LOG(INFO) << "calcDepthorBay avgDist:" << item.value;
 		//writePCDFile("test.pcd", pCloud, item.rangeSeg);
 
 		return item;
@@ -105,29 +109,64 @@ namespace CloudReg
 
 		bool hasLeft = true;
 		bool hasRight = true;
-		if((toSeg.first - s1Pt).norm() < calcLengthTh)
-			hasLeft = false;
+		Eigen::Vector3d left_s = toSeg.first;
+		Eigen::Vector3d left_e = s1Pt;
+		const double left_length = (toSeg.first - s1Pt).norm();
+		const double right_length = (toSeg.second - e1Pt).norm();
+
+		if (left_length < calcLengthTh) {
+
+			if (right_length < calcLengthTh)
+			{
+				hasLeft = false;
+			}
+			else 
+			{
+				LOG(INFO) << "recalc left side pt because of hole";
+				left_s = e1Pt;
+				left_e = toSeg.second;
+			}
 			
-		if((toSeg.second - e1Pt).norm() < calcLengthTh)
-			hasRight = false;
+		}
+		
+		Eigen::Vector3d right_s = e1Pt;
+		Eigen::Vector3d right_e = toSeg.second;
+		if (right_length < calcLengthTh)
+		{
+			if (left_length < calcLengthTh)
+			{
+				hasRight = false;
+			}
+			else
+			{
+				LOG(INFO) << "re calc right side pt because of hole";
+				right_s = toSeg.first;
+				right_e = s1Pt;
+			}
+			
+		}
 
 		LOG(INFO) << "has enough length: "<< calcLengthTh << " leftFlag :" << hasLeft << " rightFlag:" << hasRight;
 
 		if(hasLeft)
 		{
-			auto value = calcArea(pWall, plane, toSeg.first, s1Pt, true);
-			vecRet.emplace_back(value);
+			auto value = calcArea(pWall, plane, left_s, left_e, true);
+			if(!value.rangeSeg.empty())
+				vecRet.emplace_back(value);
 		}
 		if(hasRight)
 		{
-			auto value = calcArea(pWall, plane, e1Pt, toSeg.second, false);
-			vecRet.emplace_back(value);
+			auto value = calcArea(pWall, plane, right_s, right_e, false);
+			if (!value.rangeSeg.empty())
+				vecRet.emplace_back(value);
 		}
 
 		return vecRet;
 	}
 
-	void calcDepthorBay(const std::vector<seg_pair_t>& rootBorder,
+	std::tuple<std::map<std::pair<std::size_t, std::size_t>, 
+		std::vector<calcMeassurment_t>>,std::vector<seg_pair_t>>
+	calcDepthorBay(const std::vector<seg_pair_t>& rootBorder,
 			const std::vector<vec_seg_pair_t>& allWallBorder,
 			const std::map<std::size_t, std::vector<vec_seg_pair_t>>& holeBorder,
 			const std::vector<PointCloud::Ptr>& vecCloud,
@@ -136,11 +175,13 @@ namespace CloudReg
 			const double calcLengthTh)
 	{
 		const std::string optName = optType == 0 ? "depth" : "bay";
+		std::vector<seg_pair_t> vecCutSeg;
+		std::map<std::pair<std::size_t, std::size_t>, std::vector<calcMeassurment_t>> mapCalcRet;
 
 		if (rootBorder.size() != allWallBorder.size())
 		{
 			LOG(ERROR) << "the root and wall size not match: " << rootBorder.size() << "-" << allWallBorder.size();
-			return;
+			return std::make_tuple(mapCalcRet, vecCutSeg);
 		}
 	
 		const Eigen::Vector3d& horizenSeg = rootBorder.front().first - rootBorder.front().second;
@@ -148,10 +189,10 @@ namespace CloudReg
 		std::vector<std::size_t> vecHorizenIndex;
 		groupDirectionIndex(horizenSeg, rootBorder, vecVerticalIndex, vecHorizenIndex);
 
-		std::vector<seg_pair_t> vecCutSeg;
+		
 		const auto& calcIndex = optType == 0 ? vecHorizenIndex : vecVerticalIndex;
 
-		std::map<std::pair<std::size_t,std::size_t>, std::vector<calcMeassurment_t>> mapCalcRet;
+		
 		for(std::size_t i = 0; i< calcIndex.size(); i++)
 		{
 			seg_pair_t toSeg = rootBorder[calcIndex[i]];
@@ -182,8 +223,7 @@ namespace CloudReg
 				vecCutSeg.emplace_back(std::make_pair(e1Pt,e2Pt));
 				LOG(INFO)<< "type: "<< optName  << " findSeg:" << calcIndex[i] <<" " << calcIndex[j];
 
-				auto& calcvecRet = mapCalcRet[std::make_pair(calcIndex[j],calcIndex[i])];
-				
+				auto save_key = std::make_pair(calcIndex[j], calcIndex[i]);				
 				PointCloud::Ptr pWall = vecCloud[calcIndex[j]];
 				auto& plane = vecPlane[calcIndex[i]];
 				
@@ -193,11 +233,11 @@ namespace CloudReg
 					auto curHole = iterHole->second;
 					for(auto& hole : curHole)
 					{
-						LOG(INFO) << "calcOverlapWithHole";
+						LOG(INFO) << "calcOverlapWithHole:" << calcIndex[j];
 						auto vecRet = calcOverlapWithHole(s2Pt,e2Pt,hole,0.2, pWall,plane);
 						if (!vecRet.empty())
 						{
-							calcvecRet.insert(calcvecRet.end(), vecRet.begin(), vecRet.end());
+							mapCalcRet[save_key].insert(mapCalcRet[save_key].end(), vecRet.begin(), vecRet.end());
 						}
 					}
 				}
@@ -205,25 +245,33 @@ namespace CloudReg
 				{
 					auto left = calcArea(pWall, plane, s2Pt, e2Pt, true);
 					auto right = calcArea(pWall, plane, s2Pt, e2Pt, false);
-					calcvecRet.emplace_back(left);
-					calcvecRet.emplace_back(right);
+					mapCalcRet[save_key].emplace_back(left);
+					mapCalcRet[save_key].emplace_back(right);
 				}
 			}
 		}
 
 		for(auto& value : mapCalcRet)
 		{
-			std::string name = "wall_"+ std::to_string(value.first.first) +"_"+ std::to_string(value.first.second) +"_" + optName + ".pcd";
+			
 			std::vector<seg_pair_t> vecRange;
 			for(auto& item : value.second)
 			{
 				vecRange.insert(vecRange.end(), item.rangeSeg.begin(), item.rangeSeg.end());
 				LOG(INFO) << value.first.first << " - " << value.first.second << " :avgDist:" << item.value;
 			}
-			writePCDFile(name,vecCloud[value.first.first], vecRange);
+#ifdef VISUALIZATION_ENABLED
+			std::string name = optName + "_wall_" +std::to_string(value.first.first) + "_" + std::to_string(value.first.second) + ".pcd";
+			pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_filtered(new pcl::PointCloud<pcl::PointXYZ>());
+			uniformSampling(0.01, vecCloud[value.first.first], pCloud_filtered);
+			writePCDFile(name, pCloud_filtered, vecRange);
+#endif // DEBUG
 		}
-		std::string name = "root_" + optName + ".pcd";
-		writePCDFile(name,rootBorder, vecCutSeg);
+		//std::string name = "root_" + optName + ".pcd";
+		//writePCDFile(name,rootBorder, vecCutSeg);
+		return std::make_tuple(mapCalcRet, vecCutSeg);
 	}
+
+	
 
 }//namespace

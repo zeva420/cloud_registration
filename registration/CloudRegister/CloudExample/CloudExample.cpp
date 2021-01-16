@@ -281,7 +281,10 @@ int main()
 		}
 	}
 #endif
-	obj.calcRoofNetHeight();
+	//obj.calcRoofNetHeight();
+	//obj.calcPlaneRange();
+	//obj.calcDepth();
+	obj.calcBay();
 	return 0;
 }
 

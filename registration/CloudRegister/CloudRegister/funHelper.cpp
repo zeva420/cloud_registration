@@ -1332,7 +1332,7 @@ namespace CloudReg
 	}
 
 }
-
+#if 0
 // #include "g2o/core/base_edge.h"
 #include "g2o/core/base_vertex.h"
 #include "g2o/core/base_unary_edge.h"
@@ -1486,3 +1486,4 @@ double calcCorner_beta(PointCloud::Ptr cloud1, PointCloud::Ptr cloud2, const Eig
 }
 
 }
+#endif

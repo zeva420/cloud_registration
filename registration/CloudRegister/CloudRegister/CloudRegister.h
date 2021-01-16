@@ -54,17 +54,31 @@ namespace CloudReg
 		const std::map<CloudItemType, vecItems_t>&
 			getAllCloudPlane() const;
 
-		//value first is 0.3 second 1.5
-		const std::map<pairCloud_t, std::pair<double, double>>&
-			getAllCorner() const;
-
+	
 		//p_rgb.r = distError; radius = 0.05m
 		pcl::PointCloud<pcl::PointXYZI>::Ptr 
 			calcDistError(const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_,
 			const Eigen::Vector4d& plane, const double radius = 0.05) const;
 
+		//calcLengthTh: the shorest wall length, 
 		std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>> 
 			calcRoofNetHeight(const double calcLengthTh = 1.5);
+
+		//first roof second root
+		//calcHeight: the height from bottom 
+		//calcLengthTh: the shorest wall length
+		std::tuple<std::vector<calcMeassurment_t>, std::vector<calcMeassurment_t>,std::vector<seg_pair_t>>
+			calcPlaneRange(const double calcHeight = 1.0,const double calcLengthTh = 1.5);
+
+		//calcLengthTh: the shorest wall length
+		std::tuple<std::map<std::pair<std::size_t, std::size_t>,
+			std::vector<calcMeassurment_t>>, std::vector<seg_pair_t>>
+			calcDepth(const double calcLengthTh = 0.8);
+
+		//calcLengthTh: the shorest wall length
+		std::tuple<std::map<std::pair<std::size_t, std::size_t>,
+			std::vector<calcMeassurment_t>>, std::vector<seg_pair_t>>
+			calcBay(const double calcLengthTh = 0.8);
 
 	private:
 		
@@ -74,7 +88,6 @@ namespace CloudReg
 			std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecOrigCloud);
 
 		std::map<CloudItemType, vecItems_t> mapCloudItem_;
-		std::map<pairCloud_t, std::pair<double, double>> mapCorner_;
 
 	};
 }

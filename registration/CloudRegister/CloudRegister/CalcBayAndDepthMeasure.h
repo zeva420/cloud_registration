@@ -4,9 +4,10 @@
 #include "CalcMeasureHelper.h"
 namespace CloudReg 
 {
-	using vec_seg_pair_t = std::vector<seg_pair_t>;
-
-	void calcDepthorBay(const std::vector<seg_pair_t>& rootBorder,
+	//0 depth 1 bay
+	std::tuple<std::map<std::pair<std::size_t, std::size_t>,
+		std::vector<calcMeassurment_t>>, std::vector<seg_pair_t>>
+	calcDepthorBay(const std::vector<seg_pair_t>& rootBorder,
 			const std::vector<vec_seg_pair_t>& allWallBorder,
 			const std::map<std::size_t, std::vector<vec_seg_pair_t>>& holeBorder,
 			const std::vector<PointCloud::Ptr>& vecCloud,
