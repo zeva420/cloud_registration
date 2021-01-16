@@ -1,3 +1,0 @@
-/mnt/share/other-project/code/downsampling/Thirdparty/g2o/build/CMakeFiles/edit_cache.dir
-/mnt/share/other-project/code/downsampling/Thirdparty/g2o/build/CMakeFiles/rebuild_cache.dir
-/mnt/share/other-project/code/downsampling/Thirdparty/g2o/build/CMakeFiles/g2o.dir
