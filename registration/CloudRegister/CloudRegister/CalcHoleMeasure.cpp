@@ -215,8 +215,8 @@ namespace CloudReg
 
 		//cross
 		{
-			LOG(INFO) << "calc hole cross with";
-			auto vecCross = calcHoleCross(vecHorizen,rangeCloud);
+			LOG(INFO) << "calc hole cross";
+			auto vecCross = calcHoleCross(vecVertical,rangeCloud);
 			vecRet.insert(vecRet.end(), vecCross.begin(), vecCross.end());
 
 			for(auto& item : vecCross)
@@ -235,10 +235,11 @@ namespace CloudReg
 			for(auto& item : vecRoot)
 				vecRange.insert(vecRange.end(), item.rangeSeg.begin(), item.rangeSeg.end());
 		}
-		
+#ifdef VISUALIZATION_ENABLED		
 		pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_filtered(new pcl::PointCloud<pcl::PointXYZ>());
 		uniformSampling(0.01, pCloud, pCloud_filtered);
 		writePCDFile(name, pCloud_filtered, vecRange);
+#endif
 
 		return vecRet;
 	}
