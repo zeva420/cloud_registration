@@ -80,7 +80,9 @@ namespace CloudReg
 			std::vector<calcMeassurment_t>>, std::vector<seg_pair_t>>
 			calcBay(const double calcLengthTh = 0.8);
 
-		std::vector<std::vector<calcMeassurment_t>> calcAllHole();
+		//key.first = wall index  key.second = hole border index in cloudBorder_
+		std::map<std::pair<std::size_t, std::size_t>, std::vector<calcMeassurment_t>>
+			calcAllHole();
 
 	private:
 		

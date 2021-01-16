@@ -503,9 +503,10 @@ std::tuple<std::map<std::pair<std::size_t, std::size_t>,
 	return ret;
 }
 
-std::vector<std::vector<calcMeassurment_t>> CloudRegister::calcAllHole()
+std::map<std::pair<std::size_t, std::size_t>,std::vector<calcMeassurment_t>> 
+CloudRegister::calcAllHole()
 {
-	std::vector<std::vector<calcMeassurment_t>> vecRet;
+	std::map<std::pair<std::size_t, std::size_t>, std::vector<calcMeassurment_t>> mapRet;
 	const auto& itemWall = mapCloudItem_[CLOUD_WALL_E];
 	for (std::size_t i = 0; i < itemWall.size(); i++)
 	{
@@ -522,10 +523,15 @@ std::vector<std::vector<calcMeassurment_t>> CloudRegister::calcAllHole()
 			LOG(INFO) << "calc hole:" << j << " in wall " << i;
 			std::string name = "hole_" + std::to_string(i) + "_" + std::to_string(j) + ".pcd";
 			auto ret = calcHole(item.cloudBorder_.front().back(),
-				item.cloudBorder_[j], item.pCloud_,name);			
+				item.cloudBorder_[j], item.pCloud_,name);
+
+			if (!ret.empty())
+			{
+				mapRet[std::make_pair(i, j)] = ret;
+			}
 		}
 
 	}
-	return vecRet;
+	return mapRet;
 }
 }
