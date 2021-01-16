@@ -26,13 +26,13 @@ namespace CloudReg
 		std::size_t parentIndex_ = 9999;
 		Eigen::Vector4d cloudPlane_;
 		Eigen::Vector4d cadPlane_;
-		// if type is WALL include windows and door
+		// if type is WALL include windows and door,the border.front belong to wall 
 		std::vector<std::vector<seg_pair_t>> cloudBorder_;
 		std::vector<std::vector<seg_pair_t>> cadBorder_;
 	};
 
 	
-	using vecItems_t = std::vector<CloudItem>;
+	using vecItems_t = Eigen::vector<CloudItem>;
 	using pairCloud_t = std::pair<CloudItem*, CloudItem*>;
 
 	class CADModel;
@@ -79,6 +79,8 @@ namespace CloudReg
 		std::tuple<std::map<std::pair<std::size_t, std::size_t>,
 			std::vector<calcMeassurment_t>>, std::vector<seg_pair_t>>
 			calcBay(const double calcLengthTh = 0.8);
+
+		std::vector<std::vector<calcMeassurment_t>> calcAllHole();
 
 	private:
 		

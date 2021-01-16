@@ -9,6 +9,7 @@
 #include "CloudSegment.h"
 #include "CalcNetHeight.h"
 #include "CalcBayAndDepthMeasure.h"
+#include "CalcHoleMeasure.h"
 
 namespace CloudReg {
 CloudRegister::CloudRegister() {
@@ -502,4 +503,29 @@ std::tuple<std::map<std::pair<std::size_t, std::size_t>,
 	return ret;
 }
 
+std::vector<std::vector<calcMeassurment_t>> CloudRegister::calcAllHole()
+{
+	std::vector<std::vector<calcMeassurment_t>> vecRet;
+	const auto& itemWall = mapCloudItem_[CLOUD_WALL_E];
+	for (std::size_t i = 0; i < itemWall.size(); i++)
+	{
+		//if (i != 1) continue;
+
+		const auto& item = itemWall[i];
+		for (std::size_t j = 1; j < item.cloudBorder_.size(); j++)
+		{
+			//if (j != 3) continue;
+
+			if (item.cloudBorder_[j].size() != item.cadBorder_[j].size())
+				LOG(ERROR) << "cloudBorder error, need check";
+
+			LOG(INFO) << "calc hole:" << j << " in wall " << i;
+			std::string name = "hole_" + std::to_string(i) + "_" + std::to_string(j) + ".pcd";
+			auto ret = calcHole(item.cloudBorder_.front().back(),
+				item.cloudBorder_[j], item.pCloud_,name);			
+		}
+
+	}
+	return vecRet;
+}
 }

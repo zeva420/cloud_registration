@@ -260,6 +260,7 @@ namespace CloudReg
 				vecRange.insert(vecRange.end(), item.rangeSeg.begin(), item.rangeSeg.end());
 				LOG(INFO) << value.first.first << " - " << value.first.second << " :avgDist:" << item.value;
 			}
+
 #ifdef VISUALIZATION_ENABLED
 			std::string name = optName + "_wall_" +std::to_string(value.first.first) + "_" + std::to_string(value.first.second) + ".pcd";
 			pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_filtered(new pcl::PointCloud<pcl::PointXYZ>());

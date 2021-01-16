@@ -285,6 +285,7 @@ int main()
 	//obj.calcPlaneRange();
 	//obj.calcDepth();
 	obj.calcBay();
+	//obj.calcAllHole();
 	return 0;
 }
 

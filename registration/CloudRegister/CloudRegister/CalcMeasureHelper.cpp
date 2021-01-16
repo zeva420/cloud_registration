@@ -112,7 +112,10 @@ namespace CloudReg
 		for(auto& seg : border)
 		{
 			auto curSeg = seg.first - seg.second;
+			if (curSeg.norm() < EPS_FLOAT_DOUBLE) continue;
+
 			double cos = horizenSeg.dot(curSeg)/(horizenSeg.norm() * curSeg.norm());
+			//std::cout << fabs(cos) << std::endl;
 			if (fabs(cos) < 0.1) 
 				vecVertical.emplace_back(seg);
 			else 
@@ -220,15 +223,15 @@ namespace CloudReg
 	bool isRootInSeg(const seg_pair_t& seg, const Eigen::Vector3d& p)
 	{
 
-		auto segAB = seg.first - seg.second;
-		auto segAP = seg.first - p;
+		auto segAB = (seg.first - seg.second).normalized();
+		auto segAP = (seg.first - p).normalized();
 		double dotA = segAB.dot(segAP);
 
 		auto segBA = seg.second - seg.first;
 		auto segBP = seg.second - p;
 		double dotB = segBA.dot(segBP);
-		//LOG(INFO) << dotA << " " << dotB;
-		if (dotA < 0.0 || dotB < 0.0)
+		//LOG(INFO) << (std::setprecision(8)) << dotA << " " << dotB;
+		if (dotA < -0.1 || dotB < -0.1)
 			return false;
 		
 		return true;
@@ -247,7 +250,7 @@ namespace CloudReg
 	std::tuple<bool, Eigen::Vector3d, Eigen::Vector3d, Eigen::Vector3d, Eigen::Vector3d>
 		calcOverlap(seg_pair_t& toSeg, seg_pair_t& calcSeg)
 	{
-		if ((toSeg.first - toSeg.second).dot(calcSeg.first - calcSeg.second) < EPS_FLOAT_DOUBLE)
+		if ((toSeg.first - toSeg.second).dot(calcSeg.first - calcSeg.second) < 0)
 		{
 			auto tmp = calcSeg;
 			calcSeg.first = tmp.second;
@@ -259,7 +262,7 @@ namespace CloudReg
 		bool findS2 = isRootInSeg(calcSeg, toSeg.first);
 		bool findE2 = isRootInSeg(calcSeg, toSeg.second);
 
-		//LOG(INFO)<< findS1 << " " << findE1 << " " << findS2 << " " << findE2;
+		LOG(INFO)<< findS1 << " " << findE1 << " " << findS2 << " " << findE2;
 
 		Eigen::Vector3d s1Pt(.0,.0,.0), e1Pt(.0,.0,.0);
 		Eigen::Vector3d s2Pt(.0,.0,.0), e2Pt(.0,.0,.0);

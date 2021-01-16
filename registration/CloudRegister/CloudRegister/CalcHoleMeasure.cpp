@@ -1,11 +1,6 @@
 #include "CalcHoleMeasure.h"
 
 #include "funHelper.h"
-#include <pcl/common/common.h>
-#include <pcl/filters/crop_box.h>
-#include <pcl/filters/passthrough.h>
-#include <pcl/io/pcd_io.h>
-#include <pcl/point_types.h>
 
 namespace CloudReg
 {
@@ -30,18 +25,20 @@ namespace CloudReg
 		segA = vecHorizen.back();
 		segB = vecVertical.back();
 	
-		segA.first[2] = segB.first[2] > segB.second[2] ? segB.first[2]/2 : segB.second[2]/2;
+		const double halfHeight = fabs(segB.first[2] - segB.second[2])/2;
+		segA.first[2] = segB.first[2] < segB.second[2] ? segB.first[2] + halfHeight : segB.second[2] + halfHeight;
 		segA.second[2] = segA.first[2];
 		std::size_t optIndex,indexOther; 
 		int dir;
 		std::tie(optIndex,indexOther,dir) = getWallGrowAxisAndDir(segA.first,segA.second);
-		segA.first[optIndex] -= extendRange;
-		segA.second[optIndex] += extendRange;
+		segA.first[optIndex] -= extendRange* dir;
+		segA.second[optIndex] += extendRange* dir;
 		
 		double width = (segB.first - segB.second).norm() + extendRange * 2; 
 		auto vecPt = createRulerBox(segA,indexOther,0.1,width);
 		vecFilerPt = getRulerCorners(vecPt);	
 
+		//writePCDFile("test.pcd",std::vector<seg_pair_t>(), calcBoxSegPair(vecPt));
 	}
 
 
@@ -49,22 +46,53 @@ namespace CloudReg
 	std::vector<calcMeassurment_t> calcHoleCross(const std::vector<seg_pair_t>& holeBorder, const PointCloud::Ptr pCloud)
 	{
 		std::vector<calcMeassurment_t> vecRet;
-		Eigen::vector<Eigen::Vector3d> vecCalcPt;
-		vecCalcPt.emplace_back(holeBorder[0].second);
-		vecCalcPt.emplace_back(holeBorder[2].second);
-		vecCalcPt.emplace_back(holeBorder[1].second);
-		vecCalcPt.emplace_back(holeBorder[3].second);
-		
-		auto vecRawPt = getNearestPt(vecCalcPt, pCloud,0.1*0.1);
-		for(std::size_t i = 1; i < vecRawPt.size(); i+=2)
+				
+		for (std::size_t i = 0; i < holeBorder.size(); i++)
 		{
-			calcMeassurment_t item;
-			item.value = (vecRawPt[i-1] - vecRawPt[i]).norm();
-			item.rangeSeg.emplace_back(std::make_pair(vecRawPt[i-1],vecRawPt[i]));
-			vecRet.emplace_back(item);
-			LOG(INFO) << "cross dist :" << item.value;
-		}
+			seg_pair_t toSeg = holeBorder[i];
 
+			for (std::size_t j = i + 1; j < holeBorder.size(); j++)
+			{
+				seg_pair_t calcSeg = holeBorder[j];
+				
+				bool hasOverlap;
+				Eigen::Vector3d s1Pt, e1Pt, s2Pt, e2Pt;
+				std::tie(hasOverlap, s1Pt, e1Pt, s2Pt, e2Pt) = calcOverlap(toSeg, calcSeg);
+
+				if (!hasOverlap) continue;
+				
+
+				if ((s1Pt - e1Pt).norm() < 0.01 || (s2Pt - e2Pt).norm() < 0.01) continue;
+				LOG(INFO) << "calc betweenn: " << i << " " << j;
+
+				Eigen::vector<Eigen::Vector3d> vecCalcPt;
+				vecCalcPt.emplace_back(s1Pt);
+				vecCalcPt.emplace_back(e1Pt);
+				vecCalcPt.emplace_back(s2Pt);
+				vecCalcPt.emplace_back(e2Pt);
+				
+				auto vecRawPt = getNearestPt(vecCalcPt, pCloud, 0.1*0.1);
+
+				{
+					calcMeassurment_t item;
+					item.value = (vecRawPt[0] - vecRawPt[3]).norm();
+					item.rangeSeg.emplace_back(std::make_pair(vecRawPt[0], vecRawPt[3]));
+					vecRet.emplace_back(item);
+					LOG(INFO) << "cross dist :" << item.value;
+				}
+
+				{
+					calcMeassurment_t item;
+					item.value = (vecRawPt[1] - vecRawPt[2]).norm();
+					item.rangeSeg.emplace_back(std::make_pair(vecRawPt[1], vecRawPt[2]));
+					vecRet.emplace_back(item);
+					LOG(INFO) << "cross dist :" << item.value;
+				}
+
+			}
+		}
+		
+		
 		return vecRet;
 	}
 
@@ -107,11 +135,13 @@ namespace CloudReg
 		return vecRet;
 	}
 
-	void calcHole(const std::pair<Eigen::Vector3d, Eigen::Vector3d>& horizen,
-			std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>& holeBorder, 
-			pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud)
+	std::vector<calcMeassurment_t> calcHole(const seg_pair_t& horizen,
+			const std::vector<seg_pair_t>& holeBorder,
+			pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud,
+			const std::string& name)
 	{
 
+		std::vector<calcMeassurment_t> vecRet;
 		std::vector<seg_pair_t> vecHorizen;	
 		std::vector<seg_pair_t> vecVertical;
 		const auto horizenSeg = horizen.first - horizen.second;
@@ -120,7 +150,7 @@ namespace CloudReg
 		if (vecHorizen.size() < 2 || vecVertical.size() < 2)
 		{
 			LOG(ERROR) << "groupDirection failed: " << vecHorizen.size() << " -- " << vecVertical.size();
-			return;
+			return vecRet;
 		}
 
 		std::vector<Eigen::Vector3d> vecFilerPt;
@@ -129,19 +159,21 @@ namespace CloudReg
 		if (rangeCloud->points.empty()) 
 		{
 			LOG(ERROR) << "filerCloudByRange failed";
-			return;
+			return vecRet;
 		}
+
 		//pcl::io::savePCDFile("cloud.pcd", *pCloud);
 		//pcl::io::savePCDFile("rangeCloud.pcd", *rangeCloud);
 
 		std::vector<seg_pair_t> vecRange;
-
+		
 		//height
 		{
+			LOG(INFO) << "calc hole height";
 			Eigen::Vector3d A1 = vecHorizen.front().first - vecHorizen.front().second;
 			Eigen::Vector3d A2 = vecHorizen.back().first - vecHorizen.back().second;
 
-			std::size_t baseIndex =  A1.norm() >= A2.norm() ? 0 : vecHorizen.size()-1;
+			std::size_t baseIndex =  (A2.norm() - A1.norm()) > 0.1 ?  vecHorizen.size()-1 : 0;
 			const seg_pair_t& baseSeg = vecHorizen[baseIndex];
 		
 			for(std::size_t i = 0; i < vecHorizen.size(); i++)
@@ -151,7 +183,7 @@ namespace CloudReg
 				const auto& seg = vecHorizen[i];
 				auto vecPts = ininterpolateSeg(seg.first, seg.second, 0.01f);
 				auto vecHeight = calcHoleDist(baseSeg, vecPts, rangeCloud, 15, true);
-
+				vecRet.insert(vecRet.end(), vecHeight.begin(), vecHeight.end());
 				for(auto& item : vecHeight)
 					vecRange.insert(vecRange.end(), item.rangeSeg.begin(), item.rangeSeg.end());
 			}
@@ -159,6 +191,7 @@ namespace CloudReg
 
 		//width
 		{
+			LOG(INFO) << "calc hole width";
 			Eigen::Vector3d A1 = vecVertical.front().first - vecVertical.front().second;
 			Eigen::Vector3d A2 = vecVertical.back().first - vecVertical.back().second;
 
@@ -173,6 +206,7 @@ namespace CloudReg
 				const auto& seg = vecVertical[i];
 				auto vecPts = ininterpolateSeg(seg.first, seg.second, 0.01f);
 				auto vecWidth = calcHoleDist(baseSeg, vecPts, rangeCloud, 15, false);
+				vecRet.insert(vecRet.end(), vecWidth.begin(), vecWidth.end());
 				
 				for(auto& item : vecWidth)
 					vecRange.insert(vecRange.end(), item.rangeSeg.begin(), item.rangeSeg.end());
@@ -180,10 +214,11 @@ namespace CloudReg
 		}
 
 		//cross
-		if (holeBorder.size() == 4)
 		{
-			auto vecCross = calcHoleCross(holeBorder,rangeCloud);
-			
+			LOG(INFO) << "calc hole cross with";
+			auto vecCross = calcHoleCross(vecHorizen,rangeCloud);
+			vecRet.insert(vecRet.end(), vecCross.begin(), vecCross.end());
+
 			for(auto& item : vecCross)
 				vecRange.insert(vecRange.end(), item.rangeSeg.begin(), item.rangeSeg.end());
 		}
@@ -191,14 +226,20 @@ namespace CloudReg
 		//to root
 		if (vecHorizen.front().first[2] > 0.1)
 		{
+			LOG(INFO) << "calc hole root";
 			const auto& seg = vecHorizen.front();
 			auto vecPts = ininterpolateSeg(seg.first, seg.second, 0.01f);
 			auto vecRoot = calcHoleDist(horizen, vecPts, rangeCloud, 15, true);
-			
+			vecRet.insert(vecRet.end(), vecRoot.begin(), vecRoot.end());
+
 			for(auto& item : vecRoot)
 				vecRange.insert(vecRange.end(), item.rangeSeg.begin(), item.rangeSeg.end());
 		}
 		
-		writePCDFile("test.pcd", pCloud, vecRange);
+		pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_filtered(new pcl::PointCloud<pcl::PointXYZ>());
+		uniformSampling(0.01, pCloud, pCloud_filtered);
+		writePCDFile(name, pCloud_filtered, vecRange);
+
+		return vecRet;
 	}
 }
