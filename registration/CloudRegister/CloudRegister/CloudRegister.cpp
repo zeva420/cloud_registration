@@ -180,24 +180,24 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 		return;
 	}
 
-
+	const double distTh = 0.3;
 	auto findNearestSegOfNodeOrCloudPt = [&](const std::vector<Eigen::Vector3d> &pCloud, 
 			const std::vector<Eigen::Vector3d> &vecNodes, 
 			const std::pair<Eigen::Vector3d, Eigen::Vector3d> &seg)
-			->std::pair<Eigen::Vector3d, Eigen::Vector3d> {
+			->std::pair<double, std::pair<Eigen::Vector3d, Eigen::Vector3d>> {
 		auto ret1 = findNearestSeg(vecNodes, seg);
-		if (ret1.first < 0.3)
+		if (ret1.first < distTh)
 		{
 			LOG(INFO) << "find node seg, dist1:" <<ret1.first;
-			return ret1.second;
+			return ret1;
 		}
 
 		auto ret2 = findNearestSeg(pCloud, seg);
 		LOG(INFO) << "empty, to find cloud seg, dist1:" <<ret2.first;
-		return ret2.second;
+		return ret2;
 	};
 
-	//find nearest_pt (in intersection pts, or cloud pts) for each cadBorder
+	//find nearest_pt (in intersection pts, or cloud pts) for each outer cadBorder
 	std::vector<std::string> typeNames{"Beam","Bottom","Wall","Top","Unknow"};
 	for (auto &it : mapCloudItem_)
 	{
@@ -205,45 +205,24 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 		auto &vecItems = it.second;
 		for (int i = 0; i < vecItems.size(); i++)
 		{
-			LOG(INFO) << "------get cloud border for " << name << "-" << i << "------";
+			LOG(INFO) << "------get outer border for " << name << "-" << i << "------";
 			auto &item = vecItems[i];
-			std::vector<Eigen::Vector3d> vecNodes;
-			if (CLOUD_WALL_E == it.first && item.cadBorder_.size() > 1)
-			{
-				LOG(INFO) << "wall-" << i << " has holes";
-				vecNodes = calcWallNodes(name + std::to_string(i), item.pCloud_, item.cloudPlane_);
-			}
-
 			auto cloudPts = convertCloudToEigenVec(item.pCloud_);
-			for (int k = 0; k < item.cadBorder_.size(); k++)
-			{
-				const auto &vecSegs = item.cadBorder_[k];
-				std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> cloudSegs;
-				if (0 == k)
-				{
-					for (const auto &seg : vecSegs)
-					{
-						std::pair<Eigen::Vector3d, Eigen::Vector3d> bestSeg;
-						LOG(INFO) << "+++is outer contour seg";
-						bestSeg = findNearestSegOfNodeOrCloudPt(cloudPts, focalPointVec, seg);
-						cloudSegs.push_back(bestSeg);
-					}
-				}
-				else
-				{
-					for (const auto &seg : vecSegs)
-					{
-						std::pair<Eigen::Vector3d, Eigen::Vector3d> bestSeg;
-						LOG(INFO) << "---is hole seg";
-						bestSeg = findNearestSegOfNodeOrCloudPt(cloudPts, vecNodes, seg);
-						cloudSegs.push_back(bestSeg);
-					}
-				}
-				if (cloudSegs.size() != vecSegs.size())
-					LOG(WARNING) << "the border size miss match: " << name;
 
-				item.cloudBorder_.push_back(cloudSegs);
+			//front is the wall outer border
+			const auto &vecSegs = item.cadBorder_.front();
+			std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> cloudSegs;
+			for (const auto &seg : vecSegs)
+			{
+				std::pair<double, std::pair<Eigen::Vector3d, Eigen::Vector3d>> bestSeg;
+				bestSeg = findNearestSegOfNodeOrCloudPt(cloudPts, focalPointVec, seg);
+				if (bestSeg.first < distTh) cloudSegs.push_back(bestSeg.second);
 			}
+			if (cloudSegs.size() != vecSegs.size())
+				LOG(WARNING) << "the border size miss match: " << name;
+
+			item.cloudBorder_.push_back(cloudSegs);
+
 			//refine cut
 			{	
 				//if (it.first == CLOUD_WALL_E)
@@ -257,12 +236,50 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 					auto pNew = filerCloudByConvexHull(item.pCloud_, vecPts);
 					item.pCloud_->swap(*pNew);
 				}
-				
+			}
+		}		
+	}
 
+	//find nearest_pt (in vecNodes pts, or cloud pts) for each hole cadBorder
+	for (auto &it : mapCloudItem_)
+	{
+		std::string name = typeNames[it.first];
+		auto &vecItems = it.second;
+		for (int i = 0; i < vecItems.size(); i++)
+		{
+			auto &item = vecItems[i];
+			//if no holes, skip
+			if (CLOUD_WALL_E != it.first || item.cadBorder_.size() <= 1) continue;
+
+			LOG(INFO) << "------get hole border for " << name << "-" << i << "------";
+			const auto &outerSegs = item.cloudBorder_.front();
+
+			std::vector<Eigen::Vector3d> vecNodes;
+			vecNodes = calcWallNodes(name + std::to_string(i), item.pCloud_, item.cloudPlane_, outerSegs);
+		
+			//find hole segs
+			auto cloudPts = convertCloudToEigenVec(item.pCloud_);
+			for (int k = 0; k < item.cadBorder_.size(); k++)
+			{
+				if (0 == k) continue;
+				const auto &vecSegs = item.cadBorder_[k];
+				std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> cloudSegs;
+				for (const auto &seg : vecSegs)
+				{
+					std::pair<double, std::pair<Eigen::Vector3d, Eigen::Vector3d>> bestSeg;
+					bestSeg = findNearestSegOfNodeOrCloudPt(cloudPts, vecNodes, seg);
+					if (bestSeg.first < distTh) cloudSegs.push_back(bestSeg.second);
+				}
+				
+				if (cloudSegs.size() != vecSegs.size())
+					LOG(WARNING) << "the border size miss match: " << name;
+
+				item.cloudBorder_.push_back(cloudSegs);
 			}
 			if (item.cadBorder_.size() != item.cloudBorder_.size())
 			{
-				LOG(ERROR) << "current item cadBorder_.size != cloudBorder_.size";
+				LOG(ERROR) << "current item cadBorder_.size:" << item.cadBorder_.size()
+					 << " != cloudBorder_.size:" << item.cloudBorder_.size();
 			}
 #ifdef VISUALIZATION_ENABLED
 			if (!vecNodes.empty())
@@ -276,7 +293,19 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 				std::string file_name = "vecNodes-" + name + "-" + std::to_string(i)  + ".pcd";
 				pcl::io::savePCDFile(file_name, *pCloud);	
 			}
+#endif			
+		}		
+	}
 
+#ifdef VISUALIZATION_ENABLED
+	for (const auto &it : mapCloudItem_)
+	{
+		std::string name = typeNames[it.first];
+		const auto &vecItems = it.second;
+		for (int i = 0; i < vecItems.size(); i++)
+		{
+			const auto &item = vecItems[i];
+			//cad border
 			{
 				std::vector<Eigen::Vector3d> vecPoints;
 				for (auto& segVec : item.cadBorder_) {
@@ -286,14 +315,15 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 					}
 				}
 				pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud(new pcl::PointCloud<pcl::PointXYZ>());
-				for (size_t i = 0; i < vecPoints.size(); ++i)
+				for (size_t j = 0; j < vecPoints.size(); ++j)
 				{
-					pcl::PointXYZ p(vecPoints[i](0), vecPoints[i](1), vecPoints[i](2));
+					pcl::PointXYZ p(vecPoints[j](0), vecPoints[j](1), vecPoints[j](2));
 					pCloud->push_back(p);
 				}			
 				std::string file_name = "cadSegs-plane-" + name + "-" + std::to_string(i) + ".pcd";
 				pcl::io::savePCDFile(file_name, *pCloud);	
 			}
+			//cloud outer border
 			{
 				std::vector<Eigen::Vector3d> vecPoints;
 				for (auto& segVec : item.cloudBorder_) {
@@ -303,18 +333,38 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 					}
 				}
 				pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud(new pcl::PointCloud<pcl::PointXYZ>());
-				for (size_t i = 0; i < vecPoints.size(); ++i)
+				for (size_t j = 0; j < vecPoints.size(); ++j)
 				{
-					pcl::PointXYZ p(vecPoints[i](0), vecPoints[i](1), vecPoints[i](2));
+					pcl::PointXYZ p(vecPoints[j](0), vecPoints[j](1), vecPoints[j](2));
 					pCloud->push_back(p);
 				}			
 				std::string file_name = "cloudSegs-plane-" + name + "-" + std::to_string(i) + ".pcd";
 				pcl::io::savePCDFile(file_name, *pCloud);	
 			}
-#endif			
-		}		
+			//hole border
+			if (CLOUD_WALL_E == it.first && item.cadBorder_.size() > 1)
+			{
+				std::vector<Eigen::Vector3d> vecPoints;
+				for (int k = 0; k < item.cloudBorder_.size(); k++) {
+					if (0 == k) continue;
+					const auto& segVec = item.cloudBorder_[k]; 
+					for (auto& pt_pair : segVec) {
+						auto vec_tmp = ininterpolateSeg(pt_pair.first, pt_pair.second, 0.05);
+						vecPoints.insert(vecPoints.end(), vec_tmp.begin(), vec_tmp.end());
+					}
+				}
+				pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud(new pcl::PointCloud<pcl::PointXYZ>());
+				for (size_t j = 0; j < vecPoints.size(); ++j)
+				{
+					pcl::PointXYZ p(vecPoints[j](0), vecPoints[j](1), vecPoints[j](2));
+					pCloud->push_back(p);
+				}			
+				std::string file_name = "holeSegs-plane-" + name + "-" + std::to_string(i) + ".pcd";
+				pcl::io::savePCDFile(file_name, *pCloud);	
+			}			
+#endif
+		}
 	}
-
 	LOG(INFO) << "***************************************";
 	return;
 }

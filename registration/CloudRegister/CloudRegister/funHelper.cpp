@@ -432,9 +432,9 @@ namespace CloudReg
 	}
 
 	std::vector<Eigen::Vector3d> calcWallNodes(const std::string &name, 
-			pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, Eigen::Vector4d &cloudPlane)
+			pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, Eigen::Vector4d &cloudPlane,
+			const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &outerSegs)
 	{
-		LOG(INFO) << "*******calcWallNodes*******";
 		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filter(new pcl::PointCloud<pcl::PointXYZ>());
         projectionToPlane(cloudPlane, cloud, cloud_filter);
 
@@ -468,6 +468,22 @@ namespace CloudReg
 
 			auto tmpLeft = geo::getSubSet(inputPoints, indices, true);
 			inputPoints->swap(*tmpLeft);
+		}
+
+		for (const auto &seg : outerSegs)
+		{
+			Eigen::VectorXf line(6);
+			Eigen::Vector3d n = seg.second - seg.first;
+			line << seg.first(0), seg.first(1), seg.first(2), n(0), n(1), n(2);
+			lineCoeffs.push_back(line);
+
+			pcl::PointCloud<pcl::PointXYZ>::Ptr points(new pcl::PointCloud<pcl::PointXYZ>());
+			auto vec_tmp = ininterpolateSeg(seg.first, seg.second, 0.001);
+			for (const auto &p : vec_tmp)
+			{
+				points->push_back(pcl::PointXYZ(p(0), p(1), p(2)));
+			}
+			linePoints.push_back(points); 
 		}
 		LOG(INFO) << "lineCoeffs:" << lineCoeffs.size() << ", linePoints:" << linePoints.size();
  
@@ -1474,7 +1490,7 @@ double calcCorner_beta(PointCloud::Ptr cloud1, PointCloud::Ptr cloud2, const Eig
 
 	return std::cos(v->theta()- v->phi())* 130.;
 }
-
+#endif
 
 PointCloud::Ptr filerCloudByConvexHull(pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud,
 	const std::vector<Eigen::Vector3d>& corners, const bool negative)

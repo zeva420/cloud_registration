@@ -58,7 +58,8 @@ namespace CloudReg
 
 	std::vector<Eigen::Vector3d> calcWallNodes(const std::string &name, 
 			pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
-			Eigen::Vector4d &cloudPlane);
+			Eigen::Vector4d &cloudPlane,
+			const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &outerSegs);
 
 	pcl::PointCloud<pcl::PointXYZ>::Ptr calcCloudBorder(
 			const std::string &name,
