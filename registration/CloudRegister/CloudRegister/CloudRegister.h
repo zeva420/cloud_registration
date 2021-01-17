@@ -49,7 +49,7 @@ namespace CloudReg
 
 		
 		bool run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecCloudPtr,
-			const std::string& CAD_File);
+			const std::string& CAD_File, const bool bNeedOptimize = true);
 
 		const std::map<CloudItemType, vecItems_t>&
 			getAllCloudPlane() const;

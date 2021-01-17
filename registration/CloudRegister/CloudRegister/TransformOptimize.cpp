@@ -25,42 +25,54 @@ namespace CloudReg
 {
 bool TransformOptimize::run(
                 const std::map<ModelItemType, std::vector<PointCloud::Ptr>> &mapCloudItem,
-                const CADModel &cadModel, const Eigen::Vector3d &center)
+                const CADModel &cadModel, const Eigen::Vector3d &center,
+				const bool bNeedOptimize)
 {
-    for (auto &it : mapCloudItem)
-    {
-        if (ITEM_HOLE_E == it.first) continue;
-        LOG(INFO) << "input " <<  toModelItemName(it.first) << " vecSize:" << it.second.size();
-        Eigen::vector<PointsAndPlane> vecItems;
-        for (auto &cloud : it.second)
-        {
-            PointsAndPlane item;
-            item.cloudPtr_ = cloud;
-            vecItems.push_back(item);
-        }
-        type2CloudItems_[it.first] = vecItems;
-    }
+	for (auto &it : mapCloudItem)
+	{
+		if (ITEM_HOLE_E == it.first) continue;
+		LOG(INFO) << "input " << toModelItemName(it.first) << " vecSize:" << it.second.size();
+		Eigen::vector<PointsAndPlane> vecItems;
+		for (auto &cloud : it.second)
+		{
+			PointsAndPlane item;
+			item.cloudPtr_ = cloud;
+			vecItems.push_back(item);
+		}
+		type2CloudItems_[it.first] = vecItems;
+	}
 
-    //get model plane coeff
-    getModelPlaneCoeff(cadModel, center);
+	//get model plane coeff
+	getModelPlaneCoeff(cadModel, center);
 
-    matchCloudToMode();
+	matchCloudToMode();
 
-    downSampling();
+	if (bNeedOptimize)
+	{
+		downSampling();
 
-    //optimize with sampling Cloud
-    Eigen::Matrix4d transform;
-    optimize(transform);
+		//optimize with sampling Cloud
+		Eigen::Matrix4d transform;
+		optimize(transform);
 
-    //transform with input Cloud
-    transformCloud(transform);
+		//transform with input Cloud
+		transformCloud(transform);
 
-    //get plane coeff with input Cloud
-    Eigen::Vector3d newCenter = transform.block<3,3>(0,0) * center + transform.block<3,1>(0,3);
-    getCloudPlaneCoeff(newCenter);
+		//get plane coeff with input Cloud
+		Eigen::Vector3d newCenter = transform.block<3, 3>(0, 0) * center + transform.block<3, 1>(0, 3);
+		getCloudPlaneCoeff(newCenter);
 
-    optRets_.mapClouds_.clear();
-    fillResult(transform, optRets_);
+		optRets_.mapClouds_.clear();
+		fillResult(transform, optRets_);
+
+	}else
+	{
+		getCloudPlaneCoeff(center);
+		Eigen::Matrix4d transform = Eigen::Matrix4d::Identity();;
+		optRets_.mapClouds_.clear();
+		fillResult(transform, optRets_);
+
+	}
 
     //view Dist with sampling Cloud
     viewModelAndChangedCloud();

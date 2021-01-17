@@ -69,7 +69,7 @@ public:
     }
 
     bool run(const std::map<ModelItemType, std::vector<PointCloud::Ptr>> &mapCloudItem,
-			const CADModel &cadModel, const Eigen::Vector3d &center);
+			const CADModel &cadModel, const Eigen::Vector3d &center, const bool bNeedOptimize);
 
 	optCloudRets getRet() { return optRets_; }
 
