@@ -109,7 +109,7 @@ namespace CloudReg
 						Eigen::Vector3d center, Eigen::Vector4d bottomPlane);
 
 	// cornerPoint(2, 0) == z
-	double calcCorner_beta(PointCloud::Ptr cloud1, PointCloud::Ptr cloud2, const Eigen::Vector3f& cornerPoint, float z);
+	//double calcCorner_beta(PointCloud::Ptr cloud1, PointCloud::Ptr cloud2, const Eigen::Vector3f& cornerPoint, float z);
 
 }
 
