@@ -501,9 +501,9 @@ void TransformOptimize::projectCloudToXOYPlane(Eigen::Vector3d &startPt,
 bool TransformOptimize::viewModelAndChangedCloud()
 {
     LOG(INFO) << "********viewModelAndChangedCloud*******";
-//#if 1
+
 #ifdef VISUALIZATION_ENABLED
-    std::map<ModelItemType, std::vector<PointsAndPlane>> tmpVisualMap = type2SamplingItems_;
+    auto& tmpVisualMap = type2SamplingItems_;
     for (auto &it : type2ModelItems_)
     {
         auto &vecModelItems = it.second;
@@ -525,28 +525,13 @@ bool TransformOptimize::viewModelAndChangedCloud()
         }
     }
 
-    // pcl::visualization::PCLVisualizer viewer("demo");
-    // for (auto &it : type2ModelItems_)
-    // {  
-    //     auto &vecModelItems = it.second;
-    //     for (auto &item : vecModelItems)
-    //     {
-    //         for (int j = 0; j < item.cloudPtr_->size(); j++)
-    //         {
-    //             auto &p = item.cloudPtr_->points[j];
-    //             viewer.addSphere(p, 0.3f, toModelItemName(it.first) + std::to_string(j));
-    //         }            
-    //     }
-    // }
+    
 
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud3D_dist2Model(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud2D_dist2Model(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud3D_dist2Cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud2D_dist2Cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-    // viewer.addText(
-    //     "[-inf, -0.01]:blue, [-0.01, 0]:cyan, [0, 0.01]:green, [0.01, 0.02]:yellow, [0.02, 0.03]:pink, [0.03, +inf]:red", 
-    //     0, 0.8);
-
+  
     Eigen::Vector3d startPt(0,0,0);
     for (auto &it : type2ModelItems_)
     {
@@ -589,7 +574,6 @@ bool TransformOptimize::viewModelAndChangedCloud()
                 cloud3D_dist2Cloud->insert(cloud3D_dist2Cloud->end(), cloud_rgb->begin(), cloud_rgb->end());
 
                 std::string label = "finalT-cloud" + std::to_string(i);
-                // viewer.addPointCloud(cloud_rgb, label);
 
                 pcl::PointCloud<pcl::PointXYZRGB>::Ptr transforCloud(new pcl::PointCloud<pcl::PointXYZRGB>());
                 pcl::transformPointCloud(*cloud_rgb, *transforCloud, T);
@@ -658,10 +642,7 @@ bool TransformOptimize::viewModelAndChangedCloud()
         }
     }
 
-    // while (!viewer.wasStopped())
-    // {
-    //     viewer.spinOnce();
-    // }
+ 
 #endif
 	return true;
 }

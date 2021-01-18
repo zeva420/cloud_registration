@@ -1348,7 +1348,9 @@ namespace CloudReg
 	}
 
 }
-#if 0
+
+
+#ifdef VISUALIZATION_ENABLED
 // #include "g2o/core/base_edge.h"
 #include "g2o/core/base_vertex.h"
 #include "g2o/core/base_unary_edge.h"
@@ -1418,118 +1420,87 @@ private:
 
 
 namespace CloudReg {
-double calcCorner_beta(PointCloud::Ptr cloud1, PointCloud::Ptr cloud2, const Eigen::Vector3f& cornerPoint, float z) {
-	constexpr float SLICE_THICKNESS = 0.05f;
-	constexpr float PIECE_MAX_LENGTH = 0.3f;
-	constexpr float PIECE_MAX_LENGTH_SQUARED = PIECE_MAX_LENGTH * PIECE_MAX_LENGTH;
+	double calcCorner_beta(PointCloud::Ptr cloud1, PointCloud::Ptr cloud2, const Eigen::Vector3f& cornerPoint, float z) {
+		constexpr float SLICE_THICKNESS = 0.05f;
+		constexpr float PIECE_MAX_LENGTH = 0.3f;
+		constexpr float PIECE_MAX_LENGTH_SQUARED = PIECE_MAX_LENGTH * PIECE_MAX_LENGTH;
 
-	const float zLow = z - SLICE_THICKNESS;
-	const float zHigh = z + SLICE_THICKNESS;
+		const float zLow = z - SLICE_THICKNESS;
+		const float zHigh = z + SLICE_THICKNESS;
 
-	auto gain_sub_cloud = [&](PointCloud::Ptr cloud) {
-		auto sub = geo::passThrough(cloud, "z", zLow, zHigh);
-		sub = geo::filterPoints(sub, [&cornerPoint, PIECE_MAX_LENGTH_SQUARED](const Point& p) {
-			return (geo::V_(p) - cornerPoint).squaredNorm() < PIECE_MAX_LENGTH_SQUARED;
-		});
+		auto gain_sub_cloud = [&](PointCloud::Ptr cloud) {
+			auto sub = geo::passThrough(cloud, "z", zLow, zHigh);
+			sub = geo::filterPoints(sub, [&cornerPoint, PIECE_MAX_LENGTH_SQUARED](const Point& p) {
+				return (geo::V_(p) - cornerPoint).squaredNorm() < PIECE_MAX_LENGTH_SQUARED;
+			});
 
-		if (sub->size() < 50) sub = cloud;
+			if (sub->size() < 50) sub = cloud;
 
-		return sub;
-	};
-
-	auto sub1 = gain_sub_cloud(cloud1);
-	auto sub2 = gain_sub_cloud(cloud2);
-
-	// now optimize
-	g2o::SparseOptimizer optimier; // actually no need to be sparse.
-	{
-		auto ls = std::make_unique<g2o::LinearSolverEigen<g2o::BlockSolverX::PoseMatrixType>>();
-		auto bs = std::make_unique<g2o::BlockSolverX>(std::move(ls));
-		auto algo = new g2o::OptimizationAlgorithmLevenberg(std::move(bs));
-		optimier.setAlgorithm(algo);
-	}
-
-	int id=0;
-
-	auto v = new g2o::VAngleMeasurer();
-	{
-		// simply use middle point to initialize
-		auto dir_angle = [](PointCloud::Ptr cloud, const Eigen::Vector3f& o)-> double{
-			double cenx{ 0. }, ceny{ 0. }, dn { static_cast<double>(cloud->size()) };
-			for(const auto& p: cloud->points){
-				cenx += p.x; ceny += p.y;
-			}
-
-			return std::atan2(ceny/ dn- o(1), cenx/ dn- o(0));
+			return sub;
 		};
 
-		Vec4 estimate;
-		estimate(0, 0) = cornerPoint(0);
-		estimate(1, 0) = cornerPoint(1);
-		estimate(2, 0) = dir_angle(sub1, cornerPoint);
-		estimate(3, 0) = dir_angle(sub2, cornerPoint);
-		v->setEstimate(estimate);
+		auto sub1 = gain_sub_cloud(cloud1);
+		auto sub2 = gain_sub_cloud(cloud2);
+
+		// now optimize
+		g2o::SparseOptimizer optimier; // actually no need to be sparse.
+		{
+			auto ls = std::make_unique<g2o::LinearSolverEigen<g2o::BlockSolverX::PoseMatrixType>>();
+			auto bs = std::make_unique<g2o::BlockSolverX>(std::move(ls));
+			auto algo = new g2o::OptimizationAlgorithmLevenberg(std::move(bs));
+			optimier.setAlgorithm(algo);
+		}
+
+		int id = 0;
+
+		auto v = new g2o::VAngleMeasurer();
+		{
+			// simply use middle point to initialize
+			auto dir_angle = [](PointCloud::Ptr cloud, const Eigen::Vector3f& o)-> double {
+				double cenx{ 0. }, ceny{ 0. }, dn{ static_cast<double>(cloud->size()) };
+				for (const auto& p : cloud->points) {
+					cenx += p.x; ceny += p.y;
+				}
+
+				return std::atan2(ceny / dn - o(1), cenx / dn - o(0));
+			};
+
+			Vec4 estimate;
+			estimate(0, 0) = cornerPoint(0);
+			estimate(1, 0) = cornerPoint(1);
+			estimate(2, 0) = dir_angle(sub1, cornerPoint);
+			estimate(3, 0) = dir_angle(sub2, cornerPoint);
+			v->setEstimate(estimate);
+		}
+		v->setId(id++);
+		v->setFixed(false);
+		optimier.addVertex(v);
+
+		Eigen::Matrix<double, 1, 1> info = Eigen::Matrix<double, 1, 1>::Identity();
+		for (const auto& p : sub1->points) {
+			auto e = new g2o::EDistanceToMeasurer2D(p);
+			e->setVertex(0, v);
+			e->setMeasurement(0.);
+			e->information() = info;
+			optimier.addEdge(e);
+		}
+		for (const auto& p : sub2->points) {
+			auto e = new g2o::EDistanceToMeasurer2D(p);
+			e->setVertex(0, v);
+			e->setMeasurement(0.);
+			e->information() = info;
+			optimier.addEdge(e);
+		}
+
+		LOG(INFO) << "before: " << v->to_string();
+
+		optimier.setVerbose(true);
+		optimier.initializeOptimization();
+		optimier.optimize(10);
+
+		LOG(INFO) << "after: " << v->to_string();
+
+		return std::cos(v->theta() - v->phi())* 130.;
 	}
-	v->setId(id++);
-	v->setFixed(false);
-	optimier.addVertex(v);
-
-	Eigen::Matrix<double, 1, 1> info = Eigen::Matrix<double, 1, 1>::Identity();
-	for(const auto& p: sub1->points){
-		auto e = new g2o::EDistanceToMeasurer2D(p);
-		e->setVertex(0, v);
-		e->setMeasurement(0.);
-		e->information() = info;
-		optimier.addEdge(e);
-	}
-	for (const auto& p : sub2->points) {
-		auto e = new g2o::EDistanceToMeasurer2D(p);
-		e->setVertex(0, v);
-		e->setMeasurement(0.);
-		e->information() = info;
-		optimier.addEdge(e);
-	}
-
-	LOG(INFO) << "before: "<< v->to_string();
-
-	optimier.setVerbose(true);
-	optimier.initializeOptimization();
-	optimier.optimize(10);
-
-	LOG(INFO) << "after: " << v->to_string();
-
-	return std::cos(v->theta()- v->phi())* 130.;
-}
-
-PointCloud::Ptr filerCloudByConvexHull(pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud,
-	const std::vector<Eigen::Vector3d>& corners, const bool negative)
-{
-
-	pcl::PointCloud<pcl::PointXYZ>::Ptr boundingbox_ptr(new pcl::PointCloud<pcl::PointXYZ>);
-	for (auto& pt : corners)
-	{
-		boundingbox_ptr->push_back(pcl::PointXYZ(pt[0], pt[1], pt[2]));
-	}
-	
-
-	pcl::ConvexHull<pcl::PointXYZ> hull;
-	hull.setInputCloud(boundingbox_ptr);
-	hull.setDimension(2);
-	std::vector<pcl::Vertices> polygons;
-	pcl::PointCloud<pcl::PointXYZ>::Ptr surface_hull(new pcl::PointCloud<pcl::PointXYZ>);
-	hull.reconstruct(*surface_hull, polygons);
-
-	pcl::PointCloud<pcl::PointXYZ>::Ptr objects(new pcl::PointCloud<pcl::PointXYZ>);
-	pcl::CropHull<pcl::PointXYZ> bb_filter;
-	bb_filter.setDim(2);
-	bb_filter.setNegative(negative);
-	bb_filter.setInputCloud(pCloud);
-	bb_filter.setHullIndices(polygons);
-	bb_filter.setHullCloud(surface_hull);
-	bb_filter.filter(*objects);
-
-	// LOG(INFO) << "inPut: " << pCloud->points.size() << " outPut: " << objects->points.size();
-	return objects;
->>>>>>> origin/main
 }
 #endif

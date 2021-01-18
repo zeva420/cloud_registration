@@ -362,10 +362,12 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 				}			
 				std::string file_name = "holeSegs-plane-" + name + "-" + std::to_string(i) + ".pcd";
 				pcl::io::savePCDFile(file_name, *pCloud);	
-			}			
-#endif
+			}
 		}
-	}
+		}
+#endif
+		
+	
 	LOG(INFO) << "***************************************";
 	return;
 }
@@ -446,9 +448,6 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 			item.cadPlane_ = ret[i].cadPlane_;
 			item.cadBorder_.push_back(beam.segments_);
 
- 			//LOG(INFO) << "*********************beam:" << i << "************************";
-// 			auto boundPoints = calcCloudBorder("beam-" + std::to_string(i),
-// 					pData, item.cloudPlane_, item.cadBorder_, item.cloudBorder_);
 			mapCloudItem_[CLOUD_BEAM_E].emplace_back(item);
 		}
 	}
