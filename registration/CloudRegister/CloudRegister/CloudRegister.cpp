@@ -361,10 +361,12 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 				}			
 				std::string file_name = "holeSegs-plane-" + name + "-" + std::to_string(i) + ".pcd";
 				pcl::io::savePCDFile(file_name, *pCloud);	
-			}			
-#endif
+			}
 		}
-	}
+		}
+#endif
+		
+	
 	LOG(INFO) << "***************************************";
 	return;
 }
