@@ -36,7 +36,7 @@ namespace CloudReg
 	};
 
 	
-	using vecItems_t = std::vector<CloudItem>;
+	using vecItems_t = std::vector<CloudItem, Eigen::aligned_allocator<CloudItem>>;
 	using pairCloud_t = std::pair<CloudItem*, CloudItem*>;
 
 	class CADModel;
