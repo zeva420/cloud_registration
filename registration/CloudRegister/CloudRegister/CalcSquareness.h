@@ -4,6 +4,7 @@
 
 namespace CloudReg 
 {
-	void calcSquareness(const std::vector<vec_seg_pair_t>& vecWall, const std::vector<vec_seg_pair_t>& holeBorders,
-			std::vector<PointCloud::Ptr> pClouds, std::map<std::size_t, std::vector<std::size_t>> holeMap, const double calcLengthTh = 1.);
+	std::map<std::pair<int, int>,std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>>
+    calcSquareness(const std::vector<vec_seg_pair_t>& vecWall,std::vector<PointCloud::Ptr> pClouds, 
+                        std::map<std::size_t, std::vector<vec_seg_pair_t>> holeMap, const double calcLengthTh);
 }

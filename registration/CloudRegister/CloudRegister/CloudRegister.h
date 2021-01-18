@@ -85,6 +85,19 @@ namespace CloudReg
 		std::map<std::pair<std::size_t, std::size_t>, std::vector<calcMeassurment_t>>
 			calcAllHole();
 
+		//planeType = cloud, use cloud plane, else use cad plane
+		std::map<int, std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>>
+			calcWallVerticality(std::string planeType = "cad");
+
+		std::map<int, std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>>
+			calcWallFlatness(std::string planeType = "cad");
+
+		std::map<std::pair<int, int>,std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>>
+    		calcAllSquareness(const double calcLengthTh = 1.);
+
+		std::vector<std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>> 
+    		calcRootFlatness(std::string planeType = "cad", const double calcLengthTh = 1.5);
+
 	private:
 		
 		void fillRet(CADModel& cad, TransformOptimize& optimitor);

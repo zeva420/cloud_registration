@@ -225,7 +225,7 @@ int main()
    
 	auto mapCloud = obj.getAllCloudPlane();
 	std::vector<std::string> itemName{"Beam","Bottom","Wall","Top","Unknow"};
-#if 1
+#if 0
 	for (auto& value : mapCloud)
 	{
 		const std::string name = itemName[value.first];
@@ -281,11 +281,16 @@ int main()
 		}
 	}
 #endif
-	//obj.calcRoofNetHeight();
-	//obj.calcPlaneRange();
-	//obj.calcDepth();
-	obj.calcBay();
-	//obj.calcAllHole();
+	obj.calcRoofNetHeight();
+	// obj.calcPlaneRange();
+	// obj.calcDepth();
+	// obj.calcBay();
+	// obj.calcAllHole();
+	// obj.calcRoofNetHeight();
+	// obj.calcWallVerticality();
+	// obj.calcWallFlatness();
+	// obj.calcAllSquareness();
+	// obj.calcRootFlatness();
 	return 0;
 }
 

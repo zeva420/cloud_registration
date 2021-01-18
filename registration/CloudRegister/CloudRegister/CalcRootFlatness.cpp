@@ -15,9 +15,9 @@ namespace CloudReg
     int calHorizontalAxisRoot(const seg_pair_t& seg)
     {
         double length = (seg.first - seg.second).norm();
-        if (std::fabs(length - std::fabs(seg.first[0] - seg.second[0])) < 1e-4)
+        if (std::fabs(length - std::fabs(seg.first[0] - seg.second[0])) < 0.1)
             return 1;
-        else if (std::fabs(length - std::fabs(seg.first[1] - seg.second[1])) < 1e-4)
+        else if (std::fabs(length - std::fabs(seg.first[1] - seg.second[1])) < 0.1)
             return 0;
         return 2;
     }
@@ -92,11 +92,13 @@ namespace CloudReg
         return ruler;
     }
 
-    void calcRootFlatness(const std::vector<seg_pair_t>& rootBorder,
+    std::vector<std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>>
+    calRootFlatness(const std::vector<seg_pair_t>& rootBorder,
                           Eigen::Vector4d plane, pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud,
                           const double calcLengthTh)
     {
         // step0: cal Horizontal Axis
+        std::vector<std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>> returnValue;
         const Eigen::Vector3d& baseSeg = rootBorder.front().first - rootBorder.front().second;
         int hAxis = calHorizontalAxisRoot(rootBorder.front());
         int vAxis = (hAxis == 0) ? 1 : 0;
@@ -104,11 +106,11 @@ namespace CloudReg
         LOG(INFO) << "Vertical Axis is " << vAxis;
 
         //step1:  get vecCutBay
+        std::vector<seg_pair_t> vecCutSeg;
 		std::vector<std::size_t> vecVerticalIndex;
 		std::vector<std::size_t> vecHorizenIndex;
 		groupDirectionIndex(baseSeg, rootBorder, vecVerticalIndex, vecHorizenIndex);
 		
-		std::vector<seg_pair_t> vecCutSeg;
 		for(std::size_t i = 0; i< vecVerticalIndex.size(); i++)
 		{
 			seg_pair_t toSeg = rootBorder[vecVerticalIndex[i]];
@@ -141,15 +143,18 @@ namespace CloudReg
         if (vecCutSeg.empty() || (vecCutSeg.size() % 2) != 0)
         {
             LOG(ERROR) << "root bay size is wrong " << vecCutSeg.size();
-            return;
+            return returnValue;
         }
+        LOG(INFO) << "The root is divided into areas num: " << vecCutSeg.size();
        
-        std::vector<calcMeassurment_t> allMeasure;
-        std::vector<seg_pair_t> rulerAll;
+        std::vector<seg_pair_t> vecRange;
         for (std::size_t i = 0; i < vecCutSeg.size() / 2; ++i)
         {
+            std::vector<calcMeassurment_t> tmpMeasure;
             auto HorizenSeg1 = vecCutSeg[2*i];
             auto HorizenSeg2 = vecCutSeg[2*i + 1];
+            std::vector<seg_pair_t> tmpSegs = {HorizenSeg1, HorizenSeg2};
+
             seg_pair_t firstSeg = (HorizenSeg1.first[hAxis] < HorizenSeg2.first[hAxis]) ?
                                     HorizenSeg1 : HorizenSeg2;
             seg_pair_t secondSeg = (firstSeg == HorizenSeg1) ? HorizenSeg2 : HorizenSeg1;
@@ -165,25 +170,27 @@ namespace CloudReg
             std::vector<seg_pair_t> middleRuler = getMiddleRuler(std::make_pair(validSeg1, validSeg2), vAxis, hAxis);
             if (!middleRuler.empty())
                 rulers.insert(rulers.end(), middleRuler.begin(), middleRuler.end());
-            rulerAll.insert(rulerAll.end(), rulers.begin(), rulers.end());
             LOG(INFO) << "zoom get rulers num: " << rulers.size();
 
             for (auto &ruler : rulers)
             {
                 calcMeassurment_t measure;
-                measure = calFlatness(ruler, 2, plane, pCloud);
-                allMeasure.emplace_back(measure);
+                std::vector<seg_pair_t> tmp = {ruler};
+                measure = calFlatness(tmp, 2, plane, pCloud);
+                if (!measure.rangeSeg.empty())
+                {
+                    std::vector<Eigen::Vector3d> rPoints =  createRulerBox(ruler, 2, 0.025, 0.025);
+                    std::vector<seg_pair_t> pair =  calcBoxSegPair(rPoints);
+                    measure.rangeSeg.insert(measure.rangeSeg.end(), pair.begin(), pair.end());
+                    vecRange.insert(vecRange.end(), pair.begin(), pair.end());
+                    tmpMeasure.emplace_back(measure);
+                }
+                
             }
+            returnValue.emplace_back(std::make_tuple(tmpMeasure, tmpSegs));
         }
 
-       //For visualization
-        std::vector<seg_pair_t> vecRange;
-        for(auto ruler : rulerAll)
-        {
-            std::vector<Eigen::Vector3d> rPoints =  createRulerBox(ruler, 2, 0.025, 0.025);
-            std::vector<seg_pair_t> pair =  calcBoxSegPair(rPoints);
-            vecRange.insert(vecRange.end(), pair.begin(), pair.end());
-        }
-        writePCDFile("testRootFla.pcd", pCloud, vecRange);
+        writePCDFile("RootFlatness.pcd", pCloud, vecRange);
+        return returnValue;
     }
 }

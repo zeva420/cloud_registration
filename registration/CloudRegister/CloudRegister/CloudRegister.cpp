@@ -10,13 +10,15 @@
 #include "CalcNetHeight.h"
 #include "CalcBayAndDepthMeasure.h"
 #include "CalcHoleMeasure.h"
+#include "CalcWallVerticality.h"
+#include "CalcWallFlatness.h"
+#include "CalcSquareness.h"
+#include "CalcRootFlatness.h"
 
 namespace CloudReg {
 CloudRegister::CloudRegister() {
 	google::InitGoogleLogging("Cloud");
 	FLAGS_log_dir = "./";
-
-
 
 #define VISUALIZATION_ENABLED
 #ifdef VISUALIZATION_ENABLED
@@ -584,4 +586,114 @@ CloudRegister::calcAllHole()
 	}
 	return mapRet;
 }
+
+std::map<int, std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>>
+CloudRegister::calcWallVerticality(std::string planeType)
+{
+	std::map<int, std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>> returnMeasure;
+	const auto& vecWall = mapCloudItem_[CLOUD_WALL_E];
+	if (vecWall.empty())
+		return returnMeasure;
+
+	for(size_t i = 0; i < vecWall.size(); ++i)
+	{
+		auto& wall = vecWall[i];
+		if (wall.cloudBorder_.empty())
+			continue;
+		
+		auto wallBorder = wall.cloudBorder_.front();
+		std::vector<std::vector<seg_pair_t>> holeBorders;
+		if (wall.cloudBorder_.size() > 1)
+		{
+			for(size_t j = 1; j < wall.cloudBorder_.size(); ++j)
+				holeBorders.emplace_back(wall.cloudBorder_[j]);
+		}
+		
+		Eigen::Vector4d plane = wall.cadPlane_;
+		if (planeType == "cloud")
+			plane = wall.cloudPlane_;
+			
+		auto result = calcVerticality(wallBorder, holeBorders, wall.pCloud_, plane, i);
+		auto measure = std::get<0>(result);
+		if(!measure.empty())
+			returnMeasure[i] = result;
+	}
+	return returnMeasure;
+}
+
+std::map<int, std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>>
+CloudRegister::calcWallFlatness(std::string planeType)
+{
+	std::map<int, std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>> returnMeasure;
+	const auto& vecWall = mapCloudItem_[CLOUD_WALL_E];
+	if (vecWall.empty())
+		return returnMeasure;
+
+	for(size_t i = 0; i < vecWall.size(); ++i)
+	{
+		auto& wall = vecWall[i];
+		if (wall.cloudBorder_.empty())
+			continue;
+		
+		auto wallBorder = wall.cloudBorder_.front();
+		std::vector<std::vector<seg_pair_t>> holeBorders;
+		if (wall.cloudBorder_.size() > 1)
+		{
+			for(size_t j = 1; j < wall.cloudBorder_.size(); ++j)
+				holeBorders.emplace_back(wall.cloudBorder_[j]);
+		}
+		
+		Eigen::Vector4d plane = wall.cadPlane_;
+		if (planeType == "cloud")
+			plane = wall.cloudPlane_;
+			
+		auto result = calWallFlatness(wallBorder, holeBorders, wall.pCloud_, plane, i);
+		auto measure = std::get<0>(result);
+		if(!measure.empty())
+			returnMeasure[i] = result;
+	}
+	return returnMeasure;
+}
+
+std::map<std::pair<int, int>,std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>>
+CloudRegister::calcAllSquareness(const double calcLengthTh)
+{
+	const auto& vecWall = mapCloudItem_[CLOUD_WALL_E];
+	std::vector<vec_seg_pair_t> vecWallBorder;
+	std::vector<PointCloud::Ptr> pClouds;
+	std::map<std::size_t, std::vector<vec_seg_pair_t>> holeMap;
+
+	for(size_t i = 0; i < vecWall.size(); ++i)
+	{
+		auto& wall = vecWall[i];
+		pClouds.emplace_back(wall.pCloud_);
+
+		auto wallBorder = wall.cloudBorder_.front();
+		vecWallBorder.emplace_back(wallBorder);
+		std::vector<std::vector<seg_pair_t>> holeBorders;
+		if (wall.cloudBorder_.size() > 1)
+		{
+			for(size_t j = 1; j < wall.cloudBorder_.size(); ++j)
+				holeBorders.emplace_back(wall.cloudBorder_[j]);
+			holeMap[i] = holeBorders;
+		}
+	}
+
+	auto result = calcSquareness(vecWallBorder, pClouds, holeMap, calcLengthTh);
+	return result;
+}
+
+std::vector<std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>> 
+CloudRegister::calcRootFlatness(std::string planeType, const double calcLengthTh)
+{
+	const auto& itemRoot = mapCloudItem_[CLOUD_BOTTOM_E].front();
+	const auto& rootBorder = itemRoot.cloudBorder_.front();
+	Eigen::Vector4d plane = itemRoot.cadPlane_;
+	if (planeType == "cloud")
+		plane = itemRoot.cloudPlane_;
+	
+	auto result = calRootFlatness(rootBorder, plane, itemRoot.pCloud_, calcLengthTh);
+	return result;
+}
+
 }

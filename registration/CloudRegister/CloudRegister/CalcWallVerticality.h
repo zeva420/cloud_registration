@@ -4,8 +4,8 @@
 
 namespace CloudReg 
 {
-	void calcVerticality(const std::pair<Eigen::Vector3d, Eigen::Vector3d>& horizen,
+	std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>> calcVerticality(
 			const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>& wallBorder, 
             const std::vector<std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>>& holeBorders,
-			pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud, int index);
+			pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud, Eigen::Vector4d plane, int wallIndex);
 }
