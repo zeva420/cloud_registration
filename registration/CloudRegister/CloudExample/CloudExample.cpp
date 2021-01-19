@@ -291,6 +291,7 @@ int main()
 	// obj.calcWallFlatness();
 	// obj.calcAllSquareness();
 	// obj.calcRootFlatness();
+	// obj.calcAllCorner();
 	return 0;
 }
 

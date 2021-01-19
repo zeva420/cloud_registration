@@ -1,5 +1,6 @@
 #include "CalcCorner.h"
 
+#include "funHelper.h"
 #include <pcl/common/common.h>
 
 
@@ -45,15 +46,17 @@ namespace CloudReg
 		return std::make_tuple(pCloud,rangeSeg);
 	}
 
-	void CalcCorner(const std::vector<std::vector<seg_pair_t>>& allWallBorder,
+	std::map<std::pair<int, int>, std::vector<calcMeassurment_t>>
+	CalcCorner(const std::vector<std::vector<seg_pair_t>>& allWallBorder,
 			const std::map<std::size_t, std::vector<std::vector<seg_pair_t>>>& holeBorder,
 			const std::vector<PointCloud::Ptr>& vecCloud,
 			const double calcLengthTh)
 	{
+		std::map<std::pair<int, int>, std::vector<calcMeassurment_t>> result;
 		if (allWallBorder.size() != vecCloud.size())
 		{
 			LOG(WARNING) << "size not match";
-			return;
+			return result;
 		}
 
 		std::vector<std::pair<std::size_t, std::size_t>> calcIdx;
@@ -134,19 +137,56 @@ namespace CloudReg
 				}
 			}
 
+			auto getCornerByPlaneNorm = [](PointCloud::Ptr left, PointCloud::Ptr right,
+				const Eigen::Vector3d &center)->double {
+				LOG(INFO) << "left size:" << left->size() << ", right size:" << right->size();		
+				if (left->size() < 50 || right->size() < 50) return -1;
+
+				Eigen::Vector4d plane1 = calcPlaneParam(left);
+				Eigen::Vector4d plane2 = calcPlaneParam(right);
+				Eigen::Vector3d n1 = plane1.block<3,1>(0,0);
+				Eigen::Vector3d n2 = plane2.block<3,1>(0,0);
+				Eigen::Vector3d p1(left->front().x, left->front().y, left->front().z);
+				Eigen::Vector3d p2(right->front().x, right->front().y, right->front().z);
+				p1 = p1 - center;
+				p2 = p2 - center;
+				n1 = (n1.dot(p1) > 0) ? n1 : (-1.0 * n1);
+				n2 = (n2.dot(p2) > 0) ? n2 : (-1.0 * n2);
+				// LOG(INFO) << "n1:" << n1(0) << "," << n1(1) << "," << n1(2);
+				// LOG(INFO) << "n2:" << n2(0) << "," << n2(1) << "," << n2(2);
+				double v = calcCorner(n1, n2);	
+				return v;				
+			};
+
+			// getCornerByPlaneNorm
 			LOG(INFO) << "calc between: " << std::to_string(idx.first) << " - " << std::to_string(idx.second);
+			Eigen::Vector3d center = ((leftWall.back().first - leftWall.back().second) 
+				+ (rightWall.back().second - rightWall.back().first)) / 2.0;
+			// LOG(INFO) << "center:" << center;
 			//0.3
 			{
 				auto left = calcCornerArea(leftWall.back(), vecCloud[idx.first],0.3,true);
 				auto right = calcCornerArea(rightWall.back(), vecCloud[idx.second],0.3,false);
+				double v = getCornerByPlaneNorm(std::get<0>(left), std::get<0>(right), center);	
+				calcMeassurment_t meassurment;
+				meassurment.value = v;
+
+				result[std::make_pair(idx.first, idx.second)].push_back(meassurment);
 			}
 			//1.5
 			{
 				auto left = calcCornerArea(leftWall.back(), vecCloud[idx.first],1.5,true);
 				auto right = calcCornerArea(rightWall.back(), vecCloud[idx.second],1.5,false);
+				double v = getCornerByPlaneNorm(std::get<0>(left), std::get<0>(right), center);	
+				calcMeassurment_t meassurment;
+				meassurment.value = v;		
+
+				result[std::make_pair(idx.first, idx.second)].push_back(meassurment);	
 			}
 
 		}
+
+		return result;
 	}
 
 }//namespace

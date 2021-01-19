@@ -7,6 +7,7 @@
 #include "CADModel.h"
 #include "TransformOptimize.h"
 #include "CloudSegment.h"
+#include "CalcCorner.h"
 #include "CalcNetHeight.h"
 #include "CalcBayAndDepthMeasure.h"
 #include "CalcHoleMeasure.h"
@@ -693,6 +694,51 @@ CloudRegister::calcRootFlatness(std::string planeType, const double calcLengthTh
 		plane = itemRoot.cloudPlane_;
 	
 	auto result = calRootFlatness(rootBorder, plane, itemRoot.pCloud_, calcLengthTh);
+	return result;
+}
+
+std::map<std::pair<int, int>, std::vector<calcMeassurment_t>>
+CloudRegister::calcAllCorner()
+{
+	std::map<std::pair<int, int>, std::vector<calcMeassurment_t>> result;
+	const auto& itemWall = mapCloudItem_[CLOUD_WALL_E];
+	if (itemWall.empty()) return result;
+
+	std::vector<std::vector<seg_pair_t>> allWallBorder;
+	std::map<std::size_t, std::vector<vec_seg_pair_t>> holeBorder;
+	std::vector<PointCloud::Ptr> vecCloud;
+	for (std::size_t i = 0; i < itemWall.size(); i++)
+	{
+		const auto& item = itemWall[i];
+		allWallBorder.emplace_back(item.cloudBorder_.front());
+		vecCloud.emplace_back(item.pCloud_);
+		for (std::size_t j = 1; j < item.cloudBorder_.size(); j++)
+		{
+			if (item.cloudBorder_[j].size() != item.cadBorder_[j].size())
+				LOG(ERROR) << "cloudBorder error, need check";
+
+			holeBorder[i].emplace_back(item.cloudBorder_[j]);
+		}
+	}
+
+	const double calcLengthTh = 0.13;
+	result = CalcCorner(allWallBorder, holeBorder, vecCloud, calcLengthTh);
+	
+	std::stringstream ss;
+	ss << "*****calc All Corner:" << std::endl;
+	for (const auto &it : result)
+	{
+		const auto &pair = it.first;
+		const auto &vecValue = it.second;
+		ss << "wall pair:" << pair.first << "-" << pair.second << ", 0.3m-1.5m: ";
+		for (auto &v : vecValue)
+		{
+			ss << v.value << "  ";
+		}
+		ss << std::endl;
+	}
+	LOG(INFO) << ss.str();
+
 	return result;
 }
 
