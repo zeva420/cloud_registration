@@ -22,15 +22,15 @@ namespace CloudReg
 		Eigen::Vector3d pt1,pt2;
 		if(bLeft)
 		{
-			pt2 = pt1 = seg.second;
-			pt1[optIndex] -= dir * calcLength;
+			pt2 = pt1 = seg.first;
+			pt1[optIndex] += dir * calcLength;
 
 			pt1[2] = height;
 			pt2[2] = height;
 
 		}else{
-			pt2 = pt1 = seg.first;
-			pt2[optIndex] += dir * calcLength;
+			pt2 = pt1 = seg.second;
+			pt2[optIndex] -= dir * calcLength;
 		
 			pt1[2] = height;
 			pt2[2] = height;
@@ -172,6 +172,38 @@ namespace CloudReg
 				meassurment.value = v;
 
 				result[std::make_pair(idx.first, idx.second)].push_back(meassurment);
+
+#ifdef VISUALIZATION_ENABLED
+				{
+					pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloud(new pcl::PointCloud<pcl::PointXYZRGB>());
+					for (auto &p1 : std::get<0>(left)->points)
+					{
+						pcl::PointXYZRGB p2;
+						p2.x = p1.x;
+						p2.y = p1.y;
+						p2.z = p1.z;
+						p2.r = 255;
+						p2.g = 0;
+						p2.b = 0;
+						pCloud->push_back(p2);
+					}
+
+					for (auto &p1 : std::get<0>(right)->points)
+					{
+						pcl::PointXYZRGB p2;
+						p2.x = p1.x;
+						p2.y = p1.y;
+						p2.z = p1.z;
+						p2.r = 0;
+						p2.g = 255;
+						p2.b = 0;
+						pCloud->push_back(p2);
+					}
+					std::string file_name = "corner-" + std::to_string(idx.first) 
+						+ "-" + std::to_string(idx.second) + "-0.3m" + ".pcd";
+					if (!pCloud->empty()) pcl::io::savePCDFile(file_name, *pCloud);	
+				}				
+#endif
 			}
 			//1.5
 			{
@@ -182,6 +214,37 @@ namespace CloudReg
 				meassurment.value = v;		
 
 				result[std::make_pair(idx.first, idx.second)].push_back(meassurment);	
+#ifdef VISUALIZATION_ENABLED
+				{
+					pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloud(new pcl::PointCloud<pcl::PointXYZRGB>());
+					for (auto &p1 : std::get<0>(left)->points)
+					{
+						pcl::PointXYZRGB p2;
+						p2.x = p1.x;
+						p2.y = p1.y;
+						p2.z = p1.z;
+						p2.r = 255;
+						p2.g = 0;
+						p2.b = 0;
+						pCloud->push_back(p2);
+					}
+
+					for (auto &p1 : std::get<0>(right)->points)
+					{
+						pcl::PointXYZRGB p2;
+						p2.x = p1.x;
+						p2.y = p1.y;
+						p2.z = p1.z;
+						p2.r = 0;
+						p2.g = 255;
+						p2.b = 0;
+						pCloud->push_back(p2);
+					}
+					std::string file_name = "corner-" + std::to_string(idx.first) 
+						+ "-" + std::to_string(idx.second) + "-1.5m" + ".pcd";
+					if (!pCloud->empty()) pcl::io::savePCDFile(file_name, *pCloud);	
+				}				
+#endif			
 			}
 
 		}
