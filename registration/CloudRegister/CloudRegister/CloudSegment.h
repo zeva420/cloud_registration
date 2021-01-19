@@ -76,7 +76,7 @@ private:
 
 	// constants
 	static constexpr double METER_100 = 100.;
-	static constexpr float DOWNSAMPLE_SIZE = 0.01f;
+	static constexpr float DOWNSAMPLE_SIZE = 0.02f;
 
 	// main processes
 	bool calibrateDirectionToAxisZ();

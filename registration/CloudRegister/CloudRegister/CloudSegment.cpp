@@ -354,8 +354,9 @@ CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
 
 	std::vector<int> searchIndices;
 	std::vector<float> searchDis;
-	constexpr double MAX_DIS_SQUARED = 0.015 * 0.015;
+	constexpr double MAX_DIS_SQUARED = DOWNSAMPLE_SIZE * DOWNSAMPLE_SIZE * 2.25;
 	constexpr float ON_PLANE_CHECK_THRESH = 0.05f;
+
 
 	for (std::size_t idx = 0; idx < orgCloud_->size(); ++idx) {
 		const auto& p = orgCloud_->points[idx];
