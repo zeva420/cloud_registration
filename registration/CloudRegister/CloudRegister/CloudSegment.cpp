@@ -148,7 +148,7 @@ bool CloudSegment::alignCloudToCADModel() {
 
 	//note: 10000 may relate to downsample in sliceMainBody
 	// auto planes = detectPlanes(cloud, 0.02, 10000); 
-	auto planes = detectRegionPlanes(cloud, 3. / 180. * geo::PI, 1., 2000);
+	auto planes = detectRegionPlanes(cloud, 3. / 180. * geo::PI, 1., 500);
 
 	//auto nzs = ll::mapf([](const PlaneCloud& pc) { return std::fabs(pc.n()(2)); }, planes);
 	//std::sort(nzs.begin(), nzs.end());
