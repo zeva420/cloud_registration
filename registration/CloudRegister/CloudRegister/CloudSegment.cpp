@@ -15,6 +15,7 @@
 #include <pcl/features/normal_3d.h>
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/search/search.h>
+#include <pcl/filters/passthrough.h>
 
 #include "GeometryUtils.h"
 #include "funHelper.h"
@@ -77,10 +78,17 @@ bool CloudSegment::calibrateDirectionToAxisZ() {
 	LOG(INFO) << "********calibrateDirectionToAxisZ*******";
 	removeFarPoints(orgCloud_, cadModel_);
 
-	PointCloud::Ptr samplingCloud(new PointCloud());
-	uniformSampling(0.05, orgCloud_, samplingCloud);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr filteredCloud(new pcl::PointCloud<pcl::PointXYZ>());
+	pcl::PassThrough<pcl::PointXYZ> pass;
+	pass.setInputCloud(orgCloud_);
+	pass.setFilterFieldName("z");
+	pass.setFilterLimits(0.5, 1.5);
+	pass.filter(*filteredCloud);
 
-	float binSizeTh = 0.2;
+	PointCloud::Ptr samplingCloud(new PointCloud());
+	uniformSampling(0.1, filteredCloud, samplingCloud);
+
+	float binSizeTh = 0.5;
 	std::vector<std::pair<int, std::vector<int>>> zToNumVec;
 	if (false == statisticsForPointZ(binSizeTh, samplingCloud, zToNumVec)) {
 		LOG(WARNING) << "statistics For Point.Z Failed.";
@@ -91,11 +99,13 @@ bool CloudSegment::calibrateDirectionToAxisZ() {
 	auto subSet = geo::getSubSet(samplingCloud, vecIdxs, false);
 	LOG(INFO) << "zToNumVec:" << zToNumVec.size() << " firstZ:"
 		<< zToNumVec.begin()->first << " subSet:" << subSet->size();
+
 	for (auto pr : ll::enumerate(zToNumVec)) {
 		auto it = *pr.iter;
 		LOG(INFO) << "z:" << it.first << " num:" << it.second.size();
 		if (3 <= pr.index) break;
 	}
+
 	Eigen::VectorXf coeff;
 	std::vector<int> inlierIdxs;
 	planeFitting(0.1, subSet, coeff, inlierIdxs);

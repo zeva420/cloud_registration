@@ -95,7 +95,7 @@ private:
 	bool getCloudPlaneCoeff(const Eigen::Vector3d &center);
 
 	std::pair<double, double> calcCloudToPLaneAveDist(Eigen::Vector4d &plane,
-                                PointCloud::Ptr cloud);
+                                PointCloud::Ptr cloud, bool bMedian);
 
 	bool matchCloudToMode();
 
