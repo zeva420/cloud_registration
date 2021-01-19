@@ -1143,7 +1143,7 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 			auto iter = std::max_element(hists.begin(), hists.end());
 			std::size_t i = std::distance(hists.begin(), iter);
 			double floorz1 = cadz2_ - MIN_WALL_HEIGHT - (i + 2) * HIST_STEP;
-			double floorz2 = cadz2_ - MIN_WALL_HEIGHT - (i - 2) * HIST_STEP;
+			double floorz2 = cadz2_ - MIN_WALL_HEIGHT - (i - 1) * HIST_STEP;
 			LOG(INFO) << ll::unsafe_format("slice floor %.3f -> %.3f.", floorz1, floorz2);
 
 			auto slice = geo::passThrough(cloud, "z", floorz1, floorz2);
