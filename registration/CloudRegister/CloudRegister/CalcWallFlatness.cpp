@@ -12,17 +12,17 @@
 
 namespace CloudReg
 {
-    std::vector<seg_pair_t> calcSingleWall(const std::vector<seg_pair_t>& wallBorder, const std::vector<vec_seg_pair_t>& holeBorders,
+    std::map<int,std::vector<seg_pair_t>> calcSingleWall(const std::vector<seg_pair_t>& wallBorder, const std::vector<vec_seg_pair_t>& holeBorders,
                                     int hAxis, std::pair<seg_pair_t, seg_pair_t> wallData, int type)
     {
         auto seg1 = wallData.first;
         auto seg2 = wallData.second;
-        std::vector<seg_pair_t> rulers;
+        std::map<int,std::vector<seg_pair_t>> rulerMap;
 
         std::vector<seg_pair_t> hborder;
         for(auto b : holeBorders)
             hborder.insert(hborder.end(), b.begin(), b.end());
-        auto getDiagonalRuler = [&](int index, std::vector<seg_pair_t>& rulers)
+        auto getDiagonalRuler = [&](int index, std::map<int,std::vector<seg_pair_t>>& rulerMap, int type)
         {
             seg_pair_t ruler;
             const auto& seg = wallBorder[index];
@@ -33,7 +33,7 @@ namespace CloudReg
                 ruler.first = ruler.first + 0.05*rulern; // Move 50mm
                 ruler.second = ruler.second - 0.05*rulern; // Move 50mm
                 cutOffRuler(ruler, 2);
-                rulers.emplace_back(ruler);
+                rulerMap[type].emplace_back(ruler);
             }
         };
 
@@ -41,13 +41,13 @@ namespace CloudReg
         if (type == 1 || type == 3) //Upper left ruler
         {
             int index = 1;
-            getDiagonalRuler(index, rulers);
+            getDiagonalRuler(index, rulerMap, 1);
         }
 
         if (type == 2 || type == 3) //bottom right ruler
         {
             int index = wallBorder.size()-1;
-            getDiagonalRuler(index, rulers);
+            getDiagonalRuler(index, rulerMap, 2);
         }
 
         if (length + 1e-4 >= 3)  //middle ruler
@@ -67,19 +67,18 @@ namespace CloudReg
             Eigen::Vector3d p1 = hypRuler0;
             p1[hAxis] = p1[hAxis] + resDis;
             Eigen::Vector3d p2 = p1 + 2*rulern;    //200 cm
-            rulers.emplace_back(std::make_pair(p1, p2));
+            rulerMap[3].emplace_back(std::make_pair(p1, p2));
         }
 
-        LOG(INFO) << "wall get rulers num: " << rulers.size();
-        return rulers;
+        return rulerMap;
     }
 
-    std::vector<seg_pair_t> calcWallRuler(const vec_seg_pair_t& wallBorder, const std::vector<vec_seg_pair_t>& holeBorders,
+    std::map<int,std::vector<seg_pair_t>> calcWallRuler(const vec_seg_pair_t& wallBorder, const std::vector<vec_seg_pair_t>& holeBorders,
                                     int hAxis, std::vector<seg_pair_t> calValidVertical)
     {
         std::size_t wallNum = calValidVertical.size() / 2;
         LOG(INFO) << "valid Wall num is " << wallNum;
-        std::vector<seg_pair_t> rulers;
+        std::map<int,std::vector<seg_pair_t>> rulers;
         bool symmetric = (wallBorder.back().first[hAxis] > wallBorder.back().second[hAxis]) ? 0 : 1;
         for (std::size_t i = 0; i < wallNum; ++i)
         {
@@ -94,7 +93,6 @@ namespace CloudReg
 
             if (length >= 0.6)
             {
-                std::vector<seg_pair_t> ruler;
                 int type = 3;
                 if (wallNum > 1 && i == 0)
                     type = 1;
@@ -106,8 +104,9 @@ namespace CloudReg
                 else if (symmetric && type == 2)
                     type = 1;
                
-                ruler = calcSingleWall(wallBorder, holeBorders, hAxis, std::make_pair(seg1, seg2), type);
-                rulers.insert(rulers.end(), ruler.begin(), ruler.end());
+                auto ruler = calcSingleWall(wallBorder, holeBorders, hAxis, std::make_pair(seg1, seg2), type);
+                for (auto &map : ruler)
+                    rulers[map.first].insert(rulers[map.first].end(), map.second.begin(), map.second.end());
             }
         }
         return rulers;
@@ -136,53 +135,6 @@ namespace CloudReg
 
         std::vector<seg_pair_t> zoom = {sega, segb, segc, segd, sege, segf, segg, segh};
         return zoom;
-    }
-
-    std::vector<seg_pair_t> calcHoleRuler(const seg_pair_t& horizenSeg, 
-                            const std::vector<seg_pair_t>& holeBorder, int hAxis, int type)
-    {
-        std::vector<seg_pair_t> rulers;
-        std::vector<seg_pair_t> vecHoleHorizen, vecHoleVertical;
-        const auto hSeg = horizenSeg.first - horizenSeg.second;
-        groupDirection(hSeg, holeBorder, vecHoleVertical, vecHoleHorizen);
-        if (vecHoleHorizen.size() < 2 || vecHoleVertical.size() < 2)
-		{
-			LOG(ERROR) << "group hole Direction Failed: " << vecHoleHorizen.size() << " -- " << vecHoleVertical.size();
-			return rulers;
-		}
-        std::sort(vecHoleVertical.begin(), vecHoleVertical.end(), [&](const seg_pair_t& left, const seg_pair_t& right){
-				return left.first[hAxis] < right.first[hAxis];});
-        
-        std::vector<seg_pair_t> holeZoom = calHoleZoom(vecHoleVertical.front(), vecHoleVertical.back(), hAxis);
-        if (type == 1 || type == 3)  //left ruler
-        {
-            seg_pair_t ruler1;
-            std::vector<seg_pair_t> holeBorder;
-            std::vector<seg_pair_t> zoomBorder = {holeZoom[0], holeZoom[1], holeZoom[2], holeZoom[3]};
-            if(calRuler3d(zoomBorder, holeBorder, zoomBorder[2], zoomBorder[2].first, 45, ruler1))
-            {
-                Eigen::Vector3d rulern1 = (ruler1.second - ruler1.first).normalized();
-                ruler1.first = ruler1.first - 0.03*rulern1; // Move up 30mm
-                ruler1.second = ruler1.second + 0.03*rulern1; // Move down 30mm
-                rulers.emplace_back(ruler1);
-            }
-        }
-
-        if(type == 2 || type == 3) //right ruler
-        {
-            seg_pair_t ruler2;
-            std::vector<seg_pair_t> holeBorder;
-            std::vector<seg_pair_t> zoomBorder = {holeZoom[4], holeZoom[5], holeZoom[6], holeZoom[7]};
-            if (calRuler3d(zoomBorder, holeBorder, zoomBorder[1], zoomBorder[1].first, 45, ruler2))
-            {
-                Eigen::Vector3d rulern2 = (ruler2.second - ruler2.first).normalized();
-                ruler2.first = ruler2.first - 0.03*rulern2; // Move up 30mm
-                ruler2.second = ruler2.second + 0.03*rulern2; // Move down 30mm
-                rulers.emplace_back(ruler2);
-            }
-        }
-
-        return rulers;
     }
 
     double adjustHRulerBorder(seg_pair_t seg, std::vector<seg_pair_t> checkBorder, double resDis)
@@ -220,41 +172,94 @@ namespace CloudReg
         return (lengthr < resDis) ? lengthr : resDis;
     }
 
-    std::vector<seg_pair_t> transfHoleRuler(std::vector<seg_pair_t> rulersIn, std::vector<seg_pair_t> checkBorder)
+    std::vector<seg_pair_t> transfHoleRuler(seg_pair_t ruler, std::vector<seg_pair_t> checkBorder)
     {
         std::vector<seg_pair_t> rulersOut;
-        for(auto ruler : rulersIn)
+        
+        double length = (ruler.first - ruler.second).norm();
+        if (length + 1e-4 > 2)
         {
-            double length = (ruler.first - ruler.second).norm();
-            if (length + 1e-4 > 2)
-            {
-                LOG(ERROR) << "ruler length " << length << " can not transf";
-                continue;
-            }
-
-            double resDis = (2 - length) / 2;
-            seg_pair_t newRuler1, newRuler2;
-            Eigen::Vector3d rulern = (ruler.second - ruler.first).normalized();
-            double leftRes = adjustHRulerBorder(std::make_pair(ruler.second, ruler.first), checkBorder, resDis);
-            Eigen::Vector3d p1 = ruler.first - leftRes * rulern;
-
-            if ((resDis - leftRes) > 1e-6)
-                resDis += (resDis - leftRes);
-            double rightRes = adjustHRulerBorder(ruler, checkBorder, resDis);
-            Eigen::Vector3d p2 = ruler.second + rightRes * rulern;
-            
-            newRuler1 = std::make_pair(p1, ruler.first);
-            newRuler2 = std::make_pair(ruler.second, p2);
-            rulersOut.emplace_back(newRuler1);
-            rulersOut.emplace_back(newRuler2);
+            LOG(ERROR) << "ruler length " << length << " can not transf";
+            return rulersOut;
         }
+
+        double resDis = (2 - length) / 2;
+        seg_pair_t newRuler1, newRuler2;
+        Eigen::Vector3d rulern = (ruler.second - ruler.first).normalized();
+        double leftRes = adjustHRulerBorder(std::make_pair(ruler.second, ruler.first), checkBorder, resDis);
+        Eigen::Vector3d p1 = ruler.first - leftRes * rulern;
+
+        if ((resDis - leftRes) > 1e-6)
+            resDis += (resDis - leftRes);
+        double rightRes = adjustHRulerBorder(ruler, checkBorder, resDis);
+        Eigen::Vector3d p2 = ruler.second + rightRes * rulern;
+        
+        newRuler1 = std::make_pair(p1, ruler.first);
+        newRuler2 = std::make_pair(ruler.second, p2);
+        rulersOut.emplace_back(newRuler1);
+        rulersOut.emplace_back(newRuler2);
+        
         return rulersOut;
     }
 
-    void calcWallFlatness(const vec_seg_pair_t& wallBorder, const std::vector<vec_seg_pair_t>& holeBorders,
-			pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud, Eigen::Vector4d cadPlane, int index)
+    std::map<int,std::vector<seg_pair_t>> calcHoleRuler(const seg_pair_t& horizenSeg, std::vector<seg_pair_t> checkBorder,
+                            const std::vector<seg_pair_t>& holeBorder, int hAxis, int type)
+    {
+        std::map<int,std::vector<seg_pair_t>> rulers;
+        std::vector<seg_pair_t> vecHoleHorizen, vecHoleVertical;
+        const auto hSeg = horizenSeg.first - horizenSeg.second;
+        groupDirection(hSeg, holeBorder, vecHoleVertical, vecHoleHorizen);
+        if (vecHoleHorizen.size() < 2 || vecHoleVertical.size() < 2)
+		{
+			LOG(ERROR) << "group hole Direction Failed: " << vecHoleHorizen.size() << " -- " << vecHoleVertical.size();
+			return rulers;
+		}
+        std::sort(vecHoleVertical.begin(), vecHoleVertical.end(), [&](const seg_pair_t& left, const seg_pair_t& right){
+				return left.first[hAxis] < right.first[hAxis];});
+        
+        std::vector<seg_pair_t> holeZoom = calHoleZoom(vecHoleVertical.front(), vecHoleVertical.back(), hAxis);
+        if (type == 1 || type == 3)  //left ruler
+        {
+            seg_pair_t ruler1;
+            std::vector<seg_pair_t> holeBorder;
+            std::vector<seg_pair_t> zoomBorder = {holeZoom[0], holeZoom[1], holeZoom[2], holeZoom[3]};
+            if(calRuler3d(zoomBorder, holeBorder, zoomBorder[2], zoomBorder[2].first, 45, ruler1))
+            {
+                Eigen::Vector3d rulern1 = (ruler1.second - ruler1.first).normalized();
+                ruler1.first = ruler1.first - 0.03*rulern1; // Move up 30mm
+                ruler1.second = ruler1.second + 0.03*rulern1; // Move down 30mm
+                std::vector<seg_pair_t> rulersOut = transfHoleRuler(ruler1, checkBorder);
+                if (!rulersOut.empty())
+                    rulers[4].insert(rulers[4].end(), rulersOut.begin(), rulersOut.end());
+            }
+        }
+
+        if(type == 2 || type == 3) //right ruler
+        {
+            seg_pair_t ruler2;
+            std::vector<seg_pair_t> holeBorder;
+            std::vector<seg_pair_t> zoomBorder = {holeZoom[4], holeZoom[5], holeZoom[6], holeZoom[7]};
+            if (calRuler3d(zoomBorder, holeBorder, zoomBorder[1], zoomBorder[1].first, 45, ruler2))
+            {
+                Eigen::Vector3d rulern2 = (ruler2.second - ruler2.first).normalized();
+                ruler2.first = ruler2.first - 0.03*rulern2; // Move up 30mm
+                ruler2.second = ruler2.second + 0.03*rulern2; // Move down 30mm
+                std::vector<seg_pair_t> rulersOut = transfHoleRuler(ruler2, checkBorder);
+                if (!rulersOut.empty())
+                    rulers[5].insert(rulers[5].end(), rulersOut.begin(), rulersOut.end());
+            }
+        }
+
+        return rulers;
+    }
+
+    std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>
+    calWallFlatness(const vec_seg_pair_t& wallBorder, const std::vector<vec_seg_pair_t>& holeBorders,
+			pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud, Eigen::Vector4d cadPlane, int wallIndex)
     {
         // step0: cal Horizontal and thickness Axis
+        std::vector<calcMeassurment_t> allMeasure;
+        std::vector<seg_pair_t> returnSeg;
         const std::pair<Eigen::Vector3d, Eigen::Vector3d>& horizenSeg = wallBorder.back();
         int hAxis = calWallHorizontalAxis(horizenSeg);
         int thicknessDir = (hAxis == 0) ? 1 : 0;
@@ -268,7 +273,7 @@ namespace CloudReg
         if (vecWallHorizen.size() < 2 || vecWallVertical.size() < 2)
 		{
 			LOG(ERROR) << "group Wall Direction Failed: " << vecWallHorizen.size() << " -- " << vecWallVertical.size();
-			return;
+			return std::make_tuple(allMeasure, returnSeg);
 		}
         std::sort(vecWallVertical.begin(), vecWallVertical.end(), [&](const seg_pair_t& left, const seg_pair_t& right){
 				return left.first[hAxis] < right.first[hAxis];});
@@ -292,11 +297,11 @@ namespace CloudReg
         allVertical.emplace_back(vecWallVertical.back());
 
         //step2: Handle walls
-        auto wallRulers =  calcWallRuler(wallBorder, holeBorders, hAxis, calValidVertical);
+        std::map<int,std::vector<seg_pair_t>> wallRulers;
+        wallRulers =  calcWallRuler(wallBorder, holeBorders, hAxis, calValidVertical);
         
         //step3: Handle holes
-        std::vector<seg_pair_t> allEmptRulers;
-        std::vector<seg_pair_t> allHoleRulers;
+        std::map<int,std::vector<seg_pair_t>> holeRulers;
         if (!holeBorders.empty())
         {
             std::vector<double> lengths;
@@ -323,10 +328,7 @@ namespace CloudReg
                     type = 1;
                 if(rightLen >= 0.4 + 1e-4 && leftLen < 0.4 + 1e-4)
                     type = 2;
-               
-                std::vector<seg_pair_t> ruler = calcHoleRuler(horizenSeg, holeBorders[i], hAxis, type);
-                allEmptRulers.insert(allEmptRulers.end(), ruler.begin(), ruler.end());
-                
+
                 std::vector<seg_pair_t> checkBorder;
                 checkBorder = wallBorder;
                 for(size_t j = 0; j < holeBorders.size(); ++j)
@@ -334,36 +336,62 @@ namespace CloudReg
                     if (i == j) continue;
                     checkBorder.insert(checkBorder.end(), holeBorders[j].begin(), holeBorders[j].end());
                 }
-                auto realHoleRulers = transfHoleRuler(ruler, checkBorder);
-                allHoleRulers.insert(allHoleRulers.end(), realHoleRulers.begin(), realHoleRulers.end());
+               
+                auto rulerMap = calcHoleRuler(horizenSeg, checkBorder, holeBorders[i], hAxis, type);
+                for (auto &map : rulerMap)
+                    holeRulers[map.first].insert(holeRulers[map.first].end(), map.second.begin(), map.second.end());
             }
 
         }
 
-        std::vector<calcMeassurment_t> allMeasure;
-        for (auto &ruler : wallRulers)
-        {
-            calcMeassurment_t measure;
-            measure = calFlatness(ruler, thicknessDir, cadPlane, pCloud);
-            allMeasure.emplace_back(measure);
-        }
-        for (auto &ruler : allHoleRulers)
-        {
-            calcMeassurment_t measure;
-            measure = calFlatness(ruler, thicknessDir, cadPlane, pCloud);
-            allMeasure.emplace_back(measure);
-        }
-
+        std::vector<int> outOrder = {1, 2, 3};
         std::vector<seg_pair_t> vecRange;
-        for(auto& item : allMeasure)
+        for(auto& type : outOrder)
         {
-            for(auto& ruler : item.rangeSeg)
+            if (!wallRulers.count(type))
+                continue;
+            auto rulers = wallRulers[type];
+            for (auto& ruler : rulers)
             {
-                std::vector<Eigen::Vector3d> rPoints =  createRulerBox(ruler, thicknessDir, 0.025, 0.025);
-                std::vector<seg_pair_t> pair =  calcBoxSegPair(rPoints);
-                vecRange.insert(vecRange.end(), pair.begin(), pair.end());
+                std::vector<seg_pair_t> tmp = {ruler};
+                calcMeassurment_t measure = calFlatness(tmp, thicknessDir, cadPlane, pCloud);
+                if (!measure.rangeSeg.empty())
+                {
+                    std::vector<Eigen::Vector3d> rPoints =  createRulerBox(ruler, thicknessDir, 0.025, 0.025);
+                    std::vector<seg_pair_t> pair =  calcBoxSegPair(rPoints);
+                    vecRange.insert(vecRange.end(), pair.begin(), pair.end());
+                    LOG(INFO) << "Wall "<<wallIndex<<" flatness: " << measure.value;
+                    allMeasure.emplace_back(measure);
+                }
             }
         }
-        writePCDFile(std::to_string(index) +"-testWallFl.pcd", pCloud, vecRange);
+
+        std::vector<int> outOrder1 = {4, 5};
+        for(auto& type : outOrder1)
+        {
+            if (!holeRulers.count(type))
+                continue;
+            auto rulers = holeRulers[type];
+            for(size_t i = 0; i < rulers.size() / 2; ++i)
+            {
+                auto ruler1 = rulers[2*i];
+                auto ruler2 = rulers[2*i + 1];
+                std::vector<seg_pair_t> tmp = {ruler1, ruler2};
+                calcMeassurment_t measure = calFlatness(tmp, thicknessDir, cadPlane, pCloud);
+                if (!measure.rangeSeg.empty())
+                {
+                    std::vector<Eigen::Vector3d> rPoints =  createRulerBox(ruler1, thicknessDir, 0.025, 0.025);
+                    std::vector<seg_pair_t> pair =  calcBoxSegPair(rPoints);
+                    vecRange.insert(vecRange.end(), pair.begin(), pair.end());
+                    rPoints =  createRulerBox(ruler2, thicknessDir, 0.025, 0.025);
+                    pair =  calcBoxSegPair(rPoints);
+                    vecRange.insert(vecRange.end(), pair.begin(), pair.end());
+                    LOG(INFO) << "Wall "<<wallIndex<<" flatness: " << measure.value;
+                    allMeasure.emplace_back(measure);
+                }
+            }
+        }
+        writePCDFile("WallFlatness-" + std::to_string(wallIndex) + ".pcd", pCloud, vecRange);
+        return std::make_tuple(allMeasure, returnSeg);
     }
 }

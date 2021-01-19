@@ -158,8 +158,7 @@ namespace CloudReg
 	}
 
     std::vector<calcMeassurment_t> calcWallSquareness(std::pair<size_t, size_t> wallPair, std::vector<PointCloud::Ptr> pClouds,
-                                        const std::vector<vec_seg_pair_t>& vecWall, const std::vector<vec_seg_pair_t>& holeBorders,
-                                        std::vector<std::size_t> lHolesIndex, std::vector<std::size_t> sHolesIndex)
+                                        const std::vector<vec_seg_pair_t>& vecWall, std::vector<vec_seg_pair_t> lHoles, std::vector<vec_seg_pair_t> sHoles)
     {
         vec_seg_pair_t shortWall = vecWall[wallPair.first];
         vec_seg_pair_t longWall = vecWall[wallPair.second];
@@ -189,13 +188,12 @@ namespace CloudReg
         lother = (seg2.first == connPt) ? seg2.second : seg2.first;
         Eigen::Vector3d shortn = (sother - connPt).normalized();
         Eigen::Vector3d longn = (lother - connPt).normalized();
-
+        
         Eigen::Vector3d shortMeasureP = connPt + 0.03 * shortn;  //30cm
-        double lbaseHeight = seg2.first[2] + 0.03; //30cm
-        double sbaseHeight = seg1.first[2] + 0.03; //30cm
+        double lbaseHeight = connPt[2] + 0.03; //30cm
+        double sbaseHeight = connPt[2] + 0.03; //30cm
         shortMeasureP[2] = sbaseHeight;
 
-        std::vector<vec_seg_pair_t> lHoles, sHoles;
         std::vector<seg_pair_t> lHoleBorder, sHoleBorder;
         int lhAxis = calWallHorizontalAxis(seg2);
         int shAxis = calWallHorizontalAxis(seg1);
@@ -203,12 +201,10 @@ namespace CloudReg
         std::vector<seg_pair_t> svecWallHorizen, svecWallVertical;
         groupDirection(lhSeg, longWall, lvecWallVertical, lvecWallHorizen);
         groupDirection(shSeg, shortWall, svecWallVertical, svecWallHorizen);
-        for(auto index : lHolesIndex) 
-            lHoles.emplace_back(holeBorders[index]);
+        
         if (!lHoles.empty())
             lHoleBorder = calValidHoleVertical(lHoles, std::make_pair(seg2.first, seg2.second), lhAxis);
-        for(auto index : sHolesIndex) 
-            sHoles.emplace_back(holeBorders[index]);
+        
         if (!sHoles.empty())
             sHoleBorder = calValidHoleVertical(sHoles, std::make_pair(seg1.first, seg1.second), shAxis);
 
@@ -266,19 +262,23 @@ namespace CloudReg
             allSegs.insert(allSegs.end(), m.rangeSeg.begin(), m.rangeSeg.end());
         tClouds.emplace_back(spCloud);
         tClouds.emplace_back(lpCloud);
-        std::cout << std::to_string(wallPair.first)+ "testSq.pcd" << std::endl;
-        writePCDFileSq(std::to_string(wallPair.first)+ "testSq.pcd", tClouds , allSegs);
+        std::cout << "WallSquareness-" + std::to_string(wallPair.first) + "-" + 
+                        std::to_string(wallPair.second) + ".pcd" << std::endl;
+        writePCDFileSq("WallSquareness-" + std::to_string(wallPair.first) + "-" + 
+                        std::to_string(wallPair.second) + ".pcd", tClouds , allSegs);
 
         return allMeasure;
     }
 
-    void calcSquareness(const std::vector<vec_seg_pair_t>& vecWall, const std::vector<vec_seg_pair_t>& holeBorders,
-			std::vector<PointCloud::Ptr> pClouds, std::map<std::size_t, std::vector<std::size_t>> holeMap, const double calcLengthTh)
+    std::map<std::pair<int, int>,std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>>
+    calcSquareness(const std::vector<vec_seg_pair_t>& vecWall,std::vector<PointCloud::Ptr> pClouds, 
+                        std::map<std::size_t, std::vector<vec_seg_pair_t>> holeMap, const double calcLengthTh)
     {
+        std::map<std::pair<int, int>,std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>> returnMeasure;
         if (vecWall.size() < 2)
         {
             LOG(ERROR) << "wall num is small " << vecWall.size();
-            return;
+            return returnMeasure;
         }
         LOG(INFO) << "input wall num is " << vecWall.size();
         
@@ -303,24 +303,26 @@ namespace CloudReg
         if(wallPairs.empty())
         {
             LOG(INFO) << "no valid wall pair";
-            return;
+            return returnMeasure;
         }
         LOG(INFO) << "valid wallPairs " << wallPairs.size();
 
         //step2: calc
-        std::vector<calcMeassurment_t> allMeasure;
+        std::vector<seg_pair_t> returnSeg;
         for (size_t i = 0; i < wallPairs.size(); ++i)
         {
             auto wallPair = wallPairs[i];
             LOG(INFO) << "Handle wall " << wallPair.first << "---" << wallPair.second;
             std::vector<std::size_t> lHolesIndex, sHolesIndex;
+            std::vector<vec_seg_pair_t> lHoles, sHoles;
             if (holeMap.count(wallPair.second))
-                lHolesIndex = holeMap[wallPair.second];
+                lHoles = holeMap[wallPair.second];
             if (holeMap.count(wallPair.first))
-                sHolesIndex = holeMap[wallPair.first];
-            auto oneMeasure =  calcWallSquareness(wallPair, pClouds, vecWall, holeBorders, lHolesIndex, sHolesIndex);
+                sHoles = holeMap[wallPair.first];
+            auto oneMeasure =  calcWallSquareness(wallPair, pClouds, vecWall, lHoles, sHoles);
             if (!oneMeasure.empty())
-                allMeasure.insert(allMeasure.end(), oneMeasure.begin(), oneMeasure.end());
+                returnMeasure[wallPair] = std::make_pair(oneMeasure, returnSeg);
         }
+        return returnMeasure;
     }
 }

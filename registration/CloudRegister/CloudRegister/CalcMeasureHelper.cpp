@@ -115,7 +115,7 @@ namespace CloudReg
 			if (curSeg.norm() < EPS_FLOAT_DOUBLE) continue;
 
 			double cos = horizenSeg.dot(curSeg)/(horizenSeg.norm() * curSeg.norm());
-			//std::cout << fabs(cos) << std::endl;
+			// std::cout << "cos " <<fabs(cos) << std::endl;
 			if (fabs(cos) < 0.1) 
 				vecVertical.emplace_back(seg);
 			else 
@@ -151,7 +151,7 @@ namespace CloudReg
         bb_filter.setHullCloud(surface_hull);                 
         bb_filter.filter(*objects);                           
 
-		LOG(INFO) << "inPut: " << pCloud->points.size() << " outPut: " << objects->points.size();
+		// LOG(INFO) << "inPut: " << pCloud->points.size() << " outPut: " << objects->points.size();
 		return objects;
 	}
 
@@ -391,7 +391,7 @@ namespace CloudReg
 		Eigen::Vector3d s1e1 = line1.second - line1.first;
 		Eigen::Vector3d s2e2 = line2.second - line2.first;
 		Eigen::Vector3d c12 = s1e1.cross(s2e2);
-		if (c12.norm() <= 0 + 1e-6)
+		if (c12.norm() <= 0.1)
 		{
 			LOG(INFO) << "Parallel line";
 			return false;
@@ -403,7 +403,7 @@ namespace CloudReg
 		double scale = cross2.dot(cross1)/cross2.squaredNorm();
 		if (scale < 0 || scale > 1)
 		{
-			// LOG(INFO) << "There is no intersec";
+			LOG(INFO) << "There is no intersec";
 			return false;
 		}
 
@@ -529,11 +529,11 @@ namespace CloudReg
 	int calWallHorizontalAxis(const seg_pair_t& seg)
     {
         double length = (seg.first - seg.second).norm();
-        if (std::fabs(length - std::fabs(seg.first[0] - seg.second[0])) < 1e-4)
-            return 0;
-        else if (std::fabs(length - std::fabs(seg.first[1] - seg.second[1])) < 1e-4)
-            return 1;
-        return 2;
+		double len0 = std::fabs(length - std::fabs(seg.first[0] - seg.second[0]));
+		double len1 = std::fabs(length - std::fabs(seg.first[1] - seg.second[1]));
+		if (len0 < len1)
+			return 0;
+        return 1;
     }
 
 	void cutOffRuler(seg_pair_t& ruler, double length)
@@ -567,22 +567,18 @@ namespace CloudReg
         return rulerBoxes;
     }
 
-    calcMeassurment_t calFlatness(seg_pair_t ruler, int thicknessDir, Eigen::Vector4d plane, 
+    calcMeassurment_t calFlatness(std::vector<seg_pair_t> rulers, int thicknessDir, Eigen::Vector4d plane, 
                                     pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud)
     {
-		//// get the cloud thickness
-        // pcl::PointXYZ min0;
-		// pcl::PointXYZ max0;		
-		// pcl::getMinMax3D(*pCloud, min0, max0);
-        // double thickness = std::fabs(max0.x - min0.x);
-		// if (thicknessDir == 1)
-		// 	thickness = std::fabs(max0.y - min0.y);
-		// else if(thicknessDir == 2)
-		// 	thickness = std::fabs(max0.z - min0.z);
-
         calcMeassurment_t measure;
         std::vector<std::vector<Eigen::Vector3d>> allBoxes;
-        allBoxes = getAllRulerBox(ruler, thicknessDir, 0., 0.005, 0.01, 0.025);
+		for(auto& ruler : rulers)
+		{
+			if ((ruler.first - ruler.second).norm() < 0.005)
+				continue;
+			auto boxes = getAllRulerBox(ruler, thicknessDir, 0., 0.005, 0.01, 0.025);
+			allBoxes.insert(allBoxes.end(), boxes.begin(), boxes.end());
+		}
         if (allBoxes.empty())
         {
             LOG(ERROR) << "empty boxes";
@@ -599,12 +595,12 @@ namespace CloudReg
 
             if (rangeCloud->points.empty()) 
             {
-                LOG(ERROR) << "filerCloudByRange failed";
+                // LOG(ERROR) << "filerCloudByRange failed";
                 continue;
             }
             double sum = 0;
             for (auto &p : rangeCloud->points)
-                sum += pointToPLaneDist(plane, p);
+                sum += std::fabs(pointToPLaneDist(plane, p));
             double avg = sum / rangeCloud->points.size();
             sumAll.emplace_back(avg);
         }
@@ -621,7 +617,7 @@ namespace CloudReg
         LOG(INFO) << "max avg: " << max << " min avg: " << min
                 << " difference: " << difference;
         measure.value = difference;
-        measure.rangeSeg.emplace_back(ruler);
+        measure.rangeSeg.insert(measure.rangeSeg.end(), rulers.begin(), rulers.end());
 
         return measure;
     }

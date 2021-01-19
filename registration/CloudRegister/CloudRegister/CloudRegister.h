@@ -55,11 +55,14 @@ namespace CloudReg
 		const std::map<CloudItemType, vecItems_t>&
 			getAllCloudPlane() const;
 
-	
 		//p_rgb.r = distError; radius = 0.05m
 		pcl::PointCloud<pcl::PointXYZI>::Ptr 
 			calcDistError(const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_,
 			const Eigen::Vector4d& plane, const double radius = 0.05) const;
+		
+		//calcAllCorner: corner of two neighbouring walls (in height 0.3m and 1.5m)
+		std::map<std::pair<int, int>, std::vector<calcMeassurment_t>>
+			calcAllCorner();
 
 		//calcLengthTh: the shorest wall length, 
 		std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>> 
@@ -84,6 +87,19 @@ namespace CloudReg
 		//key.first = wall index  key.second = hole border index in cloudBorder_
 		std::map<std::pair<std::size_t, std::size_t>, std::vector<calcMeassurment_t>>
 			calcAllHole();
+
+		//planeType = cloud, use cloud plane, else use cad plane
+		std::map<int, std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>>
+			calcWallVerticality(std::string planeType = "cad");
+
+		std::map<int, std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>>
+			calcWallFlatness(std::string planeType = "cad");
+
+		std::map<std::pair<int, int>,std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>>
+    		calcAllSquareness(const double calcLengthTh = 1.);
+
+		std::vector<std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>> 
+    		calcRootFlatness(std::string planeType = "cad", const double calcLengthTh = 1.5);
 
 	private:
 		

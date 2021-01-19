@@ -53,7 +53,7 @@ namespace CloudReg
 	void cutOffRuler(seg_pair_t& ruler, double length);
 	std::vector<std::vector<Eigen::Vector3d>> getAllRulerBox(seg_pair_t ruler, int thicknessDir, double thickness, 
                                         double step, double boxLen, double boxWidth);
-	calcMeassurment_t calFlatness(seg_pair_t ruler, int thicknessDir, Eigen::Vector4d plane, 
+	calcMeassurment_t calFlatness(std::vector<seg_pair_t> rulers, int thicknessDir, Eigen::Vector4d plane, 
                                     pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud);
 	bool judgeHoleBorder(const std::vector<std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>>& holeBorders,
                     std::pair<seg_pair_t, seg_pair_t> validWalls);
