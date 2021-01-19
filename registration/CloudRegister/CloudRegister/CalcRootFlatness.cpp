@@ -15,9 +15,9 @@ namespace CloudReg
     int calHorizontalAxisRoot(const seg_pair_t& seg)
     {
         double length = (seg.first - seg.second).norm();
-        if (std::fabs(length - std::fabs(seg.first[0] - seg.second[0])) < 0.1)
+        if (std::fabs(length - std::fabs(seg.first[0] - seg.second[0])) < 0.2)
             return 1;
-        else if (std::fabs(length - std::fabs(seg.first[1] - seg.second[1])) < 0.1)
+        else if (std::fabs(length - std::fabs(seg.first[1] - seg.second[1])) < 0.2)
             return 0;
         return 2;
     }
@@ -83,7 +83,7 @@ namespace CloudReg
         double resDis = (length - 2) / 3;
         Eigen::Vector3d p1 = hypRuler0;
         p1[hAixs] = p1[hAixs] + resDis;
-        Eigen::Vector3d p2 = p1 + 2*rulern;
+        Eigen::Vector3d p2 = p1 + 2*rulern;   //200cm
         Eigen::Vector3d p3 = p2;
         p3[hAixs] = p3[hAixs] + resDis;
         Eigen::Vector3d p4 = p3 + 2*rulern;
@@ -179,7 +179,7 @@ namespace CloudReg
                 measure = calFlatness(tmp, 2, plane, pCloud);
                 if (!measure.rangeSeg.empty())
                 {
-                    std::vector<Eigen::Vector3d> rPoints =  createRulerBox(ruler, 2, 0.025, 0.025);
+                    std::vector<Eigen::Vector3d> rPoints =  createRulerBox(ruler, 2, 0.025, 0.025); //width 2.5cm
                     std::vector<seg_pair_t> pair =  calcBoxSegPair(rPoints);
                     measure.rangeSeg.insert(measure.rangeSeg.end(), pair.begin(), pair.end());
                     vecRange.insert(vecRange.end(), pair.begin(), pair.end());
@@ -189,8 +189,11 @@ namespace CloudReg
             }
             returnValue.emplace_back(std::make_tuple(tmpMeasure, tmpSegs));
         }
-
-        writePCDFile("RootFlatness.pcd", pCloud, vecRange);
+#ifdef VISUALIZATION_ENABLED
+        pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_filtered(new pcl::PointCloud<pcl::PointXYZ>());
+        uniformSampling(0.01, pCloud, pCloud_filtered);
+        writePCDFile("RootFlatness.pcd", pCloud_filtered, vecRange);
+#endif
         return returnValue;
     }
 }

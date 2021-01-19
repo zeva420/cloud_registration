@@ -42,17 +42,17 @@ namespace CloudReg
             }
         }
 
-        if(longLen + 1e-6 < 10000. && longLen > 0.0125) //10cm + 2.5cm
+        if(longLen + 1e-6 < 10000. && longLen > 0.125) //10cm + 2.5cm
         {
             Eigen::Vector3d longn = (ld - holep2).normalized();
-            resP = holep2 + 0.01*longn;   //0.01
+            resP = holep2 + 0.1*longn;   //10cm
             return true;
         }
 
-        if(shortLen + 1e-6 < 10000. && shortLen > 0.0125) //10cm + 2.5cm
+        if(shortLen + 1e-6 < 10000. && shortLen > 0.125) //10cm + 2.5cm
         {
             Eigen::Vector3d shortn = (sd - holep1).normalized();
-            resP = holep1 + 0.01*shortn;  //0.01
+            resP = holep1 + 0.1*shortn;  //10cm
             return true;
         }
         return false;
@@ -81,11 +81,12 @@ namespace CloudReg
         return true;
     }
 
-    calcMeassurment_t calcSinglePt(Eigen::Vector3d pt, Eigen::Vector3d shortMeasureP, pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud, int lhAxis)
+    calcMeassurment_t calcSinglePt(Eigen::Vector3d pt, Eigen::Vector4d plane, 
+                                    pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud, int lhAxis)
     {
         int thicknessDir = (lhAxis == 0) ? 1 : 0;
-        double width = 0.025; //5cm
-        double height = 0.025; //5cm
+        double width = 0.05; //5cm
+        double height = 0.05; //5cm
 
         Eigen::Vector3d p1 = pt;
         p1[2] = p1[2] + height / 2;
@@ -108,7 +109,8 @@ namespace CloudReg
         for (auto &p : rangeCloud->points)
         {
             Eigen::Vector3d point(p.x, p.y, p.z);
-            sum += std::fabs(point[thicknessDir] - shortMeasureP[thicknessDir]);
+            // sum += std::fabs(point[thicknessDir] - shortMeasureP[thicknessDir]);
+            sum += std::fabs(pointToPLaneDist(plane, p));
         }
         double avg = sum / rangeCloud->points.size();
         measure.value = avg;
@@ -168,14 +170,6 @@ namespace CloudReg
         auto seg2 = longWall.back();
         const auto shSeg = seg1.first - seg1.second;
         const auto lhSeg = seg2.first - seg2.second;
-    
-        Eigen::Vector3d lfirstV = longWall[0].first - longWall[0].second;
-		Eigen::Vector3d lnV = lhSeg.cross(lfirstV);
-		lnV = -1 * lnV.normalized(); //Normal vector towards the inside of the rectangle
-
-        Eigen::Vector3d sfirstV = shortWall[0].first - shortWall[0].second;
-		Eigen::Vector3d snV = shSeg.cross(sfirstV);
-		snV = -1 * snV.normalized();
 
         Eigen::Vector3d connPt;
         if(seg1.first == seg2.first || seg1.first == seg2.second)
@@ -188,15 +182,34 @@ namespace CloudReg
         lother = (seg2.first == connPt) ? seg2.second : seg2.first;
         Eigen::Vector3d shortn = (sother - connPt).normalized();
         Eigen::Vector3d longn = (lother - connPt).normalized();
+        double sLen = (seg1.first - seg1.second).norm();
+        double lLen = (seg2.first - seg2.second).norm();
+        int lhAxis = calWallHorizontalAxis(seg2);
+        int shAxis = calWallHorizontalAxis(seg1);
+    
+        Eigen::Vector3d lfirstV = longWall[0].first - longWall[0].second;
+		Eigen::Vector3d lnV = lhSeg.cross(lfirstV);
+        lnV = lnV.normalized();
+        Eigen::Vector3d checknP = connPt + sLen * lnV;
+        if (std::fabs(checknP[shAxis] - sother[shAxis]) > sLen)
+            lnV = -lnV;    //Normal vector towards the inside of the rectangle
         
-        Eigen::Vector3d shortMeasureP = connPt + 0.03 * shortn;  //30cm
-        double lbaseHeight = connPt[2] + 0.03; //30cm
-        double sbaseHeight = connPt[2] + 0.03; //30cm
+        Eigen::Vector3d sfirstV = shortWall[0].first - shortWall[0].second;
+		Eigen::Vector3d snV = shSeg.cross(sfirstV);
+        snV = snV.normalized();
+        checknP = connPt + lLen * snV;
+        if (std::fabs(checknP[lhAxis] - lother[lhAxis]) > lLen)
+            snV = -snV;
+
+        Eigen::Vector3d measurenV = snV.cross(Eigen::Vector3d(0, 0, 1));
+        measurenV = measurenV.normalized();
+        
+        Eigen::Vector3d shortMeasureP = connPt + 0.3 * shortn;  //30cm
+        double lbaseHeight = connPt[2] + 0.3; //30cm
+        double sbaseHeight = connPt[2] + 0.3; //30cm
         shortMeasureP[2] = sbaseHeight;
 
         std::vector<seg_pair_t> lHoleBorder, sHoleBorder;
-        int lhAxis = calWallHorizontalAxis(seg2);
-        int shAxis = calWallHorizontalAxis(seg1);
         std::vector<seg_pair_t> lvecWallHorizen, lvecWallVertical;
         std::vector<seg_pair_t> svecWallHorizen, svecWallVertical;
         groupDirection(lhSeg, longWall, lvecWallVertical, lvecWallHorizen);
@@ -215,21 +228,22 @@ namespace CloudReg
             LOG(ERROR) << "can not find measure point in short wall";
             return allMeasure;
         }
-
-        double lLen = (seg2.first - seg2.second).norm();
-        Eigen::Vector3d p1 = connPt + 0.05 * longn;
+        double d = -(shortMeasureP.dot(measurenV));
+        Eigen::Vector4d measurePlane = {measurenV[0], measurenV[1], measurenV[2], d};
+        
+        Eigen::Vector3d p1 = connPt + 0.5 * longn;           //50 cm
         Eigen::Vector3d p2 = connPt + (lLen / 2) * longn;
-        Eigen::Vector3d p3 = connPt + (lLen - 0.05) * longn;
+        Eigen::Vector3d p3 = connPt + (lLen - 0.5) * longn;  //50 cm
 
         auto getResult = [&]( Eigen::Vector3d& p)
         { 
             p[2] = p[2] + lbaseHeight;
             if (adjustMeasurePt(p, lHoleBorder, lvecWallVertical, lhAxis, lbaseHeight))
             {
-                calcMeassurment_t measure = calcSinglePt(p, shortMeasureP, lpCloud, lhAxis);
+                calcMeassurment_t measure = calcSinglePt(p, measurePlane, lpCloud, lhAxis);
                 if (!measure.rangeSeg.empty())
                 {
-                    Eigen::Vector3d po = p + (shortMeasureP[shAxis]-connPt[shAxis]) * lnV; //30cm
+                    Eigen::Vector3d po = p + std::fabs(shortMeasureP[shAxis]-connPt[shAxis]) * lnV; //30cm
                     measure.rangeSeg.emplace_back(std::make_pair(p, po));
                     sumAll.emplace_back(measure.value);
                     allMeasure.emplace_back(measure);
@@ -257,16 +271,25 @@ namespace CloudReg
         }
 
         std::vector<PointCloud::Ptr> tClouds;
+        std::vector<PointCloud::Ptr> fClouds;
         std::vector<seg_pair_t> allSegs;
         for(auto& m : allMeasure)
             allSegs.insert(allSegs.end(), m.rangeSeg.begin(), m.rangeSeg.end());
         tClouds.emplace_back(spCloud);
         tClouds.emplace_back(lpCloud);
+        
         std::cout << "WallSquareness-" + std::to_string(wallPair.first) + "-" + 
                         std::to_string(wallPair.second) + ".pcd" << std::endl;
+#ifdef VISUALIZATION_ENABLED
+        for(auto& tc : tClouds)
+        {
+            pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_filtered(new pcl::PointCloud<pcl::PointXYZ>());
+            uniformSampling(0.01, tc, pCloud_filtered);
+            fClouds.emplace_back(pCloud_filtered);
+        }
         writePCDFileSq("WallSquareness-" + std::to_string(wallPair.first) + "-" + 
-                        std::to_string(wallPair.second) + ".pcd", tClouds , allSegs);
-
+                        std::to_string(wallPair.second) + ".pcd", fClouds , allSegs);
+#endif
         return allMeasure;
     }
 
