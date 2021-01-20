@@ -38,8 +38,8 @@ namespace CloudReg
 
     std::vector<Eigen::Vector3d> calBox(Eigen::Vector3d midPt, int type, int hAixs, Eigen::Vector3d rulern, calcMeassurment_t& measure)
     {
-        double boxWidth = 0.025;
-        double boxHight = 0.025;
+        double boxWidth = 0.025; //25mm
+        double boxHight = 0.025; //25mm
 
         Eigen::Vector3d p1 = midPt;
         Eigen::Vector3d p2;
@@ -81,14 +81,16 @@ namespace CloudReg
     {
         Eigen::Vector3d pt1 = (Vertical1.first[2] < Vertical1.second[2] + 1e-6) ? Vertical1.first : Vertical1.second;
         Eigen::Vector3d pt2 = (Vertical1.first == pt1) ? Vertical1.second : Vertical1.first;
+        pt1[2] = vecWallHorizen[0].first[2];
         Eigen::Vector3d pt3 = (Vertical2.first[2] < Vertical2.second[2] + 1e-6) ? Vertical2.first : Vertical2.second;
+        pt3[2] = pt1[2];
         Eigen::Vector3d rulern = (pt2 - pt1).normalized();
         Eigen::Vector3d horizenn = (pt3 - pt1).normalized();
         if (type == 1)  //left ruler
         {
-            pt1 = pt1 + 0.3 * horizenn;
+            pt1 = pt1 + 0.3 * horizenn;  //300mm
             pt2 = pt2 + 0.3 * horizenn;
-            pt2 = pt2 - 0.2 * rulern;
+            pt2 = pt2 - 0.2 * rulern;    //200mm
             adjustHeight(vecWallHorizen, 0.2, pt1, pt2, rulern); //For heterosexual walls
         }
         else if (type == 2)  //right ruler
@@ -155,7 +157,7 @@ namespace CloudReg
 
         item.value = 0.;
         int minIndex = (hAixs == 0) ? 1 : 0;
-        if (sumAll.size() < 2 || (valid1 - valid2).norm() < 0.005)
+        if (sumAll.size() < 2 || (valid1 - valid2).norm() < 0.01)
             LOG(ERROR) << "ruler has less than 2 endpoints";
         else
         {
@@ -177,6 +179,7 @@ namespace CloudReg
         auto &Vertical1 = validWalls.first;
         auto &Vertical2 = validWalls.second;
 
+        bool symmetric = (vecWallHorizen.front().first[hAixs] > vecWallHorizen.front().second[hAixs]) ? 0 : 1;
         double length = std::fabs(Vertical1.first[hAixs] - Vertical2.first[hAixs]);
         LOG(INFO) << "wall length: " << length;
 		if (length <= 0.1f + 1e-3)
@@ -193,12 +196,16 @@ namespace CloudReg
             return vecRet;
         }
         
-        auto item1 = calOneRulerData(vecWallHorizen, length, Vertical1, Vertical2, 1, pCloud, cadPlane, hAixs);
+        int type1 = (symmetric == 1) ? 2 : 1;
+        auto item1 = calOneRulerData(vecWallHorizen, length, Vertical1, Vertical2, type1, pCloud, cadPlane, hAixs);  //1
         if(!item1.rangeSeg.empty())
-            vecRet[1].emplace_back(item1);
-        auto item2 = calOneRulerData(vecWallHorizen, length, Vertical2, Vertical1, 2, pCloud, cadPlane, hAixs);
+            vecRet[type1].emplace_back(item1);
+
+        int type2 = (symmetric == 1) ? 1 : 2;
+        auto item2 = calOneRulerData(vecWallHorizen, length, Vertical2, Vertical1, type2, pCloud, cadPlane, hAixs);  //2
         if(!item2.rangeSeg.empty())
-            vecRet[2].emplace_back(item2);
+            vecRet[type2].emplace_back(item2);
+
         if (length >= 3 + 1e-6)
         {
             auto item = calOneRulerData(vecWallHorizen, length, Vertical1, Vertical2, 3, pCloud, cadPlane, hAixs);
@@ -206,16 +213,6 @@ namespace CloudReg
                 vecRet[3].emplace_back(item);
         }
         return vecRet;
-    }
-
-    int calHorizontalAxis(const seg_pair_t& seg)
-    {
-        double length = (seg.first - seg.second).norm();
-        if (std::fabs(length - std::fabs(seg.first[0] - seg.second[0])) < 1e-4)
-            return 0;
-        else if (std::fabs(length - std::fabs(seg.first[1] - seg.second[1])) < 1e-4)
-            return 1;
-        return 2;
     }
 
     std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>> calcVerticality(
@@ -227,7 +224,7 @@ namespace CloudReg
         std::vector<seg_pair_t> returnSeg;
         // step0: cal Horizontal Axis
         auto horizen = wallBorder.back();
-        int hAxis = calHorizontalAxis(horizen);
+        int hAxis = calWallHorizontalAxis(horizen);
         LOG(INFO) <<"Wall " << wallIndex << " wallBorder size is " << wallBorder.size();
         LOG(INFO) << "Horizontal Axis is " << hAxis;
 
@@ -284,7 +281,11 @@ namespace CloudReg
                 LOG(INFO) << "Wall "<<wallIndex<<" verticality: " << item.value;
             }
         }
-        writePCDFile("WallVerticality-" + std::to_string(wallIndex) + ".pcd", pCloud, vecRange);
+#ifdef VISUALIZATION_ENABLED
+        pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_filtered(new pcl::PointCloud<pcl::PointXYZ>());
+        uniformSampling(0.01, pCloud, pCloud_filtered);
+        writePCDFile("WallVerticality-" + std::to_string(wallIndex) + ".pcd", pCloud_filtered, vecRange);
+#endif
         return std::make_tuple(returnMeasure, returnSeg);
     }
 

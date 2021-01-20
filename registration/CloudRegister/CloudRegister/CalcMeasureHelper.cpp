@@ -403,7 +403,7 @@ namespace CloudReg
 		double scale = cross2.dot(cross1)/cross2.squaredNorm();
 		if (scale < 0 || scale > 1)
 		{
-			LOG(INFO) << "There is no intersec";
+			// LOG(INFO) << "There is no intersec";
 			return false;
 		}
 
@@ -574,9 +574,9 @@ namespace CloudReg
         std::vector<std::vector<Eigen::Vector3d>> allBoxes;
 		for(auto& ruler : rulers)
 		{
-			if ((ruler.first - ruler.second).norm() < 0.005)
+			if ((ruler.first - ruler.second).norm() < 0.01)
 				continue;
-			auto boxes = getAllRulerBox(ruler, thicknessDir, 0., 0.005, 0.01, 0.025);
+			auto boxes = getAllRulerBox(ruler, thicknessDir, 0., 0.005, 0.01, 0.025); //step 5mm  len 10mm width 25mm
 			allBoxes.insert(allBoxes.end(), boxes.begin(), boxes.end());
 		}
         if (allBoxes.empty())

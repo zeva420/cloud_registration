@@ -207,6 +207,7 @@ namespace CloudReg
     {
         std::map<int,std::vector<seg_pair_t>> rulers;
         std::vector<seg_pair_t> vecHoleHorizen, vecHoleVertical;
+        bool symmetric = (horizenSeg.first[hAxis] > horizenSeg.second[hAxis]) ? 0 : 1;
         const auto hSeg = horizenSeg.first - horizenSeg.second;
         groupDirection(hSeg, holeBorder, vecHoleVertical, vecHoleHorizen);
         if (vecHoleHorizen.size() < 2 || vecHoleVertical.size() < 2)
@@ -229,8 +230,9 @@ namespace CloudReg
                 ruler1.first = ruler1.first - 0.03*rulern1; // Move up 30mm
                 ruler1.second = ruler1.second + 0.03*rulern1; // Move down 30mm
                 std::vector<seg_pair_t> rulersOut = transfHoleRuler(ruler1, checkBorder);
+                int rulerNum = (symmetric == 1) ? 5 : 4;
                 if (!rulersOut.empty())
-                    rulers[4].insert(rulers[4].end(), rulersOut.begin(), rulersOut.end());
+                    rulers[rulerNum].insert(rulers[rulerNum].end(), rulersOut.begin(), rulersOut.end());
             }
         }
 
@@ -245,8 +247,9 @@ namespace CloudReg
                 ruler2.first = ruler2.first - 0.03*rulern2; // Move up 30mm
                 ruler2.second = ruler2.second + 0.03*rulern2; // Move down 30mm
                 std::vector<seg_pair_t> rulersOut = transfHoleRuler(ruler2, checkBorder);
+                int rulerNum = (symmetric == 1) ? 4 : 5;
                 if (!rulersOut.empty())
-                    rulers[5].insert(rulers[5].end(), rulersOut.begin(), rulersOut.end());
+                    rulers[rulerNum].insert(rulers[rulerNum].end(), rulersOut.begin(), rulersOut.end());
             }
         }
 
@@ -391,7 +394,11 @@ namespace CloudReg
                 }
             }
         }
-        writePCDFile("WallFlatness-" + std::to_string(wallIndex) + ".pcd", pCloud, vecRange);
+#ifdef VISUALIZATION_ENABLED
+        pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_filtered(new pcl::PointCloud<pcl::PointXYZ>());
+        uniformSampling(0.01, pCloud, pCloud_filtered);
+        writePCDFile("WallFlatness-" + std::to_string(wallIndex) + ".pcd", pCloud_filtered, vecRange);
+#endif
         return std::make_tuple(allMeasure, returnSeg);
     }
 }
