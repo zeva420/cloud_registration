@@ -2,19 +2,18 @@
 
 #include "funHelper.h"
 #include <pcl/common/common.h>
-
+#define VISUALIZATION_ENABLED
 
 namespace CloudReg
 {
 	std::tuple<PointCloud::Ptr, std::vector<seg_pair_t>> 
-		calcCornerArea(const seg_pair_t& seg, const PointCloud::Ptr pWall, double height, bool bLeft)
+		calcCornerArea(const seg_pair_t& seg, const PointCloud::Ptr pWall, double height, bool bLeft,
+			double calcWidth, double calcLength)
 	{
 		pcl::PointXYZ min;
 		pcl::PointXYZ max;		
 		pcl::getMinMax3D(*pWall, min, max);
 
-		const double calcWidth = 0.005;
-		const double calcLength = 0.13; 
 		std::size_t optIndex,indexOther; 
 		int dir;
 		std::tie(optIndex,indexOther,dir) = getWallGrowAxisAndDir(seg.first, seg.second);
@@ -77,6 +76,119 @@ namespace CloudReg
 		if (!pCloud->empty()) pcl::io::savePCDFile(fileName, *pCloud);		
 	}
 
+	calcMeassurment_t meassurmentProcess(
+				const std::pair<std::size_t, std::size_t> &idxPair,
+				const std::pair<seg_pair_t, seg_pair_t>& segPair, 
+				const std::pair<const PointCloud::Ptr, const PointCloud::Ptr> &cloudPair, 
+				double height)
+	{
+		const auto &leftSeg = segPair.first;
+		const auto &rightSeg = segPair.second;
+		const auto pLeftCloud = cloudPair.first;
+		const auto pRightCloud = cloudPair.second;
+
+		Eigen::Vector3d center = ((leftSeg.second - leftSeg.first) 
+									+ (rightSeg.first - rightSeg.second)) / 2.0;
+		// LOG(INFO) << "center:" << center;
+		const double calcWidth_first = 0.02;
+		const double calcLength_first = 0.25; 
+		const double calcWidth_second = 0.005;
+		const double calcLength_second = 0.13; 
+
+		const double cloudSize_first = 20;
+		const double cloudSize_second = 10;
+		const double planeFitDistTh = 0.003;
+		
+		//get large-scale area
+		auto roughLeft = calcCornerArea(leftSeg, pLeftCloud, height, true, 
+											calcWidth_first, calcLength_first);
+		auto roughRight = calcCornerArea(rightSeg, pRightCloud, height, false, 
+											calcWidth_first, calcLength_first);
+		if (std::get<0>(roughLeft)->size() < cloudSize_first 
+					|| std::get<0>(roughRight)->size() < cloudSize_first)
+		{
+			LOG(WARNING) << "roughLeft size:" << std::get<0>(roughLeft)->size()
+				<< "or roughRight:" << std::get<0>(roughRight)->size() << " < " << cloudSize_first;
+			calcMeassurment_t meassurment;
+			meassurment.value = -1;
+			meassurment.rangeSeg = std::get<1>(roughLeft);
+			meassurment.rangeSeg.insert(meassurment.rangeSeg.end(), 
+						std::get<1>(roughRight).begin(), std::get<1>(roughRight).end());
+			return meassurment;
+		}
+
+		//plane fitting
+		Eigen::VectorXf coeff1;
+		std::vector<int> inlierIdxs1;
+		planeFitting(planeFitDistTh, std::get<0>(roughLeft), coeff1, inlierIdxs1);
+		auto inliers1 = geo::getSubSet(std::get<0>(roughLeft), inlierIdxs1, false);
+
+		Eigen::VectorXf coeff2;
+		std::vector<int> inlierIdxs2;
+		planeFitting(planeFitDistTh, std::get<0>(roughRight), coeff2, inlierIdxs2);
+		auto inliers2 = geo::getSubSet(std::get<0>(roughRight), inlierIdxs2, false);
+
+		//get small-scale area
+		auto left = calcCornerArea(leftSeg, inliers1, height, true, calcWidth_second, calcLength_second);
+		auto right = calcCornerArea(rightSeg, inliers2, height, false, calcWidth_second, calcLength_second);
+		if (std::get<0>(left)->size() < cloudSize_second 
+					|| std::get<0>(right)->size() < cloudSize_second)
+		{
+			LOG(WARNING) << "left size:" << std::get<0>(left)->size()
+				<< "or right:" << std::get<0>(right)->size() << " < " << cloudSize_second;
+			calcMeassurment_t meassurment;
+			meassurment.value = -1;
+			meassurment.rangeSeg = std::get<1>(left);
+			meassurment.rangeSeg.insert(meassurment.rangeSeg.end(), 
+						std::get<1>(right).begin(), std::get<1>(right).end());
+			return meassurment;
+		}
+
+		//get corner value
+		auto getCornerByPlaneNorm = [](PointCloud::Ptr left, PointCloud::Ptr right,
+				const Eigen::Vector3d &center)
+				->std::tuple<double, PointCloud::Ptr, PointCloud::Ptr> {
+
+			Eigen::Vector4d plane1 = calcPlaneParam(left);
+			Eigen::Vector4d plane2 = calcPlaneParam(right);
+			Eigen::Vector3d n1 = plane1.block<3,1>(0,0);
+			Eigen::Vector3d n2 = plane2.block<3,1>(0,0);
+			Eigen::Vector3d p1(left->front().x, left->front().y, left->front().z);
+			Eigen::Vector3d p2(right->front().x, right->front().y, right->front().z);
+			p1 = p1 - center;
+			p2 = p2 - center;
+			n1 = (n1.dot(p1) > 0) ? n1 : (-1.0 * n1);
+			n2 = (n2.dot(p2) > 0) ? n2 : (-1.0 * n2);
+			// LOG(INFO) << "n1:" << n1(0) << "," << n1(1) << "," << n1(2);
+			// LOG(INFO) << "n2:" << n2(0) << "," << n2(1) << "," << n2(2);
+			double v = calcCorner(n1, n2);
+
+			return std::make_tuple(v, left, right);				
+		};
+
+		auto ret = getCornerByPlaneNorm(std::get<0>(left), std::get<0>(right), center);	
+		calcMeassurment_t meassurment;
+		meassurment.value = std::get<0>(ret);
+		meassurment.rangeSeg = std::get<1>(left);
+		meassurment.rangeSeg.insert(meassurment.rangeSeg.end(), 
+					std::get<1>(right).begin(), std::get<1>(right).end());
+		
+#ifdef VISUALIZATION_ENABLED
+		{
+			std::string file_name = "corner-" + std::to_string(idxPair.first) 
+					+ "-" + std::to_string(idxPair.second) + "-0.3m" + ".pcd";
+			saveTwoPieceCloud(file_name, std::get<0>(roughLeft), std::get<0>(roughRight));
+		}
+		{
+			std::string file_name = "inliers-" + std::to_string(idxPair.first) 
+					+ "-" + std::to_string(idxPair.second) + "-0.3m" + ".pcd";
+			saveTwoPieceCloud(file_name, std::get<1>(ret), std::get<2>(ret));
+		}			
+#endif
+
+		return meassurment;
+	}
+	
 	std::map<std::pair<std::size_t, std::size_t>, std::vector<calcMeassurment_t>>
 	CalcCorner(const std::vector<std::vector<seg_pair_t>>& allWallBorder,
 			const std::map<std::size_t, std::vector<std::vector<seg_pair_t>>>& holeBorder,
@@ -168,95 +280,22 @@ namespace CloudReg
 				}
 			}
 
-			auto getCornerByPlaneNorm = [](PointCloud::Ptr left, PointCloud::Ptr right,
-					const Eigen::Vector3d &center)
-					->std::tuple<double, PointCloud::Ptr, PointCloud::Ptr> {
-				LOG(INFO) << "left size:" << left->size() << ", right size:" << right->size();		
-				if (left->size() < 18 || right->size() < 18) 
-					return std::make_tuple(-1, left, right);
-
-				Eigen::VectorXf coeff1;
-				std::vector<int> inlierIdxs1;
-				planeFitting(0.005, left, coeff1, inlierIdxs1);
-				auto inliers1 = geo::getSubSet(left, inlierIdxs1, false);
-
-				Eigen::VectorXf coeff2;
-				std::vector<int> inlierIdxs2;
-				planeFitting(0.005, right, coeff2, inlierIdxs2);
-				auto inliers2 = geo::getSubSet(right, inlierIdxs2, false);
-				if (inliers1->size() < 15 || inliers2->size() < 15)
-					return std::make_tuple(-1, left, right);
-
-				Eigen::Vector4d plane1 = calcPlaneParam(inliers1);
-				Eigen::Vector4d plane2 = calcPlaneParam(inliers2);
-				Eigen::Vector3d n1 = plane1.block<3,1>(0,0);
-				Eigen::Vector3d n2 = plane2.block<3,1>(0,0);
-				Eigen::Vector3d p1(inliers1->front().x, inliers1->front().y, inliers1->front().z);
-				Eigen::Vector3d p2(inliers2->front().x, inliers2->front().y, inliers2->front().z);
-				p1 = p1 - center;
-				p2 = p2 - center;
-				n1 = (n1.dot(p1) > 0) ? n1 : (-1.0 * n1);
-				n2 = (n2.dot(p2) > 0) ? n2 : (-1.0 * n2);
-				// LOG(INFO) << "n1:" << n1(0) << "," << n1(1) << "," << n1(2);
-				// LOG(INFO) << "n2:" << n2(0) << "," << n2(1) << "," << n2(2);
-				double v = calcCorner(n1, n2);
-
-				return std::make_tuple(v, inliers1, inliers2);				
-			};
-
 			// getCornerByPlaneNorm
 			LOG(INFO) << "calc between: " << std::to_string(idx.first) << " - " << std::to_string(idx.second);
-			Eigen::Vector3d center = ((leftWall.back().second - leftWall.back().first) 
-				+ (rightWall.back().first - rightWall.back().second)) / 2.0;
-			// LOG(INFO) << "center:" << center;
 			//0.3
 			{
-				auto left = calcCornerArea(leftWall.back(), vecCloud[idx.first],0.3,true);
-				auto right = calcCornerArea(rightWall.back(), vecCloud[idx.second],0.3,false);
-				auto ret = getCornerByPlaneNorm(std::get<0>(left), std::get<0>(right), center);	
-				calcMeassurment_t meassurment;
-				meassurment.value = std::get<0>(ret);
-				meassurment.rangeSeg = std::get<1>(left);
-				meassurment.rangeSeg.insert(meassurment.rangeSeg.end(), std::get<1>(right).begin(), std::get<1>(right).end());
+				calcMeassurment_t meassurment 
+					= meassurmentProcess(idx, std::make_pair(leftWall.back(), rightWall.back()), 
+								std::make_pair(vecCloud[idx.first], vecCloud[idx.second]), 0.3);
 				result[std::make_pair(idx.first, idx.second)].push_back(meassurment);
-
-#ifdef VISUALIZATION_ENABLED
-				{
-					std::string file_name = "corner-" + std::to_string(idx.first) 
-							+ "-" + std::to_string(idx.second) + "-0.3m" + ".pcd";
-					saveTwoPieceCloud(file_name, std::get<0>(left), std::get<0>(right));
-				}
-				{
-					std::string file_name = "inliers-" + std::to_string(idx.first) 
-							+ "-" + std::to_string(idx.second) + "-0.3m" + ".pcd";
-					saveTwoPieceCloud(file_name, std::get<1>(ret), std::get<2>(ret));
-				}			
-#endif
 			}
 			//1.5
 			{
-				auto left = calcCornerArea(leftWall.back(), vecCloud[idx.first],1.5,true);
-				auto right = calcCornerArea(rightWall.back(), vecCloud[idx.second],1.5,false);
-				auto ret = getCornerByPlaneNorm(std::get<0>(left), std::get<0>(right), center);	
-				calcMeassurment_t meassurment;
-				meassurment.value = std::get<0>(ret);		
-				meassurment.rangeSeg = std::get<1>(left);
-				meassurment.rangeSeg.insert(meassurment.rangeSeg.end(), std::get<1>(right).begin(), std::get<1>(right).end());
-				result[std::make_pair(idx.first, idx.second)].push_back(meassurment);	
-#ifdef VISUALIZATION_ENABLED
-				{
-					std::string file_name = "corner-" + std::to_string(idx.first) 
-							+ "-" + std::to_string(idx.second) + "-1.5m" + ".pcd";
-					saveTwoPieceCloud(file_name, std::get<0>(left), std::get<0>(right));
-				}
-				{
-					std::string file_name = "inliers-" + std::to_string(idx.first) 
-							+ "-" + std::to_string(idx.second) + "-1.5m" + ".pcd";
-					saveTwoPieceCloud(file_name, std::get<1>(ret), std::get<2>(ret));
-				}		
-#endif			
+				calcMeassurment_t meassurment 
+					= meassurmentProcess(idx, std::make_pair(leftWall.back(), rightWall.back()), 
+								std::make_pair(vecCloud[idx.first], vecCloud[idx.second]), 1.5);
+				result[std::make_pair(idx.first, idx.second)].push_back(meassurment);		
 			}
-
 		}
 
 		return result;
