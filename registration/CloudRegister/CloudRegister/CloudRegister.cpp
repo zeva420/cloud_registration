@@ -458,7 +458,7 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 	calcAllCloudBorder(cad);
 }
 
-std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>
+std::tuple<std::vector<std::vector<calcMeassurment_t>>, std::vector<seg_pair_t>>
 CloudRegister::calcRoofNetHeight(const double calcLengthTh)
 {
 	const auto& itemRoof = mapCloudItem_[CLOUD_TOP_E].front();
@@ -472,7 +472,7 @@ CloudRegister::calcRoofNetHeight(const double calcLengthTh)
 }
 
 //first roof second root
-std::tuple<std::vector<calcMeassurment_t>, std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>
+std::tuple<std::vector<std::vector<calcMeassurment_t>>, std::vector<std::vector<calcMeassurment_t>>, std::vector<seg_pair_t>>
 CloudRegister::calcPlaneRange(const double calcHeight, const double calcLengthTh)
 {
 	const auto& itemRoof = mapCloudItem_[CLOUD_TOP_E].front();

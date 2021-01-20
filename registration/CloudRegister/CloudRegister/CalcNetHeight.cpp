@@ -105,22 +105,26 @@ namespace CloudReg
 		return vecCalcPt;
 	}
 
-	void calcAvgDiff(std::vector<calcMeassurment_t>& vecRet)
+	void calcAvgDiff(std::vector<std::vector<calcMeassurment_t>>& vecRet)
 	{
-		double minValue = 9999.0;
-		for(std::size_t i = 0; i < vecRet.size(); i++)
+		
+		for (auto& value : vecRet)
 		{
-			if (vecRet[i].value < minValue)
-				minValue = vecRet[i].value;
+			double minValue = 9999.0;
+			for (std::size_t i = 0; i < value.size(); i++)
+			{
+				if (value[i].value < minValue)
+					minValue = value[i].value;
 
-			//LOG(INFO) << "orig value:" << vecRet[i].value;
+				//LOG(INFO) << "orig value:" << vecRet[i].value;
+			}
+
+			std::for_each(value.begin(), value.end(), [&](calcMeassurment_t& item) {
+				item.value -= minValue; });
 		}
-
-		std::for_each(vecRet.begin(), vecRet.end(),[&](calcMeassurment_t& item){
-			item.value -= minValue;});
 	}
 
-	std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>> CalcNetHeight(const std::vector<seg_pair_t>& roofBorder,
+	std::tuple<std::vector<std::vector<calcMeassurment_t>>, std::vector<seg_pair_t>> CalcNetHeight(const std::vector<seg_pair_t>& roofBorder,
 			const PointCloud::Ptr pCloud,
 			const Eigen::Vector4d& plane,
 			const std::string& name,
@@ -134,7 +138,7 @@ namespace CloudReg
 		LOG(INFO) << "vecVerticalIndex: " << vecVerticalIndex.size() << " vecHorizenIndex:" << vecHorizenIndex.size();
 
 		std::vector<seg_pair_t> vecCutSeg;
-		std::vector<calcMeassurment_t> vecRet;
+		std::vector<std::vector<calcMeassurment_t>> vecRet;
 		for(std::size_t i = 0; i< vecVerticalIndex.size(); i++)
 		{
 			seg_pair_t toSeg = roofBorder[vecVerticalIndex[i]];
@@ -172,15 +176,17 @@ namespace CloudReg
 				LOG(INFO)<< "findSeg:" << vecVerticalIndex[i] <<" " << vecVerticalIndex[j];
 			
 				auto vecCalcPt = calcRangBox(s1Pt,e1Pt,s2Pt,e2Pt,0.3);
+				std::vector<calcMeassurment_t> tmp;
 				for (auto& pt : vecCalcPt)
 				{
 					auto ret = calcArea(pCloud, plane, s1Pt, e1Pt, pt);
 					if (!ret.rangeSeg.empty())
 					{
-						vecRet.emplace_back(ret);
+						tmp.emplace_back(ret);
 						//vecCutSeg.insert(vecCutSeg.end(), ret.rangeSeg.begin(), ret.rangeSeg.end());
 					}
 				}
+				if(!tmp.empty()) vecRet.emplace_back(tmp);
 			}
 
 		}
@@ -189,7 +195,8 @@ namespace CloudReg
 		return std::make_tuple(vecRet, vecCutSeg);
 	}
 	
-	std::tuple<std::vector<calcMeassurment_t>, std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>
+	std::tuple<std::vector<std::vector<calcMeassurment_t>>, 
+		std::vector<std::vector<calcMeassurment_t>>, std::vector<seg_pair_t>>
 		CalcHeightRange(const std::vector<seg_pair_t>& roofBorder,
 			const std::vector<seg_pair_t>& rootBorder,
 			const std::vector<std::vector<seg_pair_t>>& allWallBorder,
@@ -231,17 +238,16 @@ namespace CloudReg
 		//writePCDFile("rangePlane.pcd",rootBorder, vecSeg);
 		
 		
-		std::vector<calcMeassurment_t> vecroofRet;
+		std::vector<std::vector<calcMeassurment_t>> vecroofRet;
 		{
 			const std::string name = "roof_height_range.pcd";			
-			std::vector<calcMeassurment_t> vecRet;
 			std::vector<seg_pair_t> cutSeg;
 			std::tie(vecroofRet, cutSeg) = CalcNetHeight(roofBorder,pRoof,calcPlane, name,calcLengthTh);
 			calcAvgDiff(vecroofRet);
 			vecSeg.insert(vecSeg.end(),cutSeg.begin(), cutSeg.end());
 		}
 		
-		std::vector<calcMeassurment_t> vecrootRet;
+		std::vector<std::vector<calcMeassurment_t>> vecrootRet;
 		{
 			const std::string name = "root_height_range.pcd";
 			std::vector<seg_pair_t> cutSeg;
