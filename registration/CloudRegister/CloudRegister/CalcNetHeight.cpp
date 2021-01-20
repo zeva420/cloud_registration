@@ -26,7 +26,7 @@ namespace CloudReg
 		seg.first << min.x , min.y + (max.y - min.y)/2 ,min.z;
 		seg.second << max.x, min.y + (max.y - min.y)/2 ,min.z;
 		auto vecPt = createRulerBox(seg,2,thickness,calcHalfPara*2);
-		item.rangeSeg = calcBoxSegPair(vecPt);
+		
 
 		auto filerPt = getRulerCorners(vecPt);	
 		auto pCloud = filerCloudByConvexHull(pRoof, filerPt);
@@ -37,6 +37,7 @@ namespace CloudReg
 		}
 
 		item.value = 0.0;
+		item.rangeSeg = calcBoxSegPair(vecPt);
 		for(auto& pt : pCloud->points)
 		{
 			item.value += fabs(pointToPLaneDist(plane,pt));
