@@ -15,6 +15,8 @@
 #include <pcl/features/normal_3d.h>
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/search/search.h>
+#include <pcl/filters/passthrough.h>
+#include <pcl/filters/extract_indices.h>
 
 #include "GeometryUtils.h"
 #include "funHelper.h"
@@ -56,7 +58,7 @@ CloudSegment::SegmentResult CloudSegment::run() {
 	}
 
 #ifdef VISUALIZATION_ENABLED
-	{
+	if (0) {
 		SimpleViewer viewer;
 		viewer.addCloud(sparsedCloud());
 		viewer.show();
@@ -77,10 +79,17 @@ bool CloudSegment::calibrateDirectionToAxisZ() {
 	LOG(INFO) << "********calibrateDirectionToAxisZ*******";
 	removeFarPoints(orgCloud_, cadModel_);
 
-	PointCloud::Ptr samplingCloud(new PointCloud());
-	uniformSampling(0.05, orgCloud_, samplingCloud);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr filteredCloud(new pcl::PointCloud<pcl::PointXYZ>());
+	pcl::PassThrough<pcl::PointXYZ> pass;
+	pass.setInputCloud(orgCloud_);
+	pass.setFilterFieldName("z");
+	pass.setFilterLimits(0.5, 1.5);
+	pass.filter(*filteredCloud);
 
-	float binSizeTh = 0.2;
+	PointCloud::Ptr samplingCloud(new PointCloud());
+	uniformSampling(0.1, filteredCloud, samplingCloud);
+
+	float binSizeTh = 0.5;
 	std::vector<std::pair<int, std::vector<int>>> zToNumVec;
 	if (false == statisticsForPointZ(binSizeTh, samplingCloud, zToNumVec)) {
 		LOG(WARNING) << "statistics For Point.Z Failed.";
@@ -91,11 +100,13 @@ bool CloudSegment::calibrateDirectionToAxisZ() {
 	auto subSet = geo::getSubSet(samplingCloud, vecIdxs, false);
 	LOG(INFO) << "zToNumVec:" << zToNumVec.size() << " firstZ:"
 		<< zToNumVec.begin()->first << " subSet:" << subSet->size();
+
 	for (auto pr : ll::enumerate(zToNumVec)) {
 		auto it = *pr.iter;
 		LOG(INFO) << "z:" << it.first << " num:" << it.second.size();
 		if (3 <= pr.index) break;
 	}
+
 	Eigen::VectorXf coeff;
 	std::vector<int> inlierIdxs;
 	planeFitting(0.1, subSet, coeff, inlierIdxs);
@@ -600,22 +611,21 @@ void CloudSegment::detectPlanesRecursively(PointCloud::Ptr cloud, std::vector<Pl
 	detectPlanesRecursively(left, planes, disthresh, inlier_count_thresh, countthresh);
 }
 
-std::vector<CloudSegment::PlaneCloud> CloudSegment::detectRegionPlanes(PointCloud::Ptr cloud, double anglediff, double curvediff, std::size_t min_points) const {
-	pcl::search::KdTree<Point>::Ptr tree(new pcl::search::KdTree<Point>());
-	tree->setInputCloud(cloud);
+std::vector<CloudSegment::PlaneCloud> CloudSegment::detectRegionPlanes(
+	PointCloud::Ptr cloud, double anglediff, double curvediff, std::size_t min_points) const {
+	return detectRegionPlanes(cloud, nullptr, anglediff, curvediff, min_points);
+}
 
+std::vector<CloudSegment::PlaneCloud> CloudSegment::detectRegionPlanes(
+	PointCloud::Ptr cloud, pcl::PointCloud<pcl::Normal>::Ptr normals, double anglediff, double curvediff, std::size_t min_points) const {
 	// normals
-	pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>());
-	{
-		pcl::NormalEstimation<Point, pcl::Normal> n;
-		n.setInputCloud(cloud);
-		n.setSearchMethod(tree);
-		n.setKSearch(10);
-		n.compute(*normals);
-	}
+	if(!normals) normals = computeNormals(cloud);
 
 	std::vector<pcl::PointIndices> clusters;
 	{
+		pcl::search::KdTree<Point>::Ptr tree(new pcl::search::KdTree<Point>());
+		tree->setInputCloud(cloud);
+
 		pcl::RegionGrowing<Point, pcl::Normal> reg;
 		reg.setMinClusterSize(min_points);
 		reg.setSearchMethod(tree);
@@ -651,7 +661,7 @@ std::vector<CloudSegment::PlaneCloud> CloudSegment::detectRegionPlanes(PointClou
 #endif
 
 	return planes;
-	}
+}
 
 trans2d::Matrix2x3f CloudSegment::chooseTransformByHoles(const Eigen::vector<trans2d::Matrix2x3f>& Ts, const std::vector<PlaneCloud>& walls) const {
 	constexpr float HALF_SLICE_THICKNESS = 0.02f;
@@ -1052,17 +1062,7 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 	});
 
 	// normals
-	pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>());
-	{
-		pcl::search::KdTree<Point>::Ptr tree(new pcl::search::KdTree<Point>());
-		tree->setInputCloud(cloud);
-
-		pcl::NormalEstimation<Point, pcl::Normal> n;
-		n.setInputCloud(cloud);
-		n.setSearchMethod(tree);
-		n.setKSearch(10);
-		n.compute(*normals);
-	}
+	auto normals = computeNormals(cloud);
 
 	auto get_slice = [&](const Eigen::vector<Eigen::Vector3d>& points) {
 		LL_ASSERT(points.size() > 2 && "?");
@@ -1070,6 +1070,7 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 		// crop box, 
 		// we may try use crop hull, however, the shape can not be convex.
 		PointCloud::Ptr slice(new PointCloud());
+		NormalCloud::Ptr slicenormals(new NormalCloud());
 		{
 			std::vector<int> nearidx;
 			{
@@ -1105,16 +1106,26 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 
 				if (std::fabs(pnv.dot(n)) > 0.886) indices.push_back(i); // 30
 			}
+
 			slice = geo::getSubSet(cloud, indices);
+			{
+				pcl::ExtractIndices<pcl::Normal> ei;
+				ei.setInputCloud(normals);
+				pcl::PointIndices::Ptr pi(new pcl::PointIndices());
+				pi->indices = indices;
+				ei.setIndices(pi);
+				ei.setNegative(false);
+				ei.filter(*slicenormals);
+			}
 
 			LOG(INFO) << slice->size() << " points sliced.";
 		}
 
 		//todo: we can optimize the normal calculation in the below process
-		auto planes = detectRegionPlanes(slice, 5. / 180. * geo::PI, 1., slice->size() / 4);
+		auto planes = detectRegionPlanes(slice, slicenormals, 5. / 180. * geo::PI, 1., slice->size() / 4);
 		if (planes.empty()) return PlaneCloud();
 
-		return *std::max_element(planes.begin(), planes.end(), 
+		return *std::max_element(planes.begin(), planes.end(),
 			[](const PlaneCloud& pc1, const PlaneCloud& pc2) {
 			return pc1.cloud_->size() > pc2.cloud_->size();
 		});
@@ -1123,8 +1134,6 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 	SegmentResult sr(T_);
 
 	for (int i = 0; i < ITEM_MAX_E; ++i) {
-
-
 		ModelItemType mit = static_cast<ModelItemType>(i);
 		if (mit == ITEM_HOLE_E) continue; // we dont care about holes.
 
@@ -1223,6 +1232,21 @@ bool CloudSegment::statisticsForPointZ(float binSizeTh, PointCloud::Ptr cloud,
 	zToNumVec.insert(zToNumVec.end(), zToNumMap.begin(), zToNumMap.end());
 	std::sort(zToNumVec.begin(), zToNumVec.end(), comp());
 	return true;
+}
+
+CloudSegment::NormalCloud::Ptr CloudSegment::computeNormals(PointCloud::Ptr cloud) const {
+	pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>());
+
+	pcl::search::KdTree<Point>::Ptr tree(new pcl::search::KdTree<Point>());
+	tree->setInputCloud(cloud);
+
+	pcl::NormalEstimation<Point, pcl::Normal> n;
+	n.setInputCloud(cloud);
+	n.setSearchMethod(tree);
+	n.setKSearch(10);
+	n.compute(*normals);
+
+	return normals;
 }
 
 void CloudSegment::_show_result(const SegmentResult& sr) const {

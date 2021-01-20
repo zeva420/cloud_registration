@@ -300,8 +300,7 @@ namespace CloudReg
 		std::vector<Eigen::Vector3d> vecPts;	
 		for (const auto &p : cloud->points)
 		{
-			Eigen::Vector3d pt(p.x, p.y, p.z);
-			vecPts.push_back(pt);
+			vecPts.emplace_back(Eigen::Vector3d(p.x, p.y, p.z));
 		}	
 		return vecPts;
 	}
@@ -310,7 +309,7 @@ namespace CloudReg
 			const std::vector<Eigen::Vector3d> &vecPts, 
 			const std::pair<Eigen::Vector3d, Eigen::Vector3d> &seg)
 	{
-		const double distTh = 0.4;
+		const double distTh = 0.4 *0.4;
 		const double dotTh = 0.996;
 
 		auto findCadidatePts = [](const std::vector<Eigen::Vector3d> &vecPts, const Eigen::Vector3d &point,
@@ -318,7 +317,7 @@ namespace CloudReg
 			std::map<double, Eigen::Vector3d> candidatesMap;	
 			for (const auto &pt : vecPts)
 			{
-				double dist = (point - pt).norm();
+				double dist = (point - pt).squaredNorm();
 				if (dist < distTh) candidatesMap.insert(std::make_pair(dist, pt));
 			}	
 			return candidatesMap;

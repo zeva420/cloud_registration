@@ -21,19 +21,19 @@ public:
 	};
 
 	struct SegmentResult {
-		explicit SegmentResult(const Eigen::Matrix4f& T): T_(T) {} // in case i forget to assign T_..., todo: fix this.
+		explicit SegmentResult(const Eigen::Matrix4f& T) : T_(T) {} // in case i forget to assign T_..., todo: fix this.
 
 		std::map<ModelItemType, std::vector<PlaneCloud> > clouds_;
 
 		Eigen::Matrix4f T_; // T* org = cur, note we already transformed after segment.
 
-		bool valid() const { 
-			return !clouds_.empty() && 
-				std::all_of(clouds_.begin(), clouds_.end(), [](const auto& pr){ 
-					const auto& pcs = pr.second ;
-					return std::all_of(pcs.begin(), pcs.end(), [](const PlaneCloud& pc){ return pc.cloud_; });
-				}); 
-			}
+		bool valid() const {
+			return !clouds_.empty() &&
+				std::all_of(clouds_.begin(), clouds_.end(), [](const auto& pr) {
+				const auto& pcs = pr.second;
+				return std::all_of(pcs.begin(), pcs.end(), [](const PlaneCloud& pc) { return pc.cloud_; });
+			});
+		}
 
 		std::vector<PlaneCloud> allPlanes() const {
 			std::vector<PlaneCloud> all;
@@ -41,13 +41,15 @@ public:
 				all.insert(all.end(), pr.second.begin(), pr.second.end());
 			return all;
 		}
-		
+
 		std::string to_string() const;
 	};
 
 	SegmentResult run();
 
 private:
+	using NormalCloud = pcl::PointCloud<pcl::Normal>;
+
 	struct Segment {
 		EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
@@ -90,9 +92,11 @@ private:
 
 	std::vector<PlaneCloud> detectPlanes(PointCloud::Ptr cloud,
 		double disthresh, std::size_t inlier_count_thresh, std::size_t countthresh = 10000) const;
-	std::vector<PlaneCloud> detectRegionPlanes(PointCloud::Ptr cloud, double anglediff, double curvediff, std::size_t min_points) const;
 	void detectPlanesRecursively(PointCloud::Ptr cloud, std::vector<PlaneCloud>& planes,
 		double disthresh, std::size_t inlier_count_thresh, std::size_t countthresh) const;
+
+	std::vector<PlaneCloud> detectRegionPlanes(PointCloud::Ptr cloud, double anglediff, double curvediff, std::size_t min_points) const;
+	std::vector<PlaneCloud> detectRegionPlanes(PointCloud::Ptr cloud, pcl::PointCloud<pcl::Normal>::Ptr normals, double anglediff, double curvediff, std::size_t min_points) const;
 
 	trans2d::Matrix2x3f chooseTransformByHoles(const Eigen::vector<trans2d::Matrix2x3f>& Ts, const std::vector<PlaneCloud>& walls) const;
 
@@ -116,6 +120,8 @@ private:
 
 	bool statisticsForPointZ(float binSizeTh, PointCloud::Ptr cloud,
 		std::vector<std::pair<int, std::vector<int>>>& zToNumVec);
+
+	NormalCloud::Ptr computeNormals(PointCloud::Ptr cloud) const;
 
 	// debug
 	void _show_result(const SegmentResult& sr) const;

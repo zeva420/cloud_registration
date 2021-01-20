@@ -229,7 +229,7 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 
 			//refine cut
 			{	
-				//if (it.first == CLOUD_WALL_E)
+				if (it.first == CLOUD_WALL_E)
 				{
 					std::vector<Eigen::Vector3d> vecPts;
 					for (auto& seg : item.cloudBorder_.front())
