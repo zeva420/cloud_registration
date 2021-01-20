@@ -170,7 +170,8 @@ namespace CloudReg
 				double v = getCornerByPlaneNorm(std::get<0>(left), std::get<0>(right), center);	
 				calcMeassurment_t meassurment;
 				meassurment.value = v;
-
+				meassurment.rangeSeg = std::get<1>(left);
+				meassurment.rangeSeg.insert(meassurment.rangeSeg.end(), std::get<1>(right).begin(), std::get<1>(right).end());
 				result[std::make_pair(idx.first, idx.second)].push_back(meassurment);
 
 #ifdef VISUALIZATION_ENABLED
@@ -212,7 +213,8 @@ namespace CloudReg
 				double v = getCornerByPlaneNorm(std::get<0>(left), std::get<0>(right), center);	
 				calcMeassurment_t meassurment;
 				meassurment.value = v;		
-
+				meassurment.rangeSeg = std::get<1>(left);
+				meassurment.rangeSeg.insert(meassurment.rangeSeg.end(), std::get<1>(right).begin(), std::get<1>(right).end());
 				result[std::make_pair(idx.first, idx.second)].push_back(meassurment);	
 #ifdef VISUALIZATION_ENABLED
 				{

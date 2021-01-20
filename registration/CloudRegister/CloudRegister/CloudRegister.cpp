@@ -467,6 +467,7 @@ CloudRegister::calcRoofNetHeight(const double calcLengthTh)
 	auto vecRet = CalcNetHeight(itemRoof.cloudBorder_.front(),itemRoof.pCloud_,
 		itemRoot.cloudPlane_,"roof_net_height.pcd", calcLengthTh);
 
+	LOG(INFO) << "calcRoofNetHeight : " << std::get<0>(vecRet).size();
 	return vecRet;
 }
 
@@ -486,6 +487,8 @@ CloudRegister::calcPlaneRange(const double calcHeight, const double calcLengthTh
 	auto vecRet = CalcHeightRange(itemRoof.cloudBorder_.front(), itemRoot.cloudBorder_.front(),
 		allWallBorder,itemRoof.pCloud_, itemRoot.pCloud_, calcHeight, calcLengthTh);
 
+
+	LOG(INFO) << "calcPlaneRange : " << std::get<0>(vecRet).size() << " " << std::get<1>(vecRet).size();
 	return vecRet;
 }
 
@@ -518,6 +521,7 @@ CloudRegister::calcDepth(const double calcLengthTh)
 	
 	auto ret = calcDepthorBay(itemRoot.cloudBorder_.front(), allWallBorder, holeBorder,vecCloud, vecPlane,0, calcLengthTh);
 
+	LOG(INFO) << "calcDepth : " << std::get<0>(ret).size();
 	return ret;
 
 }
@@ -552,7 +556,7 @@ std::tuple<std::map<std::pair<std::size_t, std::size_t>,
 	}
 
 	auto ret = calcDepthorBay(itemRoot.cloudBorder_.front(), allWallBorder, holeBorder, vecCloud, vecPlane, 1, calcLengthTh);
-
+	LOG(INFO) << "calcBay : " << std::get<0>(ret).size();
 	return ret;
 }
 
@@ -585,6 +589,7 @@ CloudRegister::calcAllHole()
 		}
 
 	}
+	LOG(INFO) << "calcAllHole : " << mapRet.size();
 	return mapRet;
 }
 

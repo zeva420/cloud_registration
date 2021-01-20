@@ -244,8 +244,8 @@ namespace CloudReg
 		{
 			const std::string name = "root_height_range.pcd";
 			std::vector<seg_pair_t> cutSeg;
-			std::tie(vecroofRet, cutSeg) = CalcNetHeight(rootBorder,pRoot,calcPlane, name, calcLengthTh);
-			calcAvgDiff(vecroofRet);
+			std::tie(vecrootRet, cutSeg) = CalcNetHeight(rootBorder,pRoot,calcPlane, name, calcLengthTh);
+			calcAvgDiff(vecrootRet);
 			vecSeg.insert(vecSeg.end(), cutSeg.begin(), cutSeg.end());
 		}
 		return std::make_tuple(vecroofRet,vecrootRet, vecSeg);
