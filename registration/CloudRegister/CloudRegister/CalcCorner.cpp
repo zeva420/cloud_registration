@@ -46,13 +46,13 @@ namespace CloudReg
 		return std::make_tuple(pCloud,rangeSeg);
 	}
 
-	std::map<std::pair<int, int>, std::vector<calcMeassurment_t>>
+	std::map<std::pair<std::size_t, std::size_t>, std::vector<calcMeassurment_t>>
 	CalcCorner(const std::vector<std::vector<seg_pair_t>>& allWallBorder,
 			const std::map<std::size_t, std::vector<std::vector<seg_pair_t>>>& holeBorder,
 			const std::vector<PointCloud::Ptr>& vecCloud,
 			const double calcLengthTh)
 	{
-		std::map<std::pair<int, int>, std::vector<calcMeassurment_t>> result;
+		std::map<std::pair<std::size_t, std::size_t>, std::vector<calcMeassurment_t>> result;
 		if (allWallBorder.size() != vecCloud.size())
 		{
 			LOG(WARNING) << "size not match";

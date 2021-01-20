@@ -21,7 +21,7 @@ CloudRegister::CloudRegister() {
 	google::InitGoogleLogging("Cloud");
 	FLAGS_log_dir = "./";
 
-#define VISUALIZATION_ENABLED
+//#define VISUALIZATION_ENABLED
 #ifdef VISUALIZATION_ENABLED
 	google::LogToStderr();
 #endif
@@ -702,10 +702,10 @@ CloudRegister::calcRootFlatness(std::string planeType, const double calcLengthTh
 	return result;
 }
 
-std::map<std::pair<int, int>, std::vector<calcMeassurment_t>>
+std::map<std::pair<std::size_t, std::size_t>, std::vector<calcMeassurment_t>>
 CloudRegister::calcAllCorner()
 {
-	std::map<std::pair<int, int>, std::vector<calcMeassurment_t>> result;
+	std::map<std::pair<std::size_t, std::size_t>, std::vector<calcMeassurment_t>> result;
 	const auto& itemWall = mapCloudItem_[CLOUD_WALL_E];
 	if (itemWall.empty()) return result;
 

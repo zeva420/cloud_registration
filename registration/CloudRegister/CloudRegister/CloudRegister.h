@@ -34,8 +34,7 @@ namespace CloudReg
 	
 
 	using vecItems_t = Eigen::vector<CloudItem>;
-	using pairCloud_t = std::pair<CloudItem*, CloudItem*>;
-
+	
 	class CADModel;
 	class TransformOptimize;
 	#ifdef UBUNTU_SWITCH
@@ -61,7 +60,7 @@ namespace CloudReg
 			const Eigen::Vector4d& plane, const double radius = 0.05) const;
 		
 		//calcAllCorner: corner of two neighbouring walls (in height 0.3m and 1.5m)
-		std::map<std::pair<int, int>, std::vector<calcMeassurment_t>>
+		std::map<std::pair<std::size_t, std::size_t>, std::vector<calcMeassurment_t>>
 			calcAllCorner();
 
 		//calcLengthTh: the shorest wall length, 
