@@ -6,14 +6,16 @@
 namespace CloudReg 
 {
 
-	std::tuple<std::vector<calcMeassurment_t>,std::vector<seg_pair_t>>
+	std::tuple<std::vector<std::vector<calcMeassurment_t>>,std::vector<seg_pair_t>>
 		CalcNetHeight(const std::vector<seg_pair_t>& roofBorder,
 			const PointCloud::Ptr pCloud,
 			const Eigen::Vector4d& plane,
 			const std::string& name,
 			const double calcLengthTh = 1.5);
 	
-	std::tuple<std::vector<calcMeassurment_t>, std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>
+	std::tuple<std::vector<std::vector<calcMeassurment_t>>, 
+		std::vector<std::vector<calcMeassurment_t>>, 
+		std::vector<seg_pair_t>>
 		CalcHeightRange(const std::vector<seg_pair_t>& roofBorder,
 			const std::vector<seg_pair_t>& rootBorder,
 			const std::vector<std::vector<seg_pair_t>>& allWallBorder,

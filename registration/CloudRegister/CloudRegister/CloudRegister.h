@@ -64,13 +64,13 @@ namespace CloudReg
 			calcAllCorner();
 
 		//calcLengthTh: the shorest wall length, 
-		std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>> 
+		std::tuple<std::vector<std::vector<calcMeassurment_t>>, std::vector<seg_pair_t>> 
 			calcRoofNetHeight(const double calcLengthTh = 1.5);
 
 		//first roof second root
 		//calcHeight: the height from bottom 
 		//calcLengthTh: the shorest wall length
-		std::tuple<std::vector<calcMeassurment_t>, std::vector<calcMeassurment_t>,std::vector<seg_pair_t>>
+		std::tuple<std::vector<std::vector<calcMeassurment_t>>, std::vector<std::vector<calcMeassurment_t>>,std::vector<seg_pair_t>>
 			calcPlaneRange(const double calcHeight = 1.0,const double calcLengthTh = 1.5);
 
 		//calcLengthTh: the shorest wall length
