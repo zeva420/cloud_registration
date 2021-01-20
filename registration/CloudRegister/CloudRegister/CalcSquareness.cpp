@@ -9,7 +9,7 @@
 #include <pcl/filters/crop_hull.h>
 #include <pcl/surface/concave_hull.h>
 
-
+#define VISUALIZATION_ENABLED
 namespace CloudReg
 {
     bool checkAdjDis(std::vector<seg_pair_t> allBorder, int lhAxis, seg_pair_t hole1, seg_pair_t hole2,

@@ -9,6 +9,7 @@
 #include <pcl/filters/crop_hull.h>
 #include <pcl/surface/concave_hull.h>
 
+#define VISUALIZATION_ENABLED
 namespace CloudReg
 {
 

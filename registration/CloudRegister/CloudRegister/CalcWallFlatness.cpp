@@ -9,7 +9,7 @@
 #include <pcl/filters/crop_hull.h>
 #include <pcl/surface/concave_hull.h>
 
-
+#define VISUALIZATION_ENABLED
 namespace CloudReg
 {
     std::map<int,std::vector<seg_pair_t>> calcSingleWall(const std::vector<seg_pair_t>& wallBorder, const std::vector<vec_seg_pair_t>& holeBorders,
@@ -363,6 +363,7 @@ namespace CloudReg
                     std::vector<Eigen::Vector3d> rPoints =  createRulerBox(ruler, thicknessDir, 0.025, 0.025);
                     std::vector<seg_pair_t> pair =  calcBoxSegPair(rPoints);
                     vecRange.insert(vecRange.end(), pair.begin(), pair.end());
+                    measure.rangeSeg.insert(measure.rangeSeg.end(), pair.begin(), pair.end());
                     LOG(INFO) << "Wall "<<wallIndex<<" flatness: " << measure.value;
                     allMeasure.emplace_back(measure);
                 }
@@ -386,9 +387,11 @@ namespace CloudReg
                     std::vector<Eigen::Vector3d> rPoints =  createRulerBox(ruler1, thicknessDir, 0.025, 0.025);
                     std::vector<seg_pair_t> pair =  calcBoxSegPair(rPoints);
                     vecRange.insert(vecRange.end(), pair.begin(), pair.end());
+                    measure.rangeSeg.insert(measure.rangeSeg.end(), pair.begin(), pair.end());
                     rPoints =  createRulerBox(ruler2, thicknessDir, 0.025, 0.025);
                     pair =  calcBoxSegPair(rPoints);
                     vecRange.insert(vecRange.end(), pair.begin(), pair.end());
+                    measure.rangeSeg.insert(measure.rangeSeg.end(), pair.begin(), pair.end());
                     LOG(INFO) << "Wall "<<wallIndex<<" flatness: " << measure.value;
                     allMeasure.emplace_back(measure);
                 }

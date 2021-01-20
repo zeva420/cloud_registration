@@ -316,22 +316,19 @@ namespace CloudReg
 	std::vector<seg_pair_t> calcBoxSegPair(std::vector<Eigen::Vector3d>& vecPt)
 	{
 		std::vector<seg_pair_t> vecSeg;
-		for (std::size_t i = 1; i < 4; i++)
-		{
-			vecSeg.emplace_back(std::make_pair(vecPt[i - 1], vecPt[i]));
-			if (i == 3)
-				vecSeg.emplace_back(std::make_pair(vecPt[i], vecPt[0]));
-		}
+		if (vecPt.size() != 8)
+			return vecSeg;
 
-		for (std::size_t i = 5; i < 8; i++)
-		{
-			vecSeg.emplace_back(std::make_pair(vecPt[i - 1], vecPt[i]));
-			if (i == 7)
-				vecSeg.emplace_back(std::make_pair(vecPt[i], vecPt[4]));
-		}
-		for (std::size_t i = 0; i < 4; i++)
-		{
+		for(size_t i = 0; i < 4; ++i)
 			vecSeg.emplace_back(std::make_pair(vecPt[i], vecPt[i + 4]));
+
+		std::vector<int> diag = {0,4};
+		for(auto& i : diag)
+		{
+			vecSeg.emplace_back(std::make_pair(vecPt[i], vecPt[i + 1]));
+			vecSeg.emplace_back(std::make_pair(vecPt[i], vecPt[i + 2]));
+			vecSeg.emplace_back(std::make_pair(vecPt[i+3], vecPt[i + 1]));
+			vecSeg.emplace_back(std::make_pair(vecPt[i+3], vecPt[i + 2]));
 		}
 
 		return vecSeg;

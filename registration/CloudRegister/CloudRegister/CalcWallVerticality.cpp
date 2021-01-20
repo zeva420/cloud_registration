@@ -7,6 +7,7 @@
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
 
+#define VISUALIZATION_ENABLED
 namespace CloudReg
 {
     Eigen::Vector4d calcWallPlane(std::vector<seg_pair_t> vecVertical)
