@@ -1,13 +1,7 @@
 #include "CalcWallVerticality.h"
-
 #include "funHelper.h"
-#include <pcl/common/common.h>
-#include <pcl/filters/crop_box.h>
-#include <pcl/filters/passthrough.h>
-#include <pcl/io/pcd_io.h>
-#include <pcl/point_types.h>
 
-#define VISUALIZATION_ENABLED
+//#define VISUALIZATION_ENABLED
 namespace CloudReg
 {
     Eigen::Vector4d calcWallPlane(std::vector<seg_pair_t> vecVertical)

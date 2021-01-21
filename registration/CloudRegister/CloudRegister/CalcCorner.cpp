@@ -1,8 +1,8 @@
 #include "CalcCorner.h"
 
 #include "funHelper.h"
-#include <pcl/common/common.h>
-#define VISUALIZATION_ENABLED
+
+//#define VISUALIZATION_ENABLED
 
 namespace CloudReg
 {

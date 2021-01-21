@@ -1,7 +1,6 @@
 #include "CalcMeasureHelper.h"
 
 #include "funHelper.h"
-#include <pcl/common/common.h>
 #include <pcl/filters/crop_box.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/io/pcd_io.h>

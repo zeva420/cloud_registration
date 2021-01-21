@@ -1,6 +1,5 @@
 #include "CloudRegister.h"
 
-
 #include "BaseType.h"
 #include "funHelper.h"
 #include "CalcMeasureHelper.h"
@@ -41,7 +40,11 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	}
 
 	CADModel model;
-	model.initCAD(CAD_File);
+	if(!model.initCAD(CAD_File))
+	{
+		LOG(ERROR) << "failed to initCAD";
+		return false;
+	}
 
 	LOG(INFO) << "cad model loaded: " << model.toString() << ". from: " << CAD_File;
 	
@@ -594,7 +597,7 @@ CloudRegister::calcAllHole()
 }
 
 std::map<int, std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>>
-CloudRegister::calcWallVerticality(std::string planeType)
+CloudRegister::calcWallVerticality(const std::string& planeType)
 {
 	std::map<int, std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>> returnMeasure;
 	const auto& vecWall = mapCloudItem_[CLOUD_WALL_E];
@@ -628,7 +631,7 @@ CloudRegister::calcWallVerticality(std::string planeType)
 }
 
 std::map<int, std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>>
-CloudRegister::calcWallFlatness(std::string planeType)
+CloudRegister::calcWallFlatness(const std::string& planeType)
 {
 	std::map<int, std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>> returnMeasure;
 	const auto& vecWall = mapCloudItem_[CLOUD_WALL_E];
@@ -690,7 +693,7 @@ CloudRegister::calcAllSquareness(const double calcLengthTh)
 }
 
 std::vector<std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>> 
-CloudRegister::calcRootFlatness(std::string planeType, const double calcLengthTh)
+CloudRegister::calcRootFlatness(const std::string& planeType, const double calcLengthTh)
 {
 	const auto& itemRoot = mapCloudItem_[CLOUD_BOTTOM_E].front();
 	const auto& rootBorder = itemRoot.cloudBorder_.front();

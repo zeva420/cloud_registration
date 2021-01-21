@@ -47,7 +47,7 @@ namespace CloudReg
 		CloudRegister();
 		~CloudRegister();
 
-		
+		//bNeedOptimize = false not run optimize
 		bool run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecCloudPtr,
 			const std::string& CAD_File, const bool bNeedOptimize = true);
 
@@ -89,23 +89,21 @@ namespace CloudReg
 
 		//planeType = cloud, use cloud plane, else use cad plane
 		std::map<int, std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>>
-			calcWallVerticality(std::string planeType = "cad");
+			calcWallVerticality(const std::string& planeType = "cad");
 
 		std::map<int, std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>>
-			calcWallFlatness(std::string planeType = "cad");
+			calcWallFlatness(const std::string& planeType = "cad");
 
 		std::map<std::pair<int, int>,std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>>
     		calcAllSquareness(const double calcLengthTh = 1.);
 
 		std::vector<std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>> 
-    		calcRootFlatness(std::string planeType = "cad", const double calcLengthTh = 1.5);
+    		calcRootFlatness(const std::string& planeType = "cad", const double calcLengthTh = 1.5);
 
 	private:
 		
 		void fillRet(CADModel& cad, TransformOptimize& optimitor);
 		void calcAllCloudBorder(CADModel& cad);
-		int findMatchCloud(const Eigen::Vector4d &plane,
-			std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecOrigCloud);
 
 		std::map<CloudItemType, vecItems_t> mapCloudItem_;
 

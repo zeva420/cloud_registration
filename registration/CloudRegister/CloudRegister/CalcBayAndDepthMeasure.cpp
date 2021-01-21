@@ -1,7 +1,6 @@
 #include "CalcBayAndDepthMeasure.h"
 
 #include "funHelper.h"
-#include <pcl/common/common.h>
 
 namespace CloudReg
 {

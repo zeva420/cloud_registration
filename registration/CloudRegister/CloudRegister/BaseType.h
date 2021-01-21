@@ -17,7 +17,8 @@
 #include <Eigen/SparseCore>
 #include <Eigen/StdVector>
 
-
+//pcl
+#include <pcl/common/common.h>
 #include<pcl/point_types.h>
 #include<pcl/io/pcd_io.h>
 

@@ -1,15 +1,7 @@
 #include "CalcRootFlatness.h"
 
 #include "funHelper.h"
-#include <pcl/common/common.h>
-#include <pcl/filters/crop_box.h>
-#include <pcl/filters/passthrough.h>
-#include <pcl/io/pcd_io.h>
-#include <pcl/point_types.h>
-#include <pcl/filters/crop_hull.h>
-#include <pcl/surface/concave_hull.h>
-
-#define VISUALIZATION_ENABLED
+//#define VISUALIZATION_ENABLED
 namespace CloudReg
 {
 

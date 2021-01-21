@@ -2,10 +2,7 @@
 
 #include "BaseType.h"
 
-//pcl
-#include <pcl/io/pcd_io.h>
-#include <pcl/point_types.h>
-#include <pcl/common/common.h>
+
 
 #include "GeometryUtils.h"
 
@@ -19,18 +16,18 @@ namespace CloudReg
 
 	double calcArea(const Eigen::vector<Eigen::Vector2d>& vecPts);
 
-	void uniformSampling(double radius,
-							pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
+	void uniformSampling(const double radius,
+							const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
 							pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered);
 
 	double pointToPLaneDist(const Eigen::Vector4d &plane, const pcl::PointXYZ &p);
 
-	pcl::PointXYZRGB getColorPtByDist(pcl::PointXYZ &p, double dist);
+	pcl::PointXYZRGB getColorPtByDist(pcl::PointXYZ &p, const double dist);
 	
-	void getWallColor(float dis, unsigned int & r, unsigned int & g, unsigned int & b);
+	void getWallColor(const float dis, unsigned int & r, unsigned int & g, unsigned int & b);
 	
-	void projectionToPlane(Eigen::Vector4d &plane,
-							pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, 
+	void projectionToPlane(const Eigen::Vector4d &plane,
+							const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, 
 							pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_projected);
 
 	void searchBoundaries(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud,
@@ -102,14 +99,6 @@ namespace CloudReg
 
 	double calcCorner(const Eigen::Vector3d &n1, const Eigen::Vector3d &n2);
 
-	double calcCloudPairCorner(const std::string &name,
-						const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud1,
-						const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud2,
-						const Eigen::Vector3d &floorPt, double height,
-						Eigen::Vector3d center, Eigen::Vector4d bottomPlane);
-
-	// cornerPoint(2, 0) == z
-	//double calcCorner_beta(PointCloud::Ptr cloud1, PointCloud::Ptr cloud2, const Eigen::Vector3f& cornerPoint, float z);
 
 }
 
