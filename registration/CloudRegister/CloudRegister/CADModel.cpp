@@ -3,6 +3,7 @@
 
 #include "funHelper.h"
 #include "GeometryUtils.h"
+#include "glog/logging.h"
 
 namespace CloudReg {
 

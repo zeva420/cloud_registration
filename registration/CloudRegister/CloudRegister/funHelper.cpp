@@ -1,9 +1,14 @@
 #include "funHelper.h"
 
+#ifdef UBUNTU_SWITCH
+#include <pcl/keypoints/impl/uniform_sampling.hpp>
+#else
+#include <pcl/filters/uniform_sampling.h>
+#endif
+
 #include <pcl/features/normal_3d.h>
 #include <pcl/features/boundary.h>
 #include <pcl/filters/project_inliers.h>
-#include <pcl/filters/uniform_sampling.h>
 #include <pcl/filters/radius_outlier_removal.h>
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/segmentation/extract_clusters.h>
@@ -14,10 +19,8 @@
 #include <pcl/sample_consensus/sac_model_plane.h>
 
 #include <pcl/filters/passthrough.h>
-#include <pcl/filters/crop_box.h>
-#include <pcl/surface/concave_hull.h>
-#include <pcl/filters/crop_hull.h>
 
+#include "glog/logging.h"
 
 
 namespace CloudReg
@@ -60,6 +63,7 @@ namespace CloudReg
 		return strvec;
 	}
 
+
 	bool writePCDFile(const std::string& name, Eigen::vector<Eigen::Vector3d>& vecCloud)
 	{
 		if (vecCloud.empty()) return false;
@@ -97,14 +101,20 @@ namespace CloudReg
 		return fabs(0.5* area);
 	}
 
-	void uniformSampling(double radius,
-						pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
+	void uniformSampling(const double radius,
+						const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
 						pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered)
 	{
 		pcl::UniformSampling<pcl::PointXYZ> filter;
 		filter.setInputCloud(cloud);
 		filter.setRadiusSearch(radius);
+		#ifdef UBUNTU_SWITCH
+		pcl::PointCloud<int> keypointIndices;
+		filter.compute(keypointIndices);
+		pcl::copyPointCloud(*cloud, keypointIndices.points, *cloud_filtered);
+		#else
 		filter.filter(*cloud_filtered);
+		#endif
 	}
 
 	double pointToPLaneDist(const Eigen::Vector4d &plane, const pcl::PointXYZ &p)
@@ -116,7 +126,7 @@ namespace CloudReg
 		return dist;
 	}
 
-	pcl::PointXYZRGB getColorPtByDist(pcl::PointXYZ &p, double dist)
+	pcl::PointXYZRGB getColorPtByDist(pcl::PointXYZ &p, const double dist)
 	{
 		unsigned int r = 255;
 		unsigned int g = 255; 
@@ -133,7 +143,7 @@ namespace CloudReg
 		return p_rgb;
 	}
 
- 	void getWallColor(float dis, unsigned int & r, unsigned int & g, unsigned int & b)
+ 	void getWallColor(const float dis, unsigned int & r, unsigned int & g, unsigned int & b)
 	{
 		float rf = 0.0f;
 		float gf = 0.0f;
@@ -200,8 +210,8 @@ namespace CloudReg
 		b = (unsigned int)(bf*255.0);
 	}
 
-	void projectionToPlane(Eigen::Vector4d &plane,
-							pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, 
+	void projectionToPlane(const Eigen::Vector4d &plane,
+							const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, 
 							pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_projected)
 	{
 		pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients());
@@ -1128,399 +1138,6 @@ namespace CloudReg
 		return true;
 	}
 
-	//not finish
-	double calcCloudPairCorner(const std::string &name,
-						const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud1,
-						const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud2,
-						const Eigen::Vector3d &floorPt, double height,
-						Eigen::Vector3d center, Eigen::Vector4d bottomPlane)
-	{
-		LOG(INFO) << "===height:" << height << " floorPt.z:" << floorPt(2);
-		const double distTh = 0.2;//m
-		const double halfLen = 0.025;
-		Eigen::Vector3d centerPt = floorPt;
-		centerPt(2) += height;
-
-		pcl::PointCloud<pcl::PointXYZ>::Ptr subSet1(new pcl::PointCloud<pcl::PointXYZ>());
-		for (auto &p : pCloud1->points)
-		{
-			Eigen::Vector3d v(p.x, p.y, p.z);
-			if ((v - centerPt).norm() < distTh)
-			{
-				subSet1->push_back(p);
-			}
-		}
-		pcl::PointCloud<pcl::PointXYZ>::Ptr filteredCloud(new pcl::PointCloud<pcl::PointXYZ>());
-		pcl::PassThrough<pcl::PointXYZ> pass;
-		pass.setInputCloud (subSet1);
-		pass.setFilterFieldName ("z");
-		pass.setFilterLimits (centerPt(2)- halfLen, centerPt(2)+ halfLen);
-		pass.filter (*filteredCloud);
-		subSet1->swap(*filteredCloud);
-
-		pcl::PointCloud<pcl::PointXYZ>::Ptr subSet2(new pcl::PointCloud<pcl::PointXYZ>());
-		for (auto &p : pCloud2->points)
-		{
-			Eigen::Vector3d v(p.x, p.y, p.z);
-			if ((v - centerPt).norm() < distTh)
-			{
-				subSet2->push_back(p);
-			}
-		}
-		filteredCloud->clear();
-		pass.setInputCloud (subSet2);
-		pass.setFilterFieldName ("z");
-		pass.setFilterLimits (centerPt(2)- halfLen, centerPt(2)+ halfLen);
-		pass.filter (*filteredCloud);
-		subSet2->swap(*filteredCloud);
-
-		LOG(INFO) << "subSet1:" << subSet1->size() << " subSet2:" << subSet2->size();
-		if (subSet1->size() < 50 || subSet2->size() < 50)
-		{
-			return 0.0;
-		}
-
-		//重新分割两个平面
-		pcl::PointCloud<pcl::PointXYZ>::Ptr subSetMerged(new pcl::PointCloud<pcl::PointXYZ>());
-		subSetMerged->insert(subSetMerged->end(), subSet1->begin(), subSet1->end());
-		subSetMerged->insert(subSetMerged->end(), subSet2->begin(), subSet2->end());
-		
-		Eigen::VectorXf coeff1;
-		std::vector<int> inlierIdxs1;
-		planeFitting(0.002, subSetMerged, coeff1, inlierIdxs1);
-		auto left1 = geo::getSubSet(subSetMerged, inlierIdxs1, true);
-
-        Eigen::VectorXf coeff2;
-        std::vector<int> inlierIdxs2;
-        planeFitting(0.002, left1, coeff2, inlierIdxs2);
-		auto left2 = geo::getSubSet(left1, inlierIdxs2, true);
-
-		auto orig_inliers1 = geo::getSubSet(subSetMerged, inlierIdxs1, false);
-		auto orig_inliers2 = geo::getSubSet(left1, inlierIdxs2, false);
-
-		auto dist_to_plane = [](Eigen::Vector3f &p, Eigen::VectorXf &plane)->float {
-			Eigen::Vector3f n = plane.block<3,1>(0,0);
-			float d  = plane(3);
-			float dist = std::abs(n.dot(p) + d) / n.norm(); 
-			return dist;
-		};
-		for (auto &it : left2->points)
-		{
-			Eigen::Vector3f p(it.x, it.y, it.z);
-			float dist1 = dist_to_plane(p, coeff1);
-			float dist2 = dist_to_plane(p, coeff2);
-			auto tmpPtr = (dist1 < dist2) ? orig_inliers1 : orig_inliers2;
-			tmpPtr->push_back(it);
-		}
-
-		pcl::PointCloud<pcl::PointXYZ>::Ptr inliers1(new pcl::PointCloud<pcl::PointXYZ>());
-		pcl::PointCloud<pcl::PointXYZ>::Ptr inliers2(new pcl::PointCloud<pcl::PointXYZ>());
-#if 1
-		//平面法向求夹角
-		inliers1 = orig_inliers1;
-		inliers2 = orig_inliers2;
-		Eigen::Vector4d plane1 = calcPlaneParam(inliers1);
-		Eigen::Vector4d plane2 = calcPlaneParam(inliers2);
-		Eigen::Vector3d n1 = plane1.block<3,1>(0,0);
-		Eigen::Vector3d n2 = plane2.block<3,1>(0,0);
-		Eigen::Vector3d p1(inliers1->front().x, inliers1->front().y, inliers1->front().z);
-		Eigen::Vector3d p2(inliers2->front().x, inliers2->front().y, inliers2->front().z);
-		p1 = p1 - center;
-		p2 = p2 - center;
-		n1 = (n1.dot(p1) > 0) ? n1 : (-1.0 * n1);
-		n2 = (n2.dot(p2) > 0) ? n2 : (-1.0 * n2);
-		//LOG(INFO) << "n1:" << n1(0) << "," << n1(1) << "," << n1(2);
-		//LOG(INFO) << "n2:" << n2(0) << "," << n2(1) << "," << n2(2);
-		double v = calcCorner(n1, n2);
-#else
-		//投影到ＸＯＹ平面，通过检测线来获取方向，线方向求夹角
-		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filter(new pcl::PointCloud<pcl::PointXYZ>());
-		projectionToPlane(bottomPlane, orig_inliers1, cloud_filter);
-		orig_inliers1->swap(*cloud_filter);
-
-		cloud_filter->clear();
-		projectionToPlane(bottomPlane, orig_inliers2, cloud_filter);
-		orig_inliers2->swap(*cloud_filter);
-
-		Eigen::Vector3d n1;
-		{
-			std::vector<int> indices;
-			Eigen::VectorXf params;
-			std::tie(indices, params) = geo::detectOneLineRansac(orig_inliers1, 0.002);
-			Eigen::Vector3f tmp = params.block<3, 1>(3, 0);
-			n1 = Eigen::Vector3d(tmp(0), tmp(1), tmp(2));
-			inliers1 = geo::getSubSet(orig_inliers1, indices, false);
-		}
-		Eigen::Vector3d n2;
-		{
-			std::vector<int> indices;
-			Eigen::VectorXf params;
-			std::tie(indices, params) = geo::detectOneLineRansac(orig_inliers2, 0.002);
-			Eigen::Vector3f tmp = params.block<3, 1>(3, 0);
-			n2 = Eigen::Vector3d(tmp(0), tmp(1), tmp(2));
-			inliers2 = geo::getSubSet(orig_inliers2, indices, false);
-		}
-		LOG(INFO) << "line1 inlierRate:" << 100.0 * (float)inliers1->size() / (float)orig_inliers2->size()
-			<< ", line2 inlierRate:" << 100.0 * (float)inliers2->size() / (float)orig_inliers2->size();
-
-		Eigen::Vector3d p1(inliers1->front().x, inliers1->front().y, inliers1->front().z);
-		Eigen::Vector3d p2(inliers2->front().x, inliers2->front().y, inliers2->front().z);
-		p1 = p1 - Eigen::Vector3d(center(0), center(1), floorPt(2));
-		p2 = p2 - Eigen::Vector3d(center(0), center(1), floorPt(2));
-		n1 = (n1.dot(p1) > 0) ? n1 : (-1.0 * n1);
-		n2 = (n2.dot(p2) > 0) ? n2 : (-1.0 * n2);
-		//LOG(INFO) << "n1:" << n1(0) << "," << n1(1) << "," << n1(2);
-		//LOG(INFO) << "n2:" << n2(0) << "," << n2(1) << "," << n2(2);
-		double v = calcCorner(n1, n2);
-#endif
-
-#ifdef VISUALIZATION_ENABLED
-		{
-			pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloudBorder(new pcl::PointCloud<pcl::PointXYZRGB>());
-			for (auto &p1 : subSet1->points)
-			{
-				pcl::PointXYZRGB p2;
-				p2.x = p1.x;
-				p2.y = p1.y;
-				p2.z = p1.z;
-				p2.r = 255;
-				p2.g = 0;
-				p2.b = 0;
-				pCloudBorder->push_back(p2);
-			}
-
-			for (auto &p1 : subSet2->points)
-			{
-				pcl::PointXYZRGB p2;
-				p2.x = p1.x;
-				p2.y = p1.y;
-				p2.z = p1.z;
-				p2.r = 0;
-				p2.g = 255;
-				p2.b = 0;
-				pCloudBorder->push_back(p2);
-			}
-			std::string file_name = "corner-" + name + ".pcd";
-			pcl::io::savePCDFile(file_name, *pCloudBorder);	
-		}
-
-		{
-			pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloudBorder(new pcl::PointCloud<pcl::PointXYZRGB>());
-			for (auto &p1 : inliers1->points)
-			{
-				pcl::PointXYZRGB p2;
-				p2.x = p1.x;
-				p2.y = p1.y;
-				p2.z = p1.z;
-				p2.r = 255;
-				p2.g = 0;
-				p2.b = 0;
-				pCloudBorder->push_back(p2);
-			}
-
-			for (auto &p1 : inliers2->points)
-			{
-				pcl::PointXYZRGB p2;
-				p2.x = p1.x;
-				p2.y = p1.y;
-				p2.z = p1.z;
-				p2.r = 0;
-				p2.g = 255;
-				p2.b = 0;
-				pCloudBorder->push_back(p2);
-			}
-			std::string file_name = "inliers-" + name + ".pcd";
-			pcl::io::savePCDFile(file_name, *pCloudBorder);	
-		}
-#endif
-		return v;
-	}
-
-	PointCloud::Ptr filerCloudByConvexHull(pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud,
-		const std::vector<Eigen::Vector3d>& corners, const bool negative)
-	{
-
-		pcl::PointCloud<pcl::PointXYZ>::Ptr boundingbox_ptr(new pcl::PointCloud<pcl::PointXYZ>);
-		for (auto& pt : corners)
-		{
-			boundingbox_ptr->push_back(pcl::PointXYZ(pt[0], pt[1], pt[2]));
-		}
-
-
-		pcl::ConvexHull<pcl::PointXYZ> hull;
-		hull.setInputCloud(boundingbox_ptr);
-		hull.setDimension(2);
-		std::vector<pcl::Vertices> polygons;
-		pcl::PointCloud<pcl::PointXYZ>::Ptr surface_hull(new pcl::PointCloud<pcl::PointXYZ>);
-		hull.reconstruct(*surface_hull, polygons);
-
-		pcl::PointCloud<pcl::PointXYZ>::Ptr objects(new pcl::PointCloud<pcl::PointXYZ>);
-		pcl::CropHull<pcl::PointXYZ> bb_filter;
-		bb_filter.setDim(2);
-		bb_filter.setNegative(negative);
-		bb_filter.setInputCloud(pCloud);
-		bb_filter.setHullIndices(polygons);
-		bb_filter.setHullCloud(surface_hull);
-		bb_filter.filter(*objects);
-
-		// LOG(INFO) << "inPut: " << pCloud->points.size() << " outPut: " << objects->points.size();
-		return objects;
-	}
 
 }
 
-#ifdef VISUALIZATION_ENABLED
-// #include "g2o/core/base_edge.h"
-#include "g2o/core/base_vertex.h"
-#include "g2o/core/base_unary_edge.h"
-#include "g2o/core/block_solver.h"
-#include "g2o/solvers/eigen/linear_solver_eigen.h"
-#include "g2o/core/optimization_algorithm_levenberg.h"
-#include "g2o/core/robust_kernel_impl.h"
-#include "g2o/types/sba/types_sba.h"
-
-using Vec4 = Eigen::Matrix<double, 4, 1>;
-
-// [x, y, theta, phi]
-namespace g2o {
-class VAngleMeasurer : public BaseVertex<4, Vec4> {
-public:
-	static constexpr double LENGTH = 0.2;
-
-	Eigen::Vector2d xy() const { return _estimate.block<2, 1>(0, 0); }
-	double theta() const { return _estimate(2, 0); }
-	double phi() const { return _estimate(3, 0); }
-
-	void setToOriginImpl() override { _estimate = Vec4::Zero(); }
-	void oplusImpl(const double* v) override {
-		Eigen::Map<const Vec4> dx(v);
-		_estimate += dx;
-	}
-
-	bool read(std::istream& is) override { return true; }
-	bool write(std::ostream& os) const override { return true; }
-
-	std::string to_string() const {
-		return ll::unsafe_format("AngleMeasure: (%.3f, %.3f), %.3f, %.3f",
-			_estimate(0), _estimate(1), 180. / 3.1415926* _estimate(2), 180. / 3.1415926 * _estimate(3));
-	}
-};
-
-class EDistanceToMeasurer2D : public BaseUnaryEdge<1, double, VAngleMeasurer> {
-public:
-	EDistanceToMeasurer2D(const Point& p) :
-		g2o::BaseUnaryEdge<1, double, VAngleMeasurer>(), point_(p.x, p.y) {}
-
-	void computeError() override {
-		// distance to each ray.
-		auto vam = static_cast<VAngleMeasurer*>(_vertices[0]);
-		Eigen::Vector2d op = point_ - vam->xy();
-		Eigen::Vector2d dir1 = dir(vam->theta());
-		Eigen::Vector2d dir2 = dir(vam->phi());
-
-		double t1 = op.dot(dir1);
-		double t2 = op.dot(dir2);
-
-		_error(0) = cross(op, std::abs(t1) > std::abs(t2) ? dir1 : dir2);
-	}
-
-	bool read(std::istream& is) override { return true; }
-	bool write(std::ostream& os) const override { return true; }
-
-	using g2o::BaseEdge<1, double>::information;
-
-private:
-	Eigen::Vector2d point_;
-
-	Eigen::Vector2d dir(double angle) const { return Eigen::Vector2d(std::cos(angle), std::sin(angle)); }
-	double cross(const Eigen::Vector2d& v1, const Eigen::Vector2d& v2) { return v1(0) * v2(1) - v1(1) * v2(0); }
-};
-}
-
-
-namespace CloudReg {
-double calcCorner_beta(PointCloud::Ptr cloud1, PointCloud::Ptr cloud2, const Eigen::Vector3f& cornerPoint, float z) {
-	constexpr float SLICE_THICKNESS = 0.05f;
-	constexpr float PIECE_MAX_LENGTH = 0.3f;
-	constexpr float PIECE_MAX_LENGTH_SQUARED = PIECE_MAX_LENGTH * PIECE_MAX_LENGTH;
-
-	const float zLow = z - SLICE_THICKNESS;
-	const float zHigh = z + SLICE_THICKNESS;
-
-	auto gain_sub_cloud = [&](PointCloud::Ptr cloud) {
-		auto sub = geo::passThrough(cloud, "z", zLow, zHigh);
-		sub = geo::filterPoints(sub, [&cornerPoint, PIECE_MAX_LENGTH_SQUARED](const Point& p) {
-			return (geo::V_(p) - cornerPoint).squaredNorm() < PIECE_MAX_LENGTH_SQUARED;
-		});
-
-		if (sub->size() < 50) sub = cloud;
-
-		return sub;
-	};
-
-	auto sub1 = gain_sub_cloud(cloud1);
-	auto sub2 = gain_sub_cloud(cloud2);
-
-	// now optimize
-	g2o::SparseOptimizer optimier; // actually no need to be sparse.
-	{
-		auto ls = std::make_unique<g2o::LinearSolverEigen<g2o::BlockSolverX::PoseMatrixType>>();
-		auto bs = std::make_unique<g2o::BlockSolverX>(std::move(ls));
-		auto algo = new g2o::OptimizationAlgorithmLevenberg(std::move(bs));
-		optimier.setAlgorithm(algo);
-	}
-
-	int id=0;
-
-	auto v = new g2o::VAngleMeasurer();
-	{
-		// simply use middle point to initialize
-		auto dir_angle = [](PointCloud::Ptr cloud, const Eigen::Vector3f& o)-> double{
-			double cenx{ 0. }, ceny{ 0. }, dn { static_cast<double>(cloud->size()) };
-			for(const auto& p: cloud->points){
-				cenx += p.x; ceny += p.y;
-			}
-
-			return std::atan2(ceny/ dn- o(1), cenx/ dn- o(0));
-		};
-
-		Vec4 estimate;
-		estimate(0, 0) = cornerPoint(0);
-		estimate(1, 0) = cornerPoint(1);
-		estimate(2, 0) = dir_angle(sub1, cornerPoint);
-		estimate(3, 0) = dir_angle(sub2, cornerPoint);
-		v->setEstimate(estimate);
-	}
-	v->setId(id++);
-	v->setFixed(false);
-	optimier.addVertex(v);
-
-	Eigen::Matrix<double, 1, 1> info = Eigen::Matrix<double, 1, 1>::Identity();
-	for(const auto& p: sub1->points){
-		auto e = new g2o::EDistanceToMeasurer2D(p);
-		e->setVertex(0, v);
-		e->setMeasurement(0.);
-		e->information() = info;
-		optimier.addEdge(e);
-	}
-	for (const auto& p : sub2->points) {
-		auto e = new g2o::EDistanceToMeasurer2D(p);
-		e->setVertex(0, v);
-		e->setMeasurement(0.);
-		e->information() = info;
-		optimier.addEdge(e);
-	}
-
-	LOG(INFO) << "before: "<< v->to_string();
-
-	optimier.setVerbose(true);
-	optimier.initializeOptimization();
-	optimier.optimize(10);
-
-	LOG(INFO) << "after: " << v->to_string();
-
-	return std::cos(v->theta()- v->phi())* 130.;
-}
-
-}
-#endif

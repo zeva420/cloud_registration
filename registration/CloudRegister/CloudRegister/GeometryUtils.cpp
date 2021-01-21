@@ -5,7 +5,11 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/filters/radius_outlier_removal.h>
+#ifdef UBUNTU_SWITCH
+#include <pcl/keypoints/impl/uniform_sampling.hpp>
+#else
 #include <pcl/filters/uniform_sampling.h>
+#endif
 #include <pcl/kdtree/kdtree.h>
 #include <pcl/segmentation/extract_clusters.h>
 #include <pcl/sample_consensus/model_types.h>
@@ -95,7 +99,12 @@ float distance_to_segment_2d(const Eigen::Vector2f& p, const Eigen::Vector2f& s,
 }
 
 std::vector<std::size_t> sort_points_counter_clockwise(const Eigen::vector<Eigen::Vector2f>& points) {
+	#ifdef UBUNTU_SWITCH
+	auto cen_theta = ll::mapf([](const Eigen::Vector2f& p) { return (float)std::atan2(double(p[1]), double(p[0])); }, points);
+	#else
 	auto cen_theta = ll::mapf([](const Eigen::Vector2f& p) { return std::atan2f(p[1], p[0]); }, points);
+	#endif
+	
 	auto indices = ll::range(cen_theta.size());
 	std::sort(indices.begin(), indices.end(), [&cen_theta](std::size_t i, std::size_t j) { return cen_theta[i] < cen_theta[j]; });
 
@@ -133,7 +142,13 @@ PointCloud::Ptr downsampleUniformly(PointCloud::Ptr cloud, float radius) {
 	pcl::UniformSampling<Point> filter;
 	filter.setInputCloud(cloud);
 	filter.setRadiusSearch(radius);
+	#ifdef UBUNTU_SWITCH
+	pcl::PointCloud<int> keypointIndices;
+	filter.compute(keypointIndices);
+	pcl::copyPointCloud(*cloud, keypointIndices.points, *filtered);
+	#else
 	filter.filter(*filtered);
+	#endif
 
 	return filtered;
 }

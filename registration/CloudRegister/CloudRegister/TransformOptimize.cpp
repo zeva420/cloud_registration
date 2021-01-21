@@ -4,8 +4,11 @@
 
 #include <pcl/common/transforms.h>
 
-//#include <pcl/keypoints/uniform_sampling.hpp>
+#ifdef UBUNTU_SWITCH
+#include <pcl/keypoints/impl/uniform_sampling.hpp>
+#else
 #include <pcl/filters/uniform_sampling.h>
+#endif
 
 #include <pcl/sample_consensus/method_types.h>
 #include <pcl/sample_consensus/model_types.h>
@@ -22,42 +25,54 @@ namespace CloudReg
 {
 bool TransformOptimize::run(
                 const std::map<ModelItemType, std::vector<PointCloud::Ptr>> &mapCloudItem,
-                const CADModel &cadModel, const Eigen::Vector3d &center)
+                const CADModel &cadModel, const Eigen::Vector3d &center,
+				const bool bNeedOptimize)
 {
-    for (auto &it : mapCloudItem)
-    {
-        if (ITEM_HOLE_E == it.first) continue;
-        LOG(INFO) << "input " <<  toModelItemName(it.first) << " vecSize:" << it.second.size();
-        Eigen::vector<PointsAndPlane> vecItems;
-        for (auto &cloud : it.second)
-        {
-            PointsAndPlane item;
-            item.cloudPtr_ = cloud;
-            vecItems.push_back(item);
-        }
-        type2CloudItems_[it.first] = vecItems;
-    }
+	for (auto &it : mapCloudItem)
+	{
+		if (ITEM_HOLE_E == it.first) continue;
+		LOG(INFO) << "input " << toModelItemName(it.first) << " vecSize:" << it.second.size();
+		Eigen::vector<PointsAndPlane> vecItems;
+		for (auto &cloud : it.second)
+		{
+			PointsAndPlane item;
+			item.cloudPtr_ = cloud;
+			vecItems.push_back(item);
+		}
+		type2CloudItems_[it.first] = vecItems;
+	}
 
-    //get model plane coeff
-    getModelPlaneCoeff(cadModel, center);
+	//get model plane coeff
+	getModelPlaneCoeff(cadModel, center);
 
-    matchCloudToMode();
+	matchCloudToMode();
 
-    downSampling();
+	if (bNeedOptimize)
+	{
+		downSampling();
 
-    //optimize with sampling Cloud
-    Eigen::Matrix4d transform;
-    optimize(transform);
+		//optimize with sampling Cloud
+		Eigen::Matrix4d transform;
+		optimize(transform);
 
-    //transform with input Cloud
-    transformCloud(transform);
+		//transform with input Cloud
+		transformCloud(transform);
 
-    //get plane coeff with input Cloud
-    Eigen::Vector3d newCenter = transform.block<3,3>(0,0) * center + transform.block<3,1>(0,3);
-    getCloudPlaneCoeff(newCenter);
+		//get plane coeff with input Cloud
+		Eigen::Vector3d newCenter = transform.block<3, 3>(0, 0) * center + transform.block<3, 1>(0, 3);
+		getCloudPlaneCoeff(newCenter);
 
-    optRets_.mapClouds_.clear();
-    fillResult(transform, optRets_);
+		optRets_.mapClouds_.clear();
+		fillResult(transform, optRets_);
+
+	}else
+	{
+		getCloudPlaneCoeff(center);
+		Eigen::Matrix4d transform = Eigen::Matrix4d::Identity();;
+		optRets_.mapClouds_.clear();
+		fillResult(transform, optRets_);
+
+	}
 
     //view Dist with sampling Cloud
     viewModelAndChangedCloud();
@@ -73,7 +88,7 @@ bool TransformOptimize::downSampling()
     for (auto &it : type2CloudItems_)
     {
         auto &vecItems = it.second;
-		Eigen::vector<PointsAndPlane> vecSamplingItems;
+        Eigen::vector<PointsAndPlane> vecSamplingItems;
         for (auto &item : vecItems)
         {
             PointCloud::Ptr cloud_sampling(new pcl::PointCloud<pcl::PointXYZ>);
@@ -104,7 +119,7 @@ bool TransformOptimize::getModelPlaneCoeff(const CADModel &cadModel,
     auto getModelItemPoints = [](std::vector<ModelItem> &modelItems, const Eigen::Vector3d &center)
         ->Eigen::vector<PointsAndPlane>
     {
-		Eigen::vector<PointsAndPlane> vecItems;
+        Eigen::vector<PointsAndPlane> vecItems;
         for (auto &it : modelItems)
         {
             PointCloud::Ptr cloud(new PointCloud());
@@ -224,10 +239,10 @@ bool TransformOptimize::matchCloudToMode()
     for (auto &it1 : type2ModelItems_)
     {
         auto type = it1.first;
-		Eigen::vector<PointsAndPlane> &vecModelItems = it1.second;
+        Eigen::vector<PointsAndPlane> &vecModelItems = it1.second;
         auto it2 = type2CloudItems_.find(type);
         if (it2 == type2CloudItems_.end()) continue; 
-		Eigen::vector<PointsAndPlane> &vecCloudItems = it2->second;
+        Eigen::vector<PointsAndPlane> &vecCloudItems = it2->second;  
 		if (vecModelItems.size() != vecCloudItems.size())
 		{
 			LOG(WARNING) << "the vecModelItems size mismatch";
@@ -247,7 +262,7 @@ bool TransformOptimize::matchCloudToMode()
             }  
         }
 
-		Eigen::vector<PointsAndPlane> matchedCloudItems;
+        Eigen::vector<PointsAndPlane> matchedCloudItems;
         matchedCloudItems.resize(vecCloudItems.size());
         for (auto &it : model2CloudDists)
         {
@@ -407,10 +422,10 @@ bool TransformOptimize::transformCloud(Eigen::Matrix4d &finalT)
 			//auto distError = calcCloudToPLaneAveDist(vecModelItems[i].plane_, vecCloudItems[i].cloudPtr_.true);
 			//LOG(INFO) << "second: " << toModelItemName(it.first) << " cloud to model plane, aveDist:"
 			//	<< distError.first << " medianDist:" << distError.second;
+
 		}
 	}
-    finalT *= newT;
-
+	finalT *= newT;
 	return true;
 }
 
@@ -422,7 +437,7 @@ bool TransformOptimize::fillResult(Eigen::Matrix4d &finalT, optCloudRets &optRet
         auto &vecCloudItems = type2CloudItems_[it.first];
         if (vecModelItems.size() != vecCloudItems.size()) continue;
 
-		Eigen::vector<OptPlane> vecOptPlane;
+        Eigen::vector<OptPlane> vecOptPlane;
         for (int i = 0; i < vecModelItems.size(); i++)
         {
             OptPlane piece;

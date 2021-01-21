@@ -3,6 +3,7 @@
 #include "g2o/core/base_unary_edge.h"
 #include "g2o/core/base_binary_edge.h"
 #include "g2o/core/base_multi_edge.h"
+
 #include "g2o/types/sba/types_sba.h"
 #include "g2o/types/sba/types_six_dof_expmap.h"
 #include "g2o/types/sim3/types_seven_dof_expmap.h"

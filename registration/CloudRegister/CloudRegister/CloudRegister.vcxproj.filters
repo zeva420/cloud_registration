@@ -39,6 +39,36 @@
     <ClCompile Include="SimpleViewer.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="Threshold.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CalcMeasureHelper.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CalcBayAndDepthMeasure.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CalcHoleMeasure.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CalcNetHeight.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CalcRootFlatness.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CalcSquareness.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CalcWallFlatness.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CalcWallVerticality.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CalcCorner.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CloudRegister.h">
@@ -69,6 +99,39 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="SimpleViewer.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="SingletonTemplate.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Threshold.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="CalcMeasureHelper.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="CalcBayAndDepthMeasure.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="CalcCorner.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="CalcHoleMeasure.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="CalcNetHeight.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="CalcRootFlatness.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="CalcSquareness.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="CalcWallFlatness.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="CalcWallVerticality.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>

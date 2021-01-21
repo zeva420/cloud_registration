@@ -152,17 +152,36 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="CADModel.cpp" />
+    <ClCompile Include="CalcBayAndDepthMeasure.cpp" />
+    <ClCompile Include="CalcCorner.cpp" />
+    <ClCompile Include="CalcHoleMeasure.cpp" />
+    <ClCompile Include="CalcMeasureHelper.cpp" />
+    <ClCompile Include="CalcNetHeight.cpp" />
+    <ClCompile Include="CalcRootFlatness.cpp" />
+    <ClCompile Include="CalcSquareness.cpp" />
+    <ClCompile Include="CalcWallFlatness.cpp" />
+    <ClCompile Include="CalcWallVerticality.cpp" />
     <ClCompile Include="CloudRegister.cpp" />
     <ClCompile Include="CloudSegment.cpp" />
     <ClCompile Include="EdgeConstraint.cpp" />
     <ClCompile Include="funHelper.cpp" />
     <ClCompile Include="GeometryUtils.cpp" />
     <ClCompile Include="SimpleViewer.cpp" />
+    <ClCompile Include="Threshold.cpp" />
     <ClCompile Include="TransformOptimize.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BaseType.h" />
     <ClInclude Include="CADModel.h" />
+    <ClInclude Include="CalcBayAndDepthMeasure.h" />
+    <ClInclude Include="CalcCorner.h" />
+    <ClInclude Include="CalcHoleMeasure.h" />
+    <ClInclude Include="CalcMeasureHelper.h" />
+    <ClInclude Include="CalcNetHeight.h" />
+    <ClInclude Include="CalcRootFlatness.h" />
+    <ClInclude Include="CalcSquareness.h" />
+    <ClInclude Include="CalcWallFlatness.h" />
+    <ClInclude Include="CalcWallVerticality.h" />
     <ClInclude Include="CloudRegister.h" />
     <ClInclude Include="CloudSegment.h" />
     <ClInclude Include="EdgeConstraint.h" />
@@ -170,6 +189,8 @@
     <ClInclude Include="GeometryUtils.h" />
     <ClInclude Include="ll.hpp" />
     <ClInclude Include="SimpleViewer.h" />
+    <ClInclude Include="SingletonTemplate.h" />
+    <ClInclude Include="Threshold.h" />
     <ClInclude Include="TransformOptimize.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -8,7 +8,11 @@
 #include <Eigen/Dense>
 #include <Eigen/SparseCore>
 #include <Eigen/StdVector>
+#ifdef UBUNTU_SWITCH
+#include <pcl/keypoints/impl/uniform_sampling.hpp>
+#else
 #include <pcl/filters/uniform_sampling.h>
+#endif
 
 std::vector<Eigen::Vector3d> ininterpolateSeg(const Eigen::Vector3d& sPoint, const Eigen::Vector3d& ePoint, const double step)
 {
@@ -127,18 +131,22 @@ void writePCDFile(const std::string& name, const pcl::PointCloud<pcl::PointXYZ>:
 {
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloudRGB(new pcl::PointCloud<pcl::PointXYZRGB>());
 
-	for (auto& pt : pCloud->points)
+	if (pCloud != nullptr)
 	{
-		pcl::PointXYZRGB p2;
-		p2.x = pt.x;
-		p2.y = pt.y;
-		p2.z = pt.z;
-		p2.r = 0;
-		p2.g = 255;
-		p2.b = 0;
+		for (auto& pt : pCloud->points)
+		{
+			pcl::PointXYZRGB p2;
+			p2.x = pt.x;
+			p2.y = pt.y;
+			p2.z = pt.z;
+			p2.r = 0;
+			p2.g = 255;
+			p2.b = 0;
 
-		pCloudRGB->push_back(p2);
+			pCloudRGB->push_back(p2);
+		}
 	}
+	
 
 	for (auto& seg : border)
 	{
@@ -167,20 +175,41 @@ void uniformSampling(double radius,
 	pcl::UniformSampling<pcl::PointXYZ> filter;
 	filter.setInputCloud(cloud);
 	filter.setRadiusSearch(radius);
+
+	#ifdef UBUNTU_SWITCH
+	pcl::PointCloud<int> keypointIndices;
+	filter.compute(keypointIndices);
+	pcl::copyPointCloud(*cloud, keypointIndices.points, *cloud_filtered);
+	#else
 	filter.filter(*cloud_filtered);
+	#endif
 }
 
+#ifdef UBUNTU_SWITCH
+int main(int argc, char** argv)
+#else
 int main()
+#endif
 {
+	#ifdef UBUNTU_SWITCH
+	if (argc < 3)
+	#else
 	if (__argc < 3)
+	#endif
 	{
 		std::cout << "CloudExample PCD_Dir CAD_File"<< std::endl;
 		return -1;
 
 	}
 
+	#ifdef UBUNTU_SWITCH
+	std::string pcd_dir = argv[1];
+	std::string cad_file = argv[2];
+	#else
 	std::string pcd_dir = __argv[1];
 	std::string cad_file = __argv[2];
+	#endif
+
 	std::vector<std::string> pcd_list;
 	FileHelper::getFilenamesFromdir(pcd_dir,pcd_list);
 
@@ -200,6 +229,7 @@ int main()
    
 	auto mapCloud = obj.getAllCloudPlane();
 	std::vector<std::string> itemName{"Beam","Bottom","Wall","Top","Unknow"};
+#if 1
 	for (auto& value : mapCloud)
 	{
 		const std::string name = itemName[value.first];
@@ -254,6 +284,110 @@ int main()
             }			
 		}
 	}
+#endif
+
+#if 0
+	using namespace CloudReg;
+	{
+		std::vector<seg_pair_t> vecSeg;
+		std::vector<std::vector<calcMeassurment_t>> vecRet;
+		std::tie(vecRet, vecSeg) = obj.calcRoofNetHeight();
+
+		for (std::size_t i = 0; i < vecRet.size();i++)
+		{
+			for (auto& value : vecRet[i])
+			{
+				std::cout << "calcRoofNetHeight: "<< std::to_string(i) << " "<< value.value << std::endl;
+				vecSeg.insert(vecSeg.end(), value.rangeSeg.begin(), value.rangeSeg.end());
+			}
+		}
+		writePCDFile("roof_net_height.pcd", nullptr,vecSeg);
+
+	}
+	
+	{
+		std::vector<seg_pair_t> vecSeg;
+		std::vector<std::vector<calcMeassurment_t>> vecRoof;
+		std::vector<std::vector<calcMeassurment_t>> vecRoot;
+		std::tie(vecRoof, vecRoot, vecSeg) = obj.calcPlaneRange();
+		std::vector<seg_pair_t> vecSegTmp = vecSeg;
+		for (std::size_t i = 0; i < vecRoof.size(); i++)
+		{
+			for (auto& value : vecRoof[i])
+			{
+				std::cout << "calcPlaneRange roof: " << std::to_string(i) << " " << value.value << std::endl;
+				vecSegTmp.insert(vecSegTmp.end(), value.rangeSeg.begin(), value.rangeSeg.end());
+			}
+		}
+		writePCDFile("roof_range.pcd", nullptr, vecSegTmp);
+
+		vecSegTmp.clear();
+		vecSegTmp = vecSeg;
+		for (std::size_t i = 0; i < vecRoot.size(); i++)
+		{
+			for (auto& value : vecRoot[i])
+			{
+				std::cout << "calcPlaneRange root: " << std::to_string(i) << " " << value.value << std::endl;
+				vecSegTmp.insert(vecSegTmp.end(), value.rangeSeg.begin(), value.rangeSeg.end());
+			}
+		}
+		writePCDFile("root_range.pcd", nullptr, vecSegTmp);
+	}
+		
+	
+	{
+		std::vector<seg_pair_t> vecSeg;
+		std::map <std::pair<std::size_t, std::size_t>,std::vector<calcMeassurment_t>> vecRet;
+		std::tie(vecRet, vecSeg) = obj.calcDepth();
+		for (auto& item : vecRet)
+		{
+			for (auto& value : item.second)
+			{
+				std::cout << "calcDepth: " << item.first.first << "- " << item.first.second 
+					<< " value:" << value.value<< std::endl;
+				vecSeg.insert(vecSeg.end(), value.rangeSeg.begin(), value.rangeSeg.end());
+			}
+		}
+		writePCDFile("room_depth.pcd", nullptr, vecSeg);
+	}
+
+	{
+		std::vector<seg_pair_t> vecSeg;
+		std::map <std::pair<std::size_t, std::size_t>, std::vector<calcMeassurment_t>> vecRet;
+		std::tie(vecRet, vecSeg) = obj.calcBay();
+		for (auto& item : vecRet)
+		{
+			for (auto& value : item.second)
+			{
+				std::cout << "calcBay: " << item.first.first << "- " << item.first.second
+					<< " value:" << value.value << std::endl;
+				vecSeg.insert(vecSeg.end(), value.rangeSeg.begin(), value.rangeSeg.end());
+			}
+		}
+		writePCDFile("room_bay.pcd", nullptr, vecSeg);
+	}
+	
+	{
+		std::vector<seg_pair_t> vecSeg;
+		std::map <std::pair<std::size_t, std::size_t>, std::vector<calcMeassurment_t>> vecRet;
+		vecRet= obj.calcAllHole();
+		for (auto& item : vecRet)
+		{
+			for (auto& value : item.second)
+			{
+				std::cout << "calcAllHole: " << item.first.first << " - " << item.first.second
+					<< " value:" << value.value << std::endl;
+				vecSeg.insert(vecSeg.end(), value.rangeSeg.begin(), value.rangeSeg.end());
+			}
+		}
+		writePCDFile("room_hole.pcd", nullptr, vecSeg);
+	}
+#endif
+	// obj.calcWallVerticality();
+	// obj.calcWallFlatness();
+	// obj.calcAllSquareness();
+	// obj.calcRootFlatness();
+	// obj.calcAllCorner();
 	return 0;
 }
 

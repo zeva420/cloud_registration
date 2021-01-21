@@ -17,11 +17,12 @@
 #include <Eigen/SparseCore>
 #include <Eigen/StdVector>
 
-
+//pcl
+#include <pcl/common/common.h>
 #include<pcl/point_types.h>
 #include<pcl/io/pcd_io.h>
 
-#include "glog/logging.h"
+
 
 #ifndef EPS_FLOAT_DOUBLE
 #define EPS_FLOAT_DOUBLE 0.00001
@@ -109,7 +110,17 @@ namespace Eigen
 
 	using MatrixXb_t = Matrix< bool, Eigen::Dynamic, Eigen::Dynamic >;
 }
-
 using Point = pcl::PointXYZ;
 using PointCloud = pcl::PointCloud<Point>;
-using seg_pair_t = std::pair<Eigen::Vector3d, Eigen::Vector3d>;
+
+namespace CloudReg
+{
+	using seg_pair_t = std::pair<Eigen::Vector3d, Eigen::Vector3d>;
+	using vec_seg_pair_t = std::vector<seg_pair_t>;
+
+	struct calcMeassurment_t
+	{
+		double value = -1;
+		std::vector<seg_pair_t> rangeSeg;
+	};
+}
