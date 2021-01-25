@@ -568,10 +568,18 @@ namespace CloudReg
     {
         calcMeassurment_t measure;
         std::vector<std::vector<Eigen::Vector3d>> allBoxes;
+		std::vector<PointCloud::Ptr> filterClouds;
 		for(auto& ruler : rulers)
 		{
 			if ((ruler.first - ruler.second).norm() < 0.01)
 				continue;
+			
+			std::vector<Eigen::Vector3d> rulerFilter = createRulerBox(ruler, thicknessDir, 0., 0.04); // > 0.025
+			std::vector<Eigen::Vector3d> corners = getRulerCorners(rulerFilter);
+			auto rangeCloud = filerCloudByConvexHull(pCloud, corners);
+			if (!rangeCloud->points.empty()) 
+               filterClouds.emplace_back(rangeCloud);
+
 			auto boxes = getAllRulerBox(ruler, thicknessDir, 0., 0.005, 0.01, 0.025); //step 5mm  len 10mm width 25mm
 			allBoxes.insert(allBoxes.end(), boxes.begin(), boxes.end());
 		}
@@ -587,7 +595,13 @@ namespace CloudReg
         {
             auto box = allBoxes[i];
 			std::vector<Eigen::Vector3d> corners = getRulerCorners(box);
-			auto rangeCloud = filerCloudByConvexHull(pCloud, corners);
+			PointCloud::Ptr rangeCloud;
+			for(auto& filterCloud: filterClouds)
+			{
+				rangeCloud = filerCloudByConvexHull(filterCloud, corners);
+				if (!rangeCloud->points.empty())
+					break;
+			}
 
             if (rangeCloud->points.empty()) 
             {
@@ -614,7 +628,6 @@ namespace CloudReg
                 << " difference: " << difference;
         measure.value = difference;
         measure.rangeSeg.insert(measure.rangeSeg.end(), rulers.begin(), rulers.end());
-
         return measure;
     }
 
