@@ -88,32 +88,6 @@ const std::map<CloudItemType, vecItems_t>& CloudRegister::getAllCloudPlane() con
 	return mapCloudItem_;
 }
 
-int CloudRegister::findMatchCloud(const Eigen::Vector4d &plane,
-		std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> &vecOrigCloud)
-{
-	double min = 20000;
-	int bestIdx = -1;
-	for (int i = 0; i < vecOrigCloud.size(); i++)
-	{
-		auto origCloud = vecOrigCloud[i];
-		double aveDist = 0.0;
-		for (auto &p : origCloud->points)
-		{
-			double dist = pointToPLaneDist(plane, p);
-			aveDist += std::fabs(dist);
-		}
-		if (origCloud->size() > 0)
-		{
-			aveDist /= origCloud->size();
-		}
-		if (aveDist < min)
-		{
-			min = aveDist;
-			bestIdx = i;
-		}
-	}
-	return bestIdx;
-}
 
 pcl::PointCloud<pcl::PointXYZI>::Ptr
 CloudRegister::calcDistError(const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_,
