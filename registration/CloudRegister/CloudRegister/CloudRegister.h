@@ -84,7 +84,8 @@ namespace CloudReg
 			calcBay(const double calcLengthTh = 0.8);
 
 		//key.first = wall index  key.second = hole border index in cloudBorder_
-		std::map<std::pair<std::size_t, std::size_t>, std::vector<calcMeassurment_t>>
+		//calcMeassurment_t order height width cross root
+		std::map<std::pair<std::size_t, std::size_t>, std::vector<std::vector<calcMeassurment_t>>>
 			calcAllHole();
 
 		//planeType = cloud, use cloud plane, else use cad plane

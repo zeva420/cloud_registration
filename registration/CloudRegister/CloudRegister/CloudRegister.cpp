@@ -537,10 +537,10 @@ std::tuple<std::map<std::pair<std::size_t, std::size_t>,
 	return ret;
 }
 
-std::map<std::pair<std::size_t, std::size_t>,std::vector<calcMeassurment_t>> 
+std::map<std::pair<std::size_t, std::size_t>,std::vector<std::vector<calcMeassurment_t>>> 
 CloudRegister::calcAllHole()
 {
-	std::map<std::pair<std::size_t, std::size_t>, std::vector<calcMeassurment_t>> mapRet;
+	std::map<std::pair<std::size_t, std::size_t>, std::vector<std::vector<calcMeassurment_t>>> mapRet;
 	const auto& itemWall = mapCloudItem_[CLOUD_WALL_E];
 	for (std::size_t i = 0; i < itemWall.size(); i++)
 	{

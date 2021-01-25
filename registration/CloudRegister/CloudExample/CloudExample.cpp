@@ -301,7 +301,7 @@ int main()
 				vecSeg.insert(vecSeg.end(), value.rangeSeg.begin(), value.rangeSeg.end());
 			}
 		}
-		writePCDFile("roof_net_height.pcd", nullptr,vecSeg);
+		//writePCDFile("roof_net_height.pcd", nullptr,vecSeg);
 
 	}
 	
@@ -319,7 +319,7 @@ int main()
 				vecSegTmp.insert(vecSegTmp.end(), value.rangeSeg.begin(), value.rangeSeg.end());
 			}
 		}
-		writePCDFile("roof_range.pcd", nullptr, vecSegTmp);
+		//writePCDFile("roof_range.pcd", nullptr, vecSegTmp);
 
 		vecSegTmp.clear();
 		vecSegTmp = vecSeg;
@@ -331,7 +331,7 @@ int main()
 				vecSegTmp.insert(vecSegTmp.end(), value.rangeSeg.begin(), value.rangeSeg.end());
 			}
 		}
-		writePCDFile("root_range.pcd", nullptr, vecSegTmp);
+		//writePCDFile("root_range.pcd", nullptr, vecSegTmp);
 	}
 		
 	
@@ -348,7 +348,7 @@ int main()
 				vecSeg.insert(vecSeg.end(), value.rangeSeg.begin(), value.rangeSeg.end());
 			}
 		}
-		writePCDFile("room_depth.pcd", nullptr, vecSeg);
+		//writePCDFile("room_depth.pcd", nullptr, vecSeg);
 	}
 
 	{
@@ -364,30 +364,32 @@ int main()
 				vecSeg.insert(vecSeg.end(), value.rangeSeg.begin(), value.rangeSeg.end());
 			}
 		}
-		writePCDFile("room_bay.pcd", nullptr, vecSeg);
+		//writePCDFile("room_bay.pcd", nullptr, vecSeg);
 	}
 	
 	{
 		std::vector<seg_pair_t> vecSeg;
-		std::map <std::pair<std::size_t, std::size_t>, std::vector<calcMeassurment_t>> vecRet;
+		std::map <std::pair<std::size_t, std::size_t>, std::vector<std::vector<calcMeassurment_t>>> vecRet;
 		vecRet= obj.calcAllHole();
 		for (auto& item : vecRet)
 		{
-			for (auto& value : item.second)
+			for (auto& vectype : item.second)
 			{
-				std::cout << "calcAllHole: " << item.first.first << " - " << item.first.second
-					<< " value:" << value.value << std::endl;
-				vecSeg.insert(vecSeg.end(), value.rangeSeg.begin(), value.rangeSeg.end());
+				for (auto& value : vectype) {
+					std::cout << "calcAllHole: " << item.first.first << " - " << item.first.second
+						<< " value:" << value.value << std::endl;
+					vecSeg.insert(vecSeg.end(), value.rangeSeg.begin(), value.rangeSeg.end());
+				}
 			}
 		}
-		writePCDFile("room_hole.pcd", nullptr, vecSeg);
+		//writePCDFile("room_hole.pcd", nullptr, vecSeg);
 	}
 #endif
-	// obj.calcWallVerticality();
-	// obj.calcWallFlatness();
-	// obj.calcAllSquareness();
-	// obj.calcRootFlatness();
-	// obj.calcAllCorner();
+	 //obj.calcWallVerticality();
+	//obj.calcWallFlatness();
+	 //obj.calcAllSquareness();
+	obj.calcRootFlatness();
+	//obj.calcAllCorner();
 	return 0;
 }
 

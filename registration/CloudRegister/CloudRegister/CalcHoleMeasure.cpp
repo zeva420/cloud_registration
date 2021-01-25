@@ -135,13 +135,13 @@ namespace CloudReg
 		return vecRet;
 	}
 
-	std::vector<calcMeassurment_t> calcHole(const seg_pair_t& horizen,
+	std::vector<std::vector<calcMeassurment_t>> calcHole(const seg_pair_t& horizen,
 			const std::vector<seg_pair_t>& holeBorder,
 			pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud,
 			const std::string& name)
 	{
 
-		std::vector<calcMeassurment_t> vecRet;
+		std::vector<std::vector<calcMeassurment_t>> vecRet;
 		std::vector<seg_pair_t> vecHorizen;	
 		std::vector<seg_pair_t> vecVertical;
 		const auto horizenSeg = horizen.first - horizen.second;
@@ -183,7 +183,7 @@ namespace CloudReg
 				const auto& seg = vecHorizen[i];
 				auto vecPts = ininterpolateSeg(seg.first, seg.second, 0.01f);
 				auto vecHeight = calcHoleDist(baseSeg, vecPts, rangeCloud, 15, true);
-				vecRet.insert(vecRet.end(), vecHeight.begin(), vecHeight.end());
+				vecRet.emplace_back(vecHeight);
 				for(auto& item : vecHeight)
 					vecRange.insert(vecRange.end(), item.rangeSeg.begin(), item.rangeSeg.end());
 			}
@@ -206,7 +206,7 @@ namespace CloudReg
 				const auto& seg = vecVertical[i];
 				auto vecPts = ininterpolateSeg(seg.first, seg.second, 0.01f);
 				auto vecWidth = calcHoleDist(baseSeg, vecPts, rangeCloud, 15, false);
-				vecRet.insert(vecRet.end(), vecWidth.begin(), vecWidth.end());
+				vecRet.emplace_back(vecWidth);
 				
 				for(auto& item : vecWidth)
 					vecRange.insert(vecRange.end(), item.rangeSeg.begin(), item.rangeSeg.end());
@@ -217,8 +217,7 @@ namespace CloudReg
 		{
 			LOG(INFO) << "calc hole cross";
 			auto vecCross = calcHoleCross(vecVertical,rangeCloud);
-			vecRet.insert(vecRet.end(), vecCross.begin(), vecCross.end());
-
+			vecRet.emplace_back(vecCross);
 			for(auto& item : vecCross)
 				vecRange.insert(vecRange.end(), item.rangeSeg.begin(), item.rangeSeg.end());
 		}
@@ -230,8 +229,8 @@ namespace CloudReg
 			const auto& seg = vecHorizen.front();
 			auto vecPts = ininterpolateSeg(seg.first, seg.second, 0.01f);
 			auto vecRoot = calcHoleDist(horizen, vecPts, rangeCloud, 15, true);
-			vecRet.insert(vecRet.end(), vecRoot.begin(), vecRoot.end());
-
+			vecRet.emplace_back(vecRoot);
+		
 			for(auto& item : vecRoot)
 				vecRange.insert(vecRange.end(), item.rangeSeg.begin(), item.rangeSeg.end());
 		}
