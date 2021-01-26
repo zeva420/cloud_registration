@@ -1,7 +1,7 @@
 #include "CalcWallVerticality.h"
 #include "funHelper.h"
 
-//#define VISUALIZATION_ENABLED
+// #define VISUALIZATION_ENABLED
 namespace CloudReg
 {
     Eigen::Vector4d calcWallPlane(std::vector<seg_pair_t> vecVertical)
@@ -39,14 +39,12 @@ namespace CloudReg
         Eigen::Vector3d p1 = midPt;
         Eigen::Vector3d p2;
         if (type == 1)
-            p2 = midPt + boxHight/2 * rulern;
+            p2 = midPt + boxHight * rulern;
         else
-            p2 = midPt - boxHight/2 * rulern;
+            p2 = midPt - boxHight * rulern;
 
         int thicknessDir = (hAixs == 0) ? 1 : 0;
         std::vector<Eigen::Vector3d> rPoints =  createRulerBox(std::make_pair(p1, p2), thicknessDir, 0., boxWidth);
-        // std::vector<seg_pair_t> pair =  calcBoxSegPair(rPoints);
-        // // measure.rangeSeg.insert(measure.rangeSeg.end(), pair.begin(), pair.end());
         return getRulerCorners(rPoints);
     }
 
@@ -60,7 +58,7 @@ namespace CloudReg
             Eigen::Vector3d intersec;
 			if (calIntersection(pt12, horizen , intersec))
             {
-                pt2[2] = horizen.second[2] - adjDis;
+                pt2[2] = intersec[2] - adjDis;
                 LOG(INFO) << "adjust ruler height success"; 
                 return;
             }
@@ -104,19 +102,22 @@ namespace CloudReg
             adjustHeight(vecWallHorizen, 0.1, pt1, pt2, rulern);
         }
         
-       
+        int minIndex = (hAixs == 0) ? 1 : 0;
         Eigen::Vector3d valid1, valid2;
         std::vector<double> sumAll;
         calcMeassurment_t item;
-        item.rangeSeg.emplace_back(std::make_pair(pt1, pt2));
         auto vecRulerPts = ininterpolateSeg(pt1, pt2, 0.025);
         LOG(INFO) << "ruler get boxes num: " << vecRulerPts.size();
+
+        std::vector<Eigen::Vector3d> rulerFilter = createRulerBox(std::make_pair(pt1, pt2), minIndex, 0., 0.04); // > 0.025
+        std::vector<Eigen::Vector3d> rulercorners = getRulerCorners(rulerFilter);
+        auto filterCloud = filerCloudByConvexHull(pCloud, rulercorners);
 
         for(size_t i = 0; i < vecRulerPts.size() - 1; ++i)
         {
             auto pt = vecRulerPts[i];
             auto corners = calBox(pt, type, hAixs, rulern, item);
-            auto rangeCloud = filerCloudByConvexHull(pCloud, corners);
+            auto rangeCloud = filerCloudByConvexHull(filterCloud, corners);
             if (rangeCloud->points.empty()) 
             {
                 // LOG(ERROR) << "filerCloudByRange failed";
@@ -135,7 +136,7 @@ namespace CloudReg
         {
             auto pt = vecRulerPts[i];
             auto corners = calBox(pt, type, hAixs, rulern, item);
-            auto rangeCloud = filerCloudByConvexHull(pCloud, corners);
+            auto rangeCloud = filerCloudByConvexHull(filterCloud, corners);
             if (rangeCloud->points.empty()) 
             {
                 // LOG(ERROR) << "filerCloudByRange failed";
@@ -150,10 +151,15 @@ namespace CloudReg
             break;
         }
 
-        item.value = 0.;
-        int minIndex = (hAixs == 0) ? 1 : 0;
+        item.value = -1;
         if (sumAll.size() < 2 || (valid1 - valid2).norm() < 0.01)
+        {
             LOG(ERROR) << "ruler has less than 2 endpoints";
+            LOG(INFO) << "verticality avg is " << item.value;
+            std::vector<Eigen::Vector3d> rPoints = createRulerBox(std::make_pair(pt1, pt2), minIndex, 0.025, 0.025);
+            std::vector<seg_pair_t> pair =  calcBoxSegPair(rPoints);
+            item.rangeSeg.insert(item.rangeSeg.end(), pair.begin(), pair.end());
+        }
         else
         {
             item.value = std::fabs(sumAll[0] - sumAll[1]);

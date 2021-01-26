@@ -1,7 +1,7 @@
 #include "CalcRootFlatness.h"
 
 #include "funHelper.h"
-//#define VISUALIZATION_ENABLED
+// #define VISUALIZATION_ENABLED
 namespace CloudReg
 {
 
@@ -73,7 +73,7 @@ namespace CloudReg
             return ruler;
         }
 
-        double resDis = (length - 2) / 3;
+        double resDis = (length - 4) / 3;
         Eigen::Vector3d p1 = hypRuler0;
         p1[hAixs] = p1[hAixs] + resDis;
         Eigen::Vector3d p2 = p1 + 2*rulern;   //200cm
@@ -138,7 +138,7 @@ namespace CloudReg
             LOG(ERROR) << "root bay size is wrong " << vecCutSeg.size();
             return returnValue;
         }
-        LOG(INFO) << "The root is divided into areas num: " << vecCutSeg.size();
+        LOG(INFO) << "The root is divided into areas num: " << vecCutSeg.size() / 2;
        
         std::vector<seg_pair_t> vecRange;
         for (std::size_t i = 0; i < vecCutSeg.size() / 2; ++i)
@@ -170,15 +170,12 @@ namespace CloudReg
                 calcMeassurment_t measure;
                 std::vector<seg_pair_t> tmp = {ruler};
                 measure = calFlatness(tmp, 2, plane, pCloud);
-                if (!measure.rangeSeg.empty())
-                {
-                    std::vector<Eigen::Vector3d> rPoints =  createRulerBox(ruler, 2, 0.025, 0.025); //width 2.5cm
-                    std::vector<seg_pair_t> pair =  calcBoxSegPair(rPoints);
-                    measure.rangeSeg.insert(measure.rangeSeg.end(), pair.begin(), pair.end());
-                    vecRange.insert(vecRange.end(), pair.begin(), pair.end());
-                    tmpMeasure.emplace_back(measure);
-                }
                 
+                std::vector<Eigen::Vector3d> rPoints =  createRulerBox(ruler, 2, 0.025, 0.025); //width 2.5cm
+                std::vector<seg_pair_t> pair =  calcBoxSegPair(rPoints);
+                measure.rangeSeg.insert(measure.rangeSeg.end(), pair.begin(), pair.end());
+                vecRange.insert(vecRange.end(), pair.begin(), pair.end());
+                tmpMeasure.emplace_back(measure);
             }
             returnValue.emplace_back(std::make_tuple(tmpMeasure, tmpSegs));
         }
