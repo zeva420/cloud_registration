@@ -2,7 +2,7 @@
 
 #include "funHelper.h"
 
-//#define VISUALIZATION_ENABLED
+// #define VISUALIZATION_ENABLED
 namespace CloudReg
 {
     bool checkAdjDis(std::vector<seg_pair_t> allBorder, int lhAxis, seg_pair_t hole1, seg_pair_t hole2,
@@ -324,10 +324,10 @@ namespace CloudReg
         LOG(INFO) << "valid wallPairs " << wallPairs.size();
 
         //step2: calc
-        std::vector<seg_pair_t> returnSeg;
         for (size_t i = 0; i < wallPairs.size(); ++i)
         {
             auto wallPair = wallPairs[i];
+            std::vector<seg_pair_t> returnSeg;
             LOG(INFO) << "Handle wall " << wallPair.first << "---" << wallPair.second;
             std::vector<std::size_t> lHolesIndex, sHolesIndex;
             std::vector<vec_seg_pair_t> lHoles, sHoles;
@@ -336,8 +336,21 @@ namespace CloudReg
             if (holeMap.count(wallPair.first))
                 sHoles = holeMap[wallPair.first];
             auto oneMeasure =  calcWallSquareness(wallPair, pClouds, vecWall, lHoles, sHoles);
-            if (!oneMeasure.empty())
+            if (oneMeasure.size() == 4)
+            {
+                for(size_t j = 0; j < 3; ++j)
+                {
+                    returnSeg.emplace_back(oneMeasure[j].rangeSeg.back());
+                    oneMeasure[j].rangeSeg.pop_back();
+                }
+                returnSeg.emplace_back(oneMeasure[3].rangeSeg.front());
+                oneMeasure[3].rangeSeg.clear();
                 returnMeasure[wallPair] = std::make_pair(oneMeasure, returnSeg);
+            }
+            else
+            {
+                LOG(ERROR) << "wall can not find valid measure point";
+            }
         }
         return returnMeasure;
     }

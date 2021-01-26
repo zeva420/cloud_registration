@@ -1,7 +1,7 @@
 #include "CalcWallFlatness.h"
 #include "funHelper.h"
 
-//#define VISUALIZATION_ENABLED
+// #define VISUALIZATION_ENABLED
 namespace CloudReg
 {
     std::map<int,std::vector<seg_pair_t>> calcSingleWall(const std::vector<seg_pair_t>& wallBorder, const std::vector<vec_seg_pair_t>& holeBorders,
@@ -350,15 +350,13 @@ namespace CloudReg
             {
                 std::vector<seg_pair_t> tmp = {ruler};
                 calcMeassurment_t measure = calFlatness(tmp, thicknessDir, cadPlane, pCloud);
-                if (!measure.rangeSeg.empty())
-                {
-                    std::vector<Eigen::Vector3d> rPoints =  createRulerBox(ruler, thicknessDir, 0.025, 0.025);
-                    std::vector<seg_pair_t> pair =  calcBoxSegPair(rPoints);
-                    vecRange.insert(vecRange.end(), pair.begin(), pair.end());
-                    measure.rangeSeg.insert(measure.rangeSeg.end(), pair.begin(), pair.end());
-                    LOG(INFO) << "Wall "<<wallIndex<<" flatness: " << measure.value;
-                    allMeasure.emplace_back(measure);
-                }
+                
+                std::vector<Eigen::Vector3d> rPoints =  createRulerBox(ruler, thicknessDir, 0.025, 0.025);
+                std::vector<seg_pair_t> pair =  calcBoxSegPair(rPoints);
+                vecRange.insert(vecRange.end(), pair.begin(), pair.end());
+                measure.rangeSeg.insert(measure.rangeSeg.end(), pair.begin(), pair.end());
+                LOG(INFO) << "Wall "<<wallIndex<<" flatness: " << measure.value;
+                allMeasure.emplace_back(measure);
             }
         }
 
@@ -374,19 +372,14 @@ namespace CloudReg
                 auto ruler2 = rulers[2*i + 1];
                 std::vector<seg_pair_t> tmp = {ruler1, ruler2};
                 calcMeassurment_t measure = calFlatness(tmp, thicknessDir, cadPlane, pCloud);
-                if (!measure.rangeSeg.empty())
-                {
-                    std::vector<Eigen::Vector3d> rPoints =  createRulerBox(ruler1, thicknessDir, 0.025, 0.025);
-                    std::vector<seg_pair_t> pair =  calcBoxSegPair(rPoints);
-                    vecRange.insert(vecRange.end(), pair.begin(), pair.end());
-                    measure.rangeSeg.insert(measure.rangeSeg.end(), pair.begin(), pair.end());
-                    rPoints =  createRulerBox(ruler2, thicknessDir, 0.025, 0.025);
-                    pair =  calcBoxSegPair(rPoints);
-                    vecRange.insert(vecRange.end(), pair.begin(), pair.end());
-                    measure.rangeSeg.insert(measure.rangeSeg.end(), pair.begin(), pair.end());
-                    LOG(INFO) << "Wall "<<wallIndex<<" flatness: " << measure.value;
-                    allMeasure.emplace_back(measure);
-                }
+                
+                std::vector<Eigen::Vector3d> rPoints =  createRulerBox(std::make_pair(ruler1.first, ruler2.second), thicknessDir, 0.025, 0.025);
+                std::vector<seg_pair_t> pair =  calcBoxSegPair(rPoints);
+                vecRange.insert(vecRange.end(), pair.begin(), pair.end());
+                measure.rangeSeg.insert(measure.rangeSeg.end(), pair.begin(), pair.end());
+                LOG(INFO) << "Wall "<<wallIndex<<" flatness: " << measure.value;
+                allMeasure.emplace_back(measure);
+                
             }
         }
 #ifdef VISUALIZATION_ENABLED

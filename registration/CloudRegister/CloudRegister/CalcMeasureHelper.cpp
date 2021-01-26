@@ -567,6 +567,7 @@ namespace CloudReg
                                     pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud)
     {
         calcMeassurment_t measure;
+		measure.value = -1;
         std::vector<std::vector<Eigen::Vector3d>> allBoxes;
 		std::vector<PointCloud::Ptr> filterClouds;
 		for(auto& ruler : rulers)
@@ -627,7 +628,6 @@ namespace CloudReg
         LOG(INFO) << "max avg: " << max << " min avg: " << min
                 << " difference: " << difference;
         measure.value = difference;
-        measure.rangeSeg.insert(measure.rangeSeg.end(), rulers.begin(), rulers.end());
         return measure;
     }
 
