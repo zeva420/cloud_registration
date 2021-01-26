@@ -10,8 +10,10 @@ namespace CloudReg
 		CalcNetHeight(const std::vector<seg_pair_t>& roofBorder,
 			const PointCloud::Ptr pCloud,
 			const Eigen::Vector4d& plane,
+			const Eigen::Vector3d& center,
 			const std::string& name,
-			const double calcLengthTh = 1.5);
+			const double calcLengthTh = 1.5,
+			const double moveRangeTh = 1.2);
 	
 	std::tuple<std::vector<std::vector<calcMeassurment_t>>, 
 		std::vector<std::vector<calcMeassurment_t>>, 
@@ -21,8 +23,10 @@ namespace CloudReg
 			const std::vector<std::vector<seg_pair_t>>& allWallBorder,
 			const PointCloud::Ptr pRoof,
 			const PointCloud::Ptr pRoot,
+			const Eigen::Vector3d& center,
 			const double calcHeight = 1.0,
-			const double calcLengthTh = 1.5);
+			const double calcLengthTh = 1.5,
+			const double moveRangeTh = 1.2);
 }
 
 

@@ -70,8 +70,8 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 		}
 	}
     Eigen::Vector3f tmpPt = sr.T_.block<3,3>(0,0) * Eigen::Vector3f(0,0,0) + sr.T_.block<3,1>(0,3);
-    Eigen::Vector3d center(tmpPt(0), tmpPt(1), tmpPt(2));
-	if(!obj.run(clouds, model, center, bNeedOptimize))
+	centerPt_ << tmpPt(0), tmpPt(1), tmpPt(2);
+	if(!obj.run(clouds, model, centerPt_, bNeedOptimize))
 	{
 		LOG(INFO) << "transform opt failed.";
 		return false;
@@ -358,6 +358,9 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 	auto optRets = optimitor.getRet();
 	auto cadCloud = cad.genFragCloud();
 
+	//update center
+	centerPt_ = optRets.T_.block<3, 3>(0, 0) * centerPt_ + optRets.T_.block<3, 1>(0, 3);
+
 	if (optRets.mapClouds_.count(ITEM_BOTTOM_E))
 	{
 		auto &ret = optRets.mapClouds_[ITEM_BOTTOM_E];
@@ -442,7 +445,7 @@ CloudRegister::calcRoofNetHeight(const double calcLengthTh)
 	const auto& itemRoot = mapCloudItem_[CLOUD_BOTTOM_E].front();
 
 	auto vecRet = CalcNetHeight(itemRoof.cloudBorder_.front(),itemRoof.pCloud_,
-		itemRoot.cloudPlane_,"roof_net_height.pcd", calcLengthTh);
+		itemRoot.cloudPlane_, centerPt_, "roof_net_height.pcd", calcLengthTh);
 
 	LOG(INFO) << "calcRoofNetHeight : " << std::get<0>(vecRet).size();
 	return vecRet;
@@ -450,7 +453,7 @@ CloudRegister::calcRoofNetHeight(const double calcLengthTh)
 
 //first roof second root
 std::tuple<std::vector<std::vector<calcMeassurment_t>>, std::vector<std::vector<calcMeassurment_t>>, std::vector<seg_pair_t>>
-CloudRegister::calcPlaneRange(const double calcHeight, const double calcLengthTh)
+CloudRegister::calcPlaneRange(const double calcHeight, const double calcLengthTh, const double moveRangeTh)
 {
 	const auto& itemRoof = mapCloudItem_[CLOUD_TOP_E].front();
 	const auto& itemRoot = mapCloudItem_[CLOUD_BOTTOM_E].front();
@@ -462,7 +465,7 @@ CloudRegister::calcPlaneRange(const double calcHeight, const double calcLengthTh
 	}
 
 	auto vecRet = CalcHeightRange(itemRoof.cloudBorder_.front(), itemRoot.cloudBorder_.front(),
-		allWallBorder,itemRoof.pCloud_, itemRoot.pCloud_, calcHeight, calcLengthTh);
+		allWallBorder,itemRoof.pCloud_, itemRoot.pCloud_, centerPt_, calcHeight, calcLengthTh, 1.0);
 
 
 	LOG(INFO) << "calcPlaneRange : " << std::get<0>(vecRet).size() << " " << std::get<1>(vecRet).size();
