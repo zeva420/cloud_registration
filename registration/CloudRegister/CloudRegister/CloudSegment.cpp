@@ -1171,7 +1171,7 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 
 	LOG(INFO) << "segmented: " << sr.to_string();
 
-	refineSegmentResult(sr);
+	//refineSegmentResult(sr);
 #ifdef VISUALIZATION_ENABLED
 	_show_result(sr);
 #endif

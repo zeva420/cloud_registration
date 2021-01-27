@@ -57,6 +57,8 @@ namespace CloudReg
                                     pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud);
 	bool judgeHoleBorder(const std::vector<std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>>& holeBorders,
                     std::pair<seg_pair_t, seg_pair_t> validWalls);
+
+	PointCloud::Ptr refineBySegment(const std::vector<seg_pair_t>& border, PointCloud::Ptr pCloud);
 }
 
 

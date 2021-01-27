@@ -217,6 +217,11 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 					auto pNew = filerCloudByConvexHull(item.pCloud_, vecPts);
 					item.pCloud_->swap(*pNew);
 				}
+				else if (it.first == CLOUD_BOTTOM_E || it.first == CLOUD_TOP_E)
+				{					
+					auto pNew = refineBySegment(item.cloudBorder_.front(), item.pCloud_);
+					item.pCloud_->swap(*pNew);					
+				}
 			}
 		}		
 	}
@@ -465,7 +470,7 @@ CloudRegister::calcPlaneRange(const double calcHeight, const double calcLengthTh
 	}
 
 	auto vecRet = CalcHeightRange(itemRoof.cloudBorder_.front(), itemRoot.cloudBorder_.front(),
-		allWallBorder,itemRoof.pCloud_, itemRoot.pCloud_, centerPt_, calcHeight, calcLengthTh, 1.0);
+		allWallBorder,itemRoof.pCloud_, itemRoot.pCloud_, centerPt_, calcHeight, calcLengthTh, 1.0f);
 
 
 	LOG(INFO) << "calcPlaneRange : " << std::get<0>(vecRet).size() << " " << std::get<1>(vecRet).size();
