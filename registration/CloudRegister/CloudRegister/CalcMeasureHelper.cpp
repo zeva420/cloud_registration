@@ -261,7 +261,7 @@ namespace CloudReg
 		bool findS2 = isRootInSeg(calcSeg, toSeg.first);
 		bool findE2 = isRootInSeg(calcSeg, toSeg.second);
 
-		LOG(INFO)<< findS1 << " " << findE1 << " " << findS2 << " " << findE2;
+		//LOG(INFO)<< findS1 << " " << findE1 << " " << findS2 << " " << findE2;
 
 		Eigen::Vector3d s1Pt(.0,.0,.0), e1Pt(.0,.0,.0);
 		Eigen::Vector3d s2Pt(.0,.0,.0), e2Pt(.0,.0,.0);

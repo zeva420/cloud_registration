@@ -290,86 +290,94 @@ int main()
 	using namespace CloudReg;
 	{
 		std::vector<seg_pair_t> vecSeg;
-		std::vector<std::vector<calcMeassurment_t>> vecRet;
+		std::vector<calcIdx2Meassurment_t> vecRet;
 		std::tie(vecRet, vecSeg) = obj.calcRoofNetHeight();
 
-		for (std::size_t i = 0; i < vecRet.size();i++)
+		for (auto& oneVec : vecRet)
 		{
-			for (auto& value : vecRet[i])
+			for (auto& one : oneVec.vecCalcRet)
 			{
-				std::cout << "calcRoofNetHeight: "<< std::to_string(i) << " "<< value.value << std::endl;
-				vecSeg.insert(vecSeg.end(), value.rangeSeg.begin(), value.rangeSeg.end());
+				std::cout << "calcRoofNetHeight: " << std::to_string(oneVec.idx.first)
+					<< " " << std::to_string(oneVec.idx.second)
+					<< " " << one.value << std::endl;
+				vecSeg.insert(vecSeg.end(), one.rangeSeg.begin(), one.rangeSeg.end());
 			}
 		}
-		//writePCDFile("roof_net_height.pcd", nullptr,vecSeg);
+		writePCDFile("roof_net_height.pcd", nullptr,vecSeg);
 
 	}
 	
 	{
-		std::vector<seg_pair_t> vecSeg;
-		std::vector<std::vector<calcMeassurment_t>> vecRoof;
-		std::vector<std::vector<calcMeassurment_t>> vecRoot;
-		std::tie(vecRoof, vecRoot, vecSeg) = obj.calcPlaneRange();
-		std::vector<seg_pair_t> vecSegTmp = vecSeg;
-		for (std::size_t i = 0; i < vecRoof.size(); i++)
+		std::vector<seg_pair_t> vecSeg1;
+		std::vector<seg_pair_t> vecSeg2;
+		std::vector<calcIdx2Meassurment_t> vecRoof;
+		std::vector<calcIdx2Meassurment_t> vecRoot;
+		std::tie(vecRoof, vecRoot, vecSeg1, vecSeg2) = obj.calcPlaneRange();
+		std::vector<seg_pair_t> vecSegTmp = vecSeg1;
+		for (auto& oneVec : vecRoof)
 		{
-			for (auto& value : vecRoof[i])
+			for (auto& one : oneVec.vecCalcRet)
 			{
-				std::cout << "calcPlaneRange roof: " << std::to_string(i) << " " << value.value << std::endl;
-				vecSegTmp.insert(vecSegTmp.end(), value.rangeSeg.begin(), value.rangeSeg.end());
+				std::cout << "calcPlaneRange roof: " << std::to_string(oneVec.idx.first)
+					<< " " << std::to_string(oneVec.idx.second)
+					<< " " << one.value << std::endl;
+				vecSegTmp.insert(vecSegTmp.end(), one.rangeSeg.begin(), one.rangeSeg.end());
 			}
 		}
-		//writePCDFile("roof_range.pcd", nullptr, vecSegTmp);
+
+		writePCDFile("roof_range.pcd", nullptr, vecSegTmp);
 
 		vecSegTmp.clear();
-		vecSegTmp = vecSeg;
-		for (std::size_t i = 0; i < vecRoot.size(); i++)
+		vecSegTmp = vecSeg2;
+		for (auto& oneVec : vecRoot)
 		{
-			for (auto& value : vecRoot[i])
+			for (auto& one : oneVec.vecCalcRet)
 			{
-				std::cout << "calcPlaneRange root: " << std::to_string(i) << " " << value.value << std::endl;
-				vecSegTmp.insert(vecSegTmp.end(), value.rangeSeg.begin(), value.rangeSeg.end());
+				std::cout << "calcPlaneRange root: " << std::to_string(oneVec.idx.first)
+					<< " " << std::to_string(oneVec.idx.second)
+					<< " " << one.value << std::endl;
+				vecSegTmp.insert(vecSegTmp.end(), one.rangeSeg.begin(), one.rangeSeg.end());
 			}
 		}
-		//writePCDFile("root_range.pcd", nullptr, vecSegTmp);
+		writePCDFile("root_range.pcd", nullptr, vecSegTmp);
 	}
-		
+	
 	
 	{
 		std::vector<seg_pair_t> vecSeg;
-		std::map <std::pair<std::size_t, std::size_t>,std::vector<calcMeassurment_t>> vecRet;
+		std::vector<calcIdx2Meassurment_t> vecRet;
 		std::tie(vecRet, vecSeg) = obj.calcDepth();
 		for (auto& item : vecRet)
 		{
-			for (auto& value : item.second)
+			for (auto& value : item.vecCalcRet)
 			{
-				std::cout << "calcDepth: " << item.first.first << "- " << item.first.second 
+				std::cout << "calcDepth: " << item.idx.first << "- " << item.idx.second 
 					<< " value:" << value.value<< std::endl;
 				vecSeg.insert(vecSeg.end(), value.rangeSeg.begin(), value.rangeSeg.end());
 			}
 		}
-		//writePCDFile("room_depth.pcd", nullptr, vecSeg);
+		writePCDFile("room_depth.pcd", nullptr, vecSeg);
 	}
 
 	{
 		std::vector<seg_pair_t> vecSeg;
-		std::map <std::pair<std::size_t, std::size_t>, std::vector<calcMeassurment_t>> vecRet;
+		std::vector<calcIdx2Meassurment_t> vecRet;
 		std::tie(vecRet, vecSeg) = obj.calcBay();
 		for (auto& item : vecRet)
 		{
-			for (auto& value : item.second)
+			for (auto& value : item.vecCalcRet)
 			{
-				std::cout << "calcBay: " << item.first.first << "- " << item.first.second
+				std::cout << "calcBay: " << item.idx.first << "- " << item.idx.second
 					<< " value:" << value.value << std::endl;
 				vecSeg.insert(vecSeg.end(), value.rangeSeg.begin(), value.rangeSeg.end());
 			}
 		}
-		//writePCDFile("room_bay.pcd", nullptr, vecSeg);
+		writePCDFile("room_bay.pcd", nullptr, vecSeg);
 	}
 	
 	{
 		std::vector<seg_pair_t> vecSeg;
-		std::map <std::pair<std::size_t, std::size_t>, std::vector<std::vector<calcMeassurment_t>>> vecRet;
+		std::map<std::pair<std::size_t, std::size_t>, std::vector<std::vector<calcMeassurment_t>>> vecRet;
 		vecRet= obj.calcAllHole();
 		for (auto& item : vecRet)
 		{
@@ -388,7 +396,7 @@ int main()
 	 //obj.calcWallVerticality();
 	//obj.calcWallFlatness();
 	 //obj.calcAllSquareness();
-	obj.calcRootFlatness();
+	//obj.calcRootFlatness();
 	//obj.calcAllCorner();
 	return 0;
 }

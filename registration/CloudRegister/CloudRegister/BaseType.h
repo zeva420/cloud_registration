@@ -123,4 +123,19 @@ namespace CloudReg
 		double value = -1;
 		std::vector<seg_pair_t> rangeSeg;
 	};
+
+	struct calcIdx2Meassurment_t
+	{
+		std::pair<std::size_t, std::size_t> idx;
+		std::vector<calcMeassurment_t> vecCalcRet;
+	};
+
+
+	struct pairHash
+	{
+		size_t operator()(const std::pair<std::size_t, std::size_t> &pair_) const
+		{
+			return std::hash<std::size_t>()(pair_.first) ^ std::hash<std::size_t>()(pair_.second);
+		}
+	};
 }

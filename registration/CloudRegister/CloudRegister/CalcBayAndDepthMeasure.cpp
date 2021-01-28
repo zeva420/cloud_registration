@@ -163,8 +163,7 @@ namespace CloudReg
 		return vecRet;
 	}
 
-	std::tuple<std::map<std::pair<std::size_t, std::size_t>, 
-		std::vector<calcMeassurment_t>>,std::vector<seg_pair_t>>
+	std::tuple<std::vector<calcIdx2Meassurment_t>,std::vector<seg_pair_t>>
 	calcDepthorBay(const std::vector<seg_pair_t>& rootBorder,
 			const std::vector<vec_seg_pair_t>& allWallBorder,
 			const std::map<std::size_t, std::vector<vec_seg_pair_t>>& holeBorder,
@@ -175,7 +174,7 @@ namespace CloudReg
 	{
 		const std::string optName = optType == 0 ? "depth" : "bay";
 		std::vector<seg_pair_t> vecCutSeg;
-		std::map<std::pair<std::size_t, std::size_t>, std::vector<calcMeassurment_t>> mapCalcRet;
+		std::vector<calcIdx2Meassurment_t> mapCalcRet;
 
 		if (rootBorder.size() != allWallBorder.size())
 		{
@@ -222,7 +221,8 @@ namespace CloudReg
 				vecCutSeg.emplace_back(std::make_pair(e1Pt,e2Pt));
 				LOG(INFO)<< "type: "<< optName  << " findSeg:" << calcIndex[i] <<" " << calcIndex[j];
 
-				auto save_key = std::make_pair(calcIndex[j], calcIndex[i]);				
+				calcIdx2Meassurment_t save_value;
+				save_value.idx = std::make_pair(calcIndex[i], calcIndex[j]);
 				PointCloud::Ptr pWall = vecCloud[calcIndex[j]];
 				auto& plane = vecPlane[calcIndex[i]];
 				
@@ -236,7 +236,8 @@ namespace CloudReg
 						auto vecRet = calcOverlapWithHole(s2Pt,e2Pt,hole,0.2, pWall,plane);
 						if (!vecRet.empty())
 						{
-							mapCalcRet[save_key].insert(mapCalcRet[save_key].end(), vecRet.begin(), vecRet.end());
+							save_value.vecCalcRet.swap(vecRet);
+							mapCalcRet.emplace_back(save_value);
 						}
 					}
 				}
@@ -244,9 +245,11 @@ namespace CloudReg
 				{
 					auto left = calcArea(pWall, plane, s2Pt, e2Pt, true);
 					auto right = calcArea(pWall, plane, s2Pt, e2Pt, false);
-					mapCalcRet[save_key].emplace_back(left);
-					mapCalcRet[save_key].emplace_back(right);
+					save_value.vecCalcRet.emplace_back(left);
+					save_value.vecCalcRet.emplace_back(right);
+					mapCalcRet.emplace_back(save_value);
 				}
+
 			}
 		}
 
@@ -254,10 +257,10 @@ namespace CloudReg
 		{
 			
 			std::vector<seg_pair_t> vecRange;
-			for(auto& item : value.second)
+			for(auto& item : value.vecCalcRet)
 			{
 				vecRange.insert(vecRange.end(), item.rangeSeg.begin(), item.rangeSeg.end());
-				LOG(INFO) << value.first.first << " - " << value.first.second << " :avgDist:" << item.value;
+				LOG(INFO) << value.idx.first << " - " << value.idx.second << " :avgDist:" << item.value;
 			}
 
 #ifdef VISUALIZATION_ENABLED
