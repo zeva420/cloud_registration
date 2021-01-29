@@ -79,17 +79,18 @@ namespace CloudReg
         pt3[2] = pt1[2];
         Eigen::Vector3d rulern = (pt2 - pt1).normalized();
         Eigen::Vector3d horizenn = (pt3 - pt1).normalized();
+        double moveDis = (length < 1) ? 0.2 : 0.3;
         if (type == 1)  //left ruler
         {
-            pt1 = pt1 + 0.3 * horizenn;  //300mm
-            pt2 = pt2 + 0.3 * horizenn;
+            pt1 = pt1 + moveDis * horizenn;  //300mm
+            pt2 = pt2 + moveDis * horizenn;
             pt2 = pt2 - 0.2 * rulern;    //200mm
             adjustHeight(vecWallHorizen, 0.2, pt1, pt2, rulern); //For heterosexual walls
         }
         else if (type == 2)  //right ruler
         {
-            pt1 = pt1 + 0.3 * horizenn;
-            pt2 = pt2 + 0.3 * horizenn;
+            pt1 = pt1 + moveDis * horizenn;
+            pt2 = pt2 + moveDis * horizenn;
             pt1 = pt1 + 0.2 * rulern;
             adjustHeight(vecWallHorizen, 0., pt1, pt2, rulern);
         }
