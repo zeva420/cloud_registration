@@ -126,6 +126,17 @@ namespace CloudReg
 		return dist;
 	}
 
+	Eigen::Vector3d pointToPlaneRoot(const Eigen::Vector4d &plane, const Eigen::Vector3d &point)
+	{
+		Eigen::Vector3d root;
+		Eigen::Vector3d n = plane.block<3, 1>(0, 0);
+		double d = plane(3);		
+		double dist = (n.dot(point) + d) / n.norm();
+		root = point - dist * n;
+
+		return root;
+	}
+
 	pcl::PointXYZRGB getColorPtByDist(pcl::PointXYZ &p, const double dist)
 	{
 		unsigned int r = 255;

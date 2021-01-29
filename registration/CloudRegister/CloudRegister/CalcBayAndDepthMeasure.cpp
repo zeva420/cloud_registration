@@ -4,7 +4,49 @@
 
 namespace CloudReg
 {
+	calcMeassurment_t calcArea(PointCloud::Ptr pWall, const Eigen::Vector4d& plane,
+		const Eigen::Vector3d& pt, const std::size_t index)
+	{
+		const double calcParaZ = 0.5;
+		const double calcHalfPara = 0.005;
+		pcl::PointXYZ min;
+		pcl::PointXYZ max;
+		pcl::getMinMax3D(*pWall, min, max);
+		min.z = calcParaZ - calcHalfPara;
+		max.z = calcParaZ + calcHalfPara;
 
+		seg_pair_t seg(pt, pt);
+		double thickness = 0.05;
+		seg.first[2] = min.z;
+		seg.second[2] = max.z;
+
+		calcMeassurment_t item;
+		auto vecPt = createRulerBox(seg, index, thickness, calcHalfPara * 2);
+		item.rangeSeg = calcBoxSegPair(vecPt);
+		auto vecTmp = getRulerCorners(vecPt);
+		for (auto& pt : vecTmp)
+		{
+			auto root = pointToPlaneRoot(plane, pt);
+			//item.rangeSeg.emplace_back(std::make_pair(pt, root));
+		}
+
+
+		auto filerPt = getRulerCorners(vecPt);
+		auto pCloud = filerCloudByConvexHull(pWall, filerPt);
+		if (pCloud->points.empty())
+		{
+			LOG(WARNING) << "filerCloudByConvexHull failed";
+			return item;
+		}
+		item.value = 0.0;
+		for (auto& pt : pCloud->points)
+		{
+			item.value += fabs(pointToPLaneDist(plane, pt));
+		}
+		item.value = item.value / pCloud->points.size();
+			
+		return item;
+	}
 
 	calcMeassurment_t calcArea(PointCloud::Ptr pWall, const Eigen::Vector4d& plane, 
 			const Eigen::Vector3d& sPt, const Eigen::Vector3d& ePt, bool bStart)
@@ -51,7 +93,15 @@ namespace CloudReg
 		calcMeassurment_t item;
 		auto vecPt = createRulerBox(seg,indexOther,thickness,calcHalfPara*2);
 		item.rangeSeg = calcBoxSegPair(vecPt);
+
+		auto vecTmp = getRulerCorners(vecPt);
+		for (auto& pt : vecTmp)
+		{
+			auto root = pointToPlaneRoot(plane, pt);
+			item.rangeSeg.emplace_back(std::make_pair(pt, root));
+		}
 		
+	
 		auto filerPt = getRulerCorners(vecPt);	
 		auto pCloud = filerCloudByConvexHull(pWall, filerPt);
 		if (pCloud->points.empty())
@@ -72,95 +122,154 @@ namespace CloudReg
 
 		return item;
 	}
-
-	std::vector<calcMeassurment_t> calcOverlapWithHole(const Eigen::Vector3d& sPt, const Eigen::Vector3d ePt,
-			const vec_seg_pair_t& vecHole, 
-			const double calcLengthTh, PointCloud::Ptr pWall, const Eigen::Vector4d& plane)
+	
+	Eigen::Vector3d getCalcPt(const Eigen::Vector3d& sPt, const Eigen::Vector3d& ePt, bool bStart)
 	{
-		std::vector<calcMeassurment_t> vecRet;
-		std::vector<seg_pair_t> vecHorizen;	
-		std::vector<seg_pair_t> vecVertical;
+		std::size_t optIndex, indexOther;
+		int dir;
+		
+		std::tie(optIndex, indexOther, dir) = getWallGrowAxisAndDir(sPt, ePt);
+		Eigen::Vector3d calcPt(0,0,0);
+		const double calcHalfPara = 0.005;
+
+		const double calcPara = 0.2;
+		if (bStart)
+		{
+			calcPt = sPt;
+			calcPt[optIndex] += dir * calcPara;
+		}
+		else {
+			calcPt = ePt;
+			calcPt[optIndex] -= dir * calcPara;
+		}
+
+		return calcPt;
+	}
+
+	std::vector<seg_pair_t> getOverlapWithHole(const Eigen::Vector3d& sPt, const Eigen::Vector3d ePt,
+		const std::vector<vec_seg_pair_t>& vecHole)
+	{
+		std::vector<seg_pair_t> vecSeg;
 		const auto horizenSeg = sPt - ePt;
-		groupDirection(horizenSeg, vecHole, vecVertical, vecHorizen);
+		Eigen::Vector3d ptA = sPt;
+		Eigen::Vector3d ptB = ePt;
+
+
+		for(std::size_t i = 0; i< vecHole.size(); i++)
+		{
+			auto& hole = vecHole[i];
+			std::vector<seg_pair_t> vecHorizen;
+			std::vector<seg_pair_t> vecVertical;
+			
+			groupDirection(horizenSeg, hole, vecVertical, vecHorizen);
+
+			if (vecHorizen.size() < 2 || vecVertical.size() < 2)
+			{
+				LOG(ERROR) << "groupDirection failed: " << vecHorizen.size() << " -- " << vecVertical.size();
+				continue;
+			}
+			seg_pair_t toSeg = std::make_pair(ptA, ptB);
+			seg_pair_t calcSeg = vecHorizen.front();
+
+			bool hasOverlap;
+			Eigen::Vector3d s1Pt, e1Pt, s2Pt, e2Pt;
+			std::tie(hasOverlap, s1Pt, e1Pt, s2Pt, e2Pt) = calcOverlap(toSeg, calcSeg);
+
+			if (hasOverlap)
+			{
+				if (ptA.norm() != s1Pt.norm())
+				{
+					LOG(INFO) << "getOverlapWithHole seg length: " << (ptA - s1Pt).norm();
+					vecSeg.emplace_back(std::make_pair(ptA, s1Pt));
+				}
+				ptA = e1Pt;
+			}
+
+			if (i == vecHole.size() - 1)
+			{
+				if(ptB.norm() != e1Pt.norm())
+				{
+					LOG(INFO) << "getOverlapWithHole seg length: " << (e1Pt - ptB).norm();
+					vecSeg.emplace_back(std::make_pair(e1Pt, ptB));
+				}
+				
+			}
+		}
+
+		return vecSeg;
+	}
+
+	std::vector<seg_pair_t> mergeOverlap(const std::vector<seg_pair_t>& segA, const std::vector<seg_pair_t>& segB)
+	{
+		std::vector<seg_pair_t> mergeSeg;
+		for (std::size_t i = 0; i < segA.size(); i++)
+		{
+			seg_pair_t toSeg = segA[i];
 		
-		if (vecHorizen.size() < 2 || vecVertical.size() < 2)
-		{
-			LOG(ERROR) << "groupDirection failed: " << vecHorizen.size() << " -- " << vecVertical.size();
-			return vecRet;
+			
+			for (int j = segB.size()-1; j >=0; j--)
+			{
+				seg_pair_t calcSeg = segB[j];
+
+				bool hasOverlap;
+				Eigen::Vector3d s1Pt, e1Pt, s2Pt, e2Pt;
+				std::tie(hasOverlap, s1Pt, e1Pt, s2Pt, e2Pt) = calcOverlap(toSeg, calcSeg);
+
+				if (!hasOverlap) continue;
+
+				mergeSeg.emplace_back(std::make_pair(s1Pt, e1Pt));
+				std::cout << toSeg.first << std::endl;
+				std::cout << toSeg.second << std::endl;
+				std::cout << "-------------------" << std::endl;
+				std::cout << calcSeg.first << std::endl;
+				std::cout << calcSeg.second << std::endl;
+				std::cout << "******************************" << std::endl;
+
+				LOG(INFO) << "seg length: " << (s1Pt - e1Pt).norm();
+				
+			}
 		}
 
-		seg_pair_t toSeg = std::make_pair(sPt,ePt);
-		seg_pair_t calcSeg = std::make_pair(Eigen::Vector3d(0,0,0), Eigen::Vector3d(0,0,0));
-		for(auto& value : vecHorizen)
+		return mergeSeg;
+	}
+
+	std::vector<Eigen::Vector3d> getMoveRange(const Eigen::Vector3d& sPt, const Eigen::Vector3d ePt, bool bLeft)
+	{
+		std::vector<Eigen::Vector3d> vecPts;
+
+		const double MaxMoveTh = 0.18;
+		Eigen::Vector3d pt(0, 0, 0);
+		Eigen::Vector3d ptLeft(0, 0, 0); //move to edge
+		Eigen::Vector3d ptRight(0, 0, 0);//move to center
+
+		std::size_t optIndex, indexOther;
+		int dir;
+		std::tie(optIndex, indexOther, dir) = getWallGrowAxisAndDir(sPt, ePt);
+		
+		if (bLeft)
 		{
-			if((value.first - value.second).squaredNorm() 
-					> (calcSeg.first- calcSeg.second).squaredNorm())
-				calcSeg = value;
-		}
+			pt = getCalcPt(sPt, ePt, true);
+			ptRight = ptLeft = pt;			
+			ptLeft[optIndex] = pt[optIndex] - MaxMoveTh * dir;
+			ptRight[optIndex] = pt[optIndex] + MaxMoveTh * dir;
 
-		bool hasOverlap;
-		Eigen::Vector3d s1Pt, e1Pt, s2Pt,e2Pt;
-		std::tie(hasOverlap, s1Pt, e1Pt, s2Pt,e2Pt) = calcOverlap(toSeg,calcSeg);
-
-		if(!hasOverlap ||  (s1Pt-e1Pt).norm() < EPS_FLOAT_DOUBLE || 
-				(s2Pt-e2Pt).norm() < EPS_FLOAT_DOUBLE)
-			return vecRet;
-
-		bool hasLeft = true;
-		bool hasRight = true;
-		Eigen::Vector3d left_s = toSeg.first;
-		Eigen::Vector3d left_e = s1Pt;
-		const double left_length = (toSeg.first - s1Pt).norm();
-		const double right_length = (toSeg.second - e1Pt).norm();
-
-		if (left_length < calcLengthTh) {
-
-			if (right_length < calcLengthTh)
-			{
-				hasLeft = false;
-			}
-			else 
-			{
-				LOG(INFO) << "recalc left side pt because of hole";
-				left_s = e1Pt;
-				left_e = toSeg.second;
-			}
 			
 		}
-		
-		Eigen::Vector3d right_s = e1Pt;
-		Eigen::Vector3d right_e = toSeg.second;
-		if (right_length < calcLengthTh)
+		else
 		{
-			if (left_length < calcLengthTh)
-			{
-				hasRight = false;
-			}
-			else
-			{
-				LOG(INFO) << "re calc right side pt because of hole";
-				right_s = toSeg.first;
-				right_e = s1Pt;
-			}
+			pt = getCalcPt(sPt, ePt, false);
+			ptRight = ptLeft = pt;
+			ptLeft[optIndex] = pt[optIndex] + MaxMoveTh * dir;
+			ptRight[optIndex] = pt[optIndex] - MaxMoveTh * dir;
+			
 			
 		}
 
-		LOG(INFO) << "has enough length: "<< calcLengthTh << " leftFlag :" << hasLeft << " rightFlag:" << hasRight;
+		vecPts.emplace_back(ptLeft);
+		vecPts.emplace_back(ptRight);
+		vecPts.emplace_back(pt);
 
-		if(hasLeft)
-		{
-			auto value = calcArea(pWall, plane, left_s, left_e, true);
-			if(!value.rangeSeg.empty())
-				vecRet.emplace_back(value);
-		}
-		if(hasRight)
-		{
-			auto value = calcArea(pWall, plane, right_s, right_e, false);
-			if (!value.rangeSeg.empty())
-				vecRet.emplace_back(value);
-		}
-
-		return vecRet;
+		return vecPts;
 	}
 
 	std::tuple<std::vector<calcIdx2Meassurment_t>,std::vector<seg_pair_t>>
@@ -197,14 +306,17 @@ namespace CloudReg
 			if ((toSeg.first - toSeg.second).norm() < calcLengthTh)
 				continue;
 			
-			//if(calcIndex[i] != 3) continue;
+
+			//if(calcIndex[i] != 0) continue;
 
 			for(std::size_t j = i+1 ; j < calcIndex.size(); j++)
 			{
-				//if(calcIndex[j] != 5) continue;
+				//if(calcIndex[j] != 4) continue;
+				
 				seg_pair_t calcSeg = rootBorder[calcIndex[j]];
 				if ((calcSeg.first - calcSeg.second).norm() < calcLengthTh)
 					continue;
+
 
 				//LOG(INFO)<< "calcSeg: " << vecHorizenIndex[i] <<" " << vecHorizenIndex[j];
 
@@ -221,34 +333,180 @@ namespace CloudReg
 				vecCutSeg.emplace_back(std::make_pair(e1Pt,e2Pt));
 				LOG(INFO)<< "type: "<< optName  << " findSeg:" << calcIndex[i] <<" " << calcIndex[j];
 
-				calcIdx2Meassurment_t save_value;
-				save_value.idx = std::make_pair(calcIndex[i], calcIndex[j]);
-				PointCloud::Ptr pWall = vecCloud[calcIndex[j]];
-				auto& plane = vecPlane[calcIndex[i]];
 				
-				auto iterHole = holeBorder.find(calcIndex[j]);
-				if (iterHole != holeBorder.end())
+
+				std::vector<seg_pair_t> OverlapSegJ;
 				{
-					auto curHole = iterHole->second;
-					for(auto& hole : curHole)
+					auto iterHole = holeBorder.find(calcIndex[j]);
+					if (iterHole != holeBorder.end())
 					{
-						LOG(INFO) << "calcOverlapWithHole:" << calcIndex[j];
-						auto vecRet = calcOverlapWithHole(s2Pt,e2Pt,hole,0.2, pWall,plane);
-						if (!vecRet.empty())
-						{
-							save_value.vecCalcRet.swap(vecRet);
-							mapCalcRet.emplace_back(save_value);
-						}
+						auto curAllHole = iterHole->second;
+						OverlapSegJ = getOverlapWithHole(e2Pt, s2Pt, curAllHole);
+						LOG(INFO) << "OverlapSegJ: " << OverlapSegJ.size();
+					}
+					else
+					{
+						OverlapSegJ.emplace_back(std::make_pair(e2Pt, s2Pt));
 					}
 				}
-				else
+
+				std::vector<seg_pair_t> OverlapSegI;
 				{
-					auto left = calcArea(pWall, plane, s2Pt, e2Pt, true);
-					auto right = calcArea(pWall, plane, s2Pt, e2Pt, false);
-					save_value.vecCalcRet.emplace_back(left);
-					save_value.vecCalcRet.emplace_back(right);
-					mapCalcRet.emplace_back(save_value);
+					auto iterHole = holeBorder.find(calcIndex[i]);
+					if (iterHole != holeBorder.end())
+					{
+						auto curAllHole = iterHole->second;
+						OverlapSegI = getOverlapWithHole(s1Pt, e1Pt, curAllHole);
+						LOG(INFO) << "OverlapSegI: " << OverlapSegI.size();
+					}
+					else
+					{
+						OverlapSegI.emplace_back(std::make_pair(s1Pt, e1Pt));
+					}
 				}
+
+				//update OverlapSegJ by OverlapSegI
+				std::vector<seg_pair_t> OverlapSeg = mergeOverlap(OverlapSegJ, OverlapSegI);
+				LOG(INFO) << "mergeOverlap: " << OverlapSeg.size();
+
+				calcIdx2Meassurment_t save_value;
+				save_value.idx = std::make_pair(calcIndex[i], calcIndex[j]);
+				
+				PointCloud::Ptr pWallI = vecCloud[calcIndex[i]];
+				PointCloud::Ptr pWallJ = vecCloud[calcIndex[j]];
+				auto& planeI = vecPlane[calcIndex[i]];
+				auto& planeJ = vecPlane[calcIndex[j]];
+
+				std::size_t optIndex, indexOther;
+				int dir;
+				std::tie(optIndex, indexOther, dir) = getWallGrowAxisAndDir(calcSeg.first, calcSeg.second);
+				
+				auto rangeSegCalc = [](std::vector<seg_pair_t>& OverlapSeg, seg_pair_t& rangeSeg, bool& moveOk) {
+					for (auto& seg : OverlapSeg)
+					{
+						bool hasOverlap;
+						Eigen::Vector3d s1Pt, e1Pt, s2Pt, e2Pt;
+						std::tie(hasOverlap, s1Pt, e1Pt, s2Pt, e2Pt) = calcOverlap(rangeSeg, seg);
+
+						if (hasOverlap)
+						{
+							rangeSeg.first = s1Pt;
+							rangeSeg.second = e1Pt;
+							moveOk = true;
+							break;
+						}
+
+					}
+				};
+
+				//left
+#if 1
+				{
+					
+					auto moveRange = getMoveRange(e2Pt, s2Pt,true);	
+					
+					bool moveOk = false;
+					Eigen::Vector3d calcPt(0, 0, 0);
+					if (!OverlapSeg.empty())
+					{						
+						//try move to edge first
+						seg_pair_t rangeSeg;
+						rangeSeg.first = moveRange[0];
+						rangeSeg.second = moveRange[2];
+						rangeSegCalc(OverlapSeg, rangeSeg, moveOk);
+
+						if (!moveOk)
+						{
+							rangeSeg.first = moveRange[2];
+							rangeSeg.second = moveRange[1];
+							rangeSegCalc(OverlapSeg, rangeSeg, moveOk);
+							if (moveOk) {
+								calcPt = rangeSeg.first;
+								LOG(INFO) << "left move to center ok";
+							}
+								
+						}
+						else
+						{
+							calcPt = rangeSeg.second;
+							LOG(INFO) << "left move to edge ok";
+						}
+						
+					}
+
+					if (!moveOk) {
+						calcPt = moveRange[2];
+						LOG(INFO) << "left use ori position";
+					}
+
+					
+					auto calcPtOther = pointToPlaneRoot(planeI, calcPt);
+					auto calcRet = calcArea(pWallJ, planeI, calcPt, indexOther);
+					if (calcRet.value < EPS_FLOAT_DOUBLE)
+					{
+						calcRet = calcArea(pWallI, planeJ, calcPtOther, indexOther);
+						LOG(INFO) << "left try to use other";
+
+					}
+					save_value.vecCalcRet.emplace_back(calcRet);
+
+				}
+#endif
+#if 0
+				//right
+				{
+
+					auto moveRange = getMoveRange(e2Pt, s2Pt, false);
+
+					bool moveOk = false;
+					Eigen::Vector3d calcPt(0, 0, 0);
+					if (!OverlapSeg.empty())
+					{
+						//try move to edge first
+						seg_pair_t rangeSeg;
+						rangeSeg.first = moveRange[2];
+						rangeSeg.second = moveRange[0];
+						rangeSegCalc(OverlapSeg, rangeSeg, moveOk);
+
+						if (!moveOk)
+						{
+							rangeSeg.first = moveRange[1];
+							rangeSeg.second = moveRange[2];
+							rangeSegCalc(OverlapSeg, rangeSeg, moveOk);
+							if (moveOk) {
+								calcPt = rangeSeg.second;
+								LOG(INFO) << "right move to center ok";
+							}
+
+						}
+						else
+						{
+							calcPt = rangeSeg.first;
+							LOG(INFO) << "right move to edge ok";
+						}
+
+					}
+
+					if (!moveOk) {
+						calcPt = moveRange[2];
+						LOG(INFO) << "left right ori position";
+					}
+
+
+					auto calcPtOther = pointToPlaneRoot(planeI, calcPt);
+					auto calcRet = calcArea(pWallJ, planeI, calcPt, indexOther);
+					if (calcRet.value < EPS_FLOAT_DOUBLE)
+					{
+						calcRet = calcArea(pWallI, planeJ, calcPtOther, indexOther);
+						LOG(INFO) << "right try to use other";
+
+					}
+					save_value.vecCalcRet.emplace_back(calcRet);
+
+				}
+#endif
+				mapCalcRet.emplace_back(save_value);
+
 
 			}
 		}

@@ -22,6 +22,8 @@ namespace CloudReg
 
 	double pointToPLaneDist(const Eigen::Vector4d &plane, const pcl::PointXYZ &p);
 
+	Eigen::Vector3d pointToPlaneRoot(const Eigen::Vector4d &plane, const Eigen::Vector3d &point);
+
 	pcl::PointXYZRGB getColorPtByDist(pcl::PointXYZ &p, const double dist);
 	
 	void getWallColor(const float dis, unsigned int & r, unsigned int & g, unsigned int & b);
