@@ -1,4 +1,5 @@
 #include "CalcNetHeight.h"
+#include "funHelper.h"
 
 namespace CloudReg
 {
