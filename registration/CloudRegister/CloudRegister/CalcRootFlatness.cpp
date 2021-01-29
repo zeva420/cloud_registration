@@ -110,7 +110,7 @@ namespace CloudReg
 			if ((toSeg.first - toSeg.second).norm() < calcLengthTh)
 				continue;
 
-			for(std::size_t j = i+1; j< vecVerticalIndex.size(); j++)
+			for (int j = vecVerticalIndex.size() - 1; j >= i + 1; j--)
 			{
 				seg_pair_t calcSeg = rootBorder[vecVerticalIndex[j]];
 				if ((calcSeg.first - calcSeg.second).norm() < calcLengthTh)
