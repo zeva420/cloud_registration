@@ -450,7 +450,7 @@ CloudRegister::calcRoofNetHeight(const double calcLengthTh)
 	const auto& itemRoot = mapCloudItem_[CLOUD_BOTTOM_E].front();
 
 	auto vecRet = CalcNetHeight(itemRoof.cloudBorder_.front(),itemRoof.pCloud_,
-		itemRoot.cloudPlane_, centerPt_, "roof_net_height.pcd", calcLengthTh);
+		itemRoot.cloudPlane_, centerPt_, "roof_net_height.pcd", calcLengthTh,1.2,true);
 
 	LOG(INFO) << "calcRoofNetHeight : " << std::get<0>(vecRet).size();
 	return vecRet;

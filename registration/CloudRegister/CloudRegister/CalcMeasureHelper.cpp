@@ -219,38 +219,28 @@ namespace CloudReg
 
 	}
 
-	bool isRootInSeg(const seg_pair_t& seg, const Eigen::Vector3d& p)
+	/*bool isRootInSeg(const seg_pair_t& seg, const Eigen::Vector3d& p)
 	{
-		auto segAB = (seg.first - seg.second).normalized();
-		auto segAP = (seg.first - p).normalized();
+		
+		auto segAB = (seg.second - seg.first).normalized();
+		auto segAP = ( p -seg.first).normalized();
 		double dotA = segAB.dot(segAP);
 
-		auto segBA = seg.second - seg.first;
-		auto segBP = seg.second - p;
+		
+		auto segBA = (seg.first - seg.second).normalized();
+		auto segBP = (p-seg.second).normalized();
 		double dotB = segBA.dot(segBP);
 		//LOG(INFO) << (std::setprecision(8)) << dotA << " " << dotB;
 		if (dotA < -0.1 || dotB < -0.1)
 			return false;
 		
 		return true;
-	}
+	}*/
 
-	bool isRootInSeg(const seg_pair_t& seg, const Eigen::Vector3d& p, bool bFirst)
+	bool isRootInSeg(const seg_pair_t& seg, const Eigen::Vector3d& p)
 	{
-		auto pt = calcPerpendicular(p, seg.first, seg.second);
-		double length1 = (seg.first - seg.second).norm();
-		double length2 = 0.0;
-		if (bFirst) 
-			length2 = (pt - seg.second).norm();
-		else	
-			length2 = (pt - seg.first).norm();
-		 
-
-		if (length2 - length1 > 0.01)
-			return false;
-
-		return true;
-		
+		Eigen::Vector3d M = calcPerpendicular(p, seg.first, seg.second);		double disAB = (seg.first - seg.second).norm();		double disAM = (seg.first - M).norm();		double disBM = (seg.second - M).norm();
+		if ((disAM - disAB) > 0.02 || (disBM - disAB) > 0.02)			return false;		return true;
 	}
 
 	std::tuple<std::size_t, std::size_t, int> getWallGrowAxisAndDir(const Eigen::Vector3d& sPt, const Eigen::Vector3d& ePt)
@@ -278,7 +268,7 @@ namespace CloudReg
 		bool findS2 = isRootInSeg(calcSeg, toSeg.first);
 		bool findE2 = isRootInSeg(calcSeg, toSeg.second);
 		
-
+		
 		LOG(INFO)<< findS1 << " " << findE1 << " " << findS2 << " " << findE2;
 
 		Eigen::Vector3d s1Pt(.0,.0,.0), e1Pt(.0,.0,.0);
@@ -327,7 +317,7 @@ namespace CloudReg
 
 		}
 
-		{
+		/*{
 			double length1 = (s1Pt - e1Pt).norm();
 			double length2 = (toSeg.first - toSeg.second).norm();
 			if (length1 - length2 > 0.1) ret = false;
@@ -337,7 +327,7 @@ namespace CloudReg
 			double length1 = (s2Pt - e2Pt).norm();
 			double length2 = (calcSeg.first - calcSeg.second).norm();
 			if (length1 - length2 > 0.1) ret = false;
-		}
+		}*/
 
 		
 		return std::make_tuple(ret, s1Pt, e1Pt, s2Pt, e2Pt);

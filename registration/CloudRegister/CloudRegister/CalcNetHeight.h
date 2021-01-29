@@ -13,7 +13,8 @@ namespace CloudReg
 			const Eigen::Vector3d& center,
 			const std::string& name,
 			const double calcLengthTh = 1.5,
-			const double moveRangeTh = 1.2);
+			const double moveRangeTh = 1.2,
+			bool hasMoreLine = false);
 	
 	std::tuple<std::vector<calcIdx2Meassurment_t>, std::vector<calcIdx2Meassurment_t>,
 		std::vector<seg_pair_t>, std::vector<seg_pair_t>>

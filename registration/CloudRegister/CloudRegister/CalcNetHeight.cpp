@@ -1,12 +1,11 @@
-#include "CalcBayAndDepthMeasure.h"
-
-#include "funHelper.h"
+#include "CalcNetHeight.h"
 
 namespace CloudReg
 {
 
 	calcMeassurment_t calcArea(PointCloud::Ptr pRoof, const Eigen::Vector4d& plane, 
-			const Eigen::Vector3d& sPt, const Eigen::Vector3d& ePt, const Eigen::Vector3d& pt)
+			const Eigen::Vector3d& sPt, const Eigen::Vector3d& ePt, const Eigen::Vector3d& pt,
+			bool hasMoreLine)
 	{
 		const double calcHalfPara = 0.005;
 		
@@ -32,11 +31,15 @@ namespace CloudReg
 		auto pCloud = filerCloudByConvexHull(pRoof, filerPt);
 		item.rangeSeg = calcBoxSegPair(vecPt);
 
-		auto vecTmp = getRulerCorners(vecPt);
-		for (auto& pt : vecTmp)
+		if (hasMoreLine)
 		{
-			auto root = pointToPlaneRoot(plane, pt);
-			item.rangeSeg.emplace_back(std::make_pair(pt, root));
+			auto vecTmp = getRulerCorners(vecPt);
+			for (auto& pt : vecTmp)
+			{
+				auto root = pointToPlaneRoot(plane, pt);
+				item.rangeSeg.emplace_back(std::make_pair(pt, root));
+			}
+			LOG(INFO) << "add more line: " << vecTmp.size();
 		}
 
 		if (pCloud->points.empty())
@@ -229,14 +232,16 @@ namespace CloudReg
 			const Eigen::Vector3d& center,
 			const std::string& name,
 			const double calcLengthTh,
-			const double moveRangeTh)
+			const double moveRangeTh,
+			bool hasMoreLine)
 	{
 		const Eigen::Vector3d& horizenSeg = roofBorder.front().first - roofBorder.front().second;
 		std::vector<std::size_t> vecVerticalIndex;
 		std::vector<std::size_t> vecHorizenIndex;
 		groupDirectionIndex(horizenSeg, roofBorder, vecVerticalIndex, vecHorizenIndex);
 		
-		LOG(INFO) << "vecVerticalIndex: " << vecVerticalIndex.size() << " vecHorizenIndex:" << vecHorizenIndex.size();
+		LOG(INFO) << "vecVerticalIndex: " << vecVerticalIndex.size() << " vecHorizenIndex:" << vecHorizenIndex.size()
+			<< " " << hasMoreLine;
 
 		std::vector<seg_pair_t> vecCutSeg;
 		std::vector<calcIdx2Meassurment_t> vecRet;
@@ -246,7 +251,7 @@ namespace CloudReg
 			if ((toSeg.first - toSeg.second).norm() < calcLengthTh)
 				continue;
 
-			for(std::size_t j = i+1; j< vecVerticalIndex.size(); j++)
+			for (int j = vecVerticalIndex.size() - 1; j >= i + 1; j--)
 			{
 				seg_pair_t calcSeg = roofBorder[vecVerticalIndex[j]];
 				if ((calcSeg.first - calcSeg.second).norm() < calcLengthTh)
@@ -279,7 +284,7 @@ namespace CloudReg
 				std::vector<calcMeassurment_t> tmp;
 				for (auto& pt : vecCalcPt)
 				{
-					auto ret = calcArea(pCloud, plane, s1Pt, e1Pt, pt);
+					auto ret = calcArea(pCloud, plane, s1Pt, e1Pt, pt,hasMoreLine);
 					if (!ret.rangeSeg.empty())
 					{
 						tmp.emplace_back(ret);
@@ -367,5 +372,6 @@ namespace CloudReg
 			vecSeg2.insert(vecSeg2.end(), cutSeg.begin(), cutSeg.end());
 		}
 		return std::make_tuple(vecroofRet,vecrootRet, vecSeg1, vecSeg2);
+
 	}
 }//namespace

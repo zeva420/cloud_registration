@@ -286,7 +286,7 @@ int main()
 	}
 #endif
 
-#if 0
+#if 1
 	using namespace CloudReg;
 	{
 		std::vector<seg_pair_t> vecSeg;
@@ -306,6 +306,7 @@ int main()
 		writePCDFile("roof_net_height.pcd", nullptr,vecSeg);
 
 	}
+	
 	
 	{
 		std::vector<seg_pair_t> vecSeg1;
@@ -374,6 +375,8 @@ int main()
 		}
 		writePCDFile("room_bay.pcd", nullptr, vecSeg);
 	}
+
+	
 	
 	{
 		std::vector<seg_pair_t> vecSeg;

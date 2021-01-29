@@ -27,7 +27,7 @@ namespace CloudReg
 		for (auto& pt : vecTmp)
 		{
 			auto root = pointToPlaneRoot(plane, pt);
-			//item.rangeSeg.emplace_back(std::make_pair(pt, root));
+			item.rangeSeg.emplace_back(std::make_pair(pt, root));
 		}
 
 
@@ -171,6 +171,7 @@ namespace CloudReg
 			seg_pair_t toSeg = std::make_pair(ptA, ptB);
 			seg_pair_t calcSeg = vecHorizen.front();
 
+
 			bool hasOverlap;
 			Eigen::Vector3d s1Pt, e1Pt, s2Pt, e2Pt;
 			std::tie(hasOverlap, s1Pt, e1Pt, s2Pt, e2Pt) = calcOverlap(toSeg, calcSeg);
@@ -187,10 +188,11 @@ namespace CloudReg
 
 			if (i == vecHole.size() - 1)
 			{
-				if(ptB.norm() != e1Pt.norm())
+				if(ptB.norm() != ptA.norm())
 				{
-					LOG(INFO) << "getOverlapWithHole seg length: " << (e1Pt - ptB).norm();
-					vecSeg.emplace_back(std::make_pair(e1Pt, ptB));
+					LOG(INFO) << "getOverlapWithHole seg length: " << (ptA - ptB).norm();
+					vecSeg.emplace_back(std::make_pair(ptA, ptB));
+					break;
 				}
 				
 			}
@@ -216,17 +218,14 @@ namespace CloudReg
 				std::tie(hasOverlap, s1Pt, e1Pt, s2Pt, e2Pt) = calcOverlap(toSeg, calcSeg);
 
 				if (!hasOverlap) continue;
-
-				mergeSeg.emplace_back(std::make_pair(s1Pt, e1Pt));
-				std::cout << toSeg.first << std::endl;
-				std::cout << toSeg.second << std::endl;
-				std::cout << "-------------------" << std::endl;
-				std::cout << calcSeg.first << std::endl;
-				std::cout << calcSeg.second << std::endl;
-				std::cout << "******************************" << std::endl;
-
-				LOG(INFO) << "seg length: " << (s1Pt - e1Pt).norm();
 				
+				if ((s1Pt - e1Pt).norm() > 0.02)
+				{
+					mergeSeg.emplace_back(std::make_pair(s1Pt, e1Pt));
+					LOG(INFO) << "seg length: " << (s1Pt - e1Pt).norm();
+
+				}
+								
 			}
 		}
 
@@ -261,6 +260,7 @@ namespace CloudReg
 			ptRight = ptLeft = pt;
 			ptLeft[optIndex] = pt[optIndex] + MaxMoveTh * dir;
 			ptRight[optIndex] = pt[optIndex] - MaxMoveTh * dir;
+
 			
 			
 		}
@@ -309,9 +309,9 @@ namespace CloudReg
 
 			//if(calcIndex[i] != 0) continue;
 
-			for(std::size_t j = i+1 ; j < calcIndex.size(); j++)
+			for (int j = calcIndex.size()-1; j >= i+1; j--)
 			{
-				//if(calcIndex[j] != 4) continue;
+				//if(calcIndex[j] != 6) continue;
 				
 				seg_pair_t calcSeg = rootBorder[calcIndex[j]];
 				if ((calcSeg.first - calcSeg.second).norm() < calcLengthTh)
@@ -319,9 +319,9 @@ namespace CloudReg
 
 
 				//LOG(INFO)<< "calcSeg: " << vecHorizenIndex[i] <<" " << vecHorizenIndex[j];
-
 				bool hasOverlap;
 				Eigen::Vector3d s1Pt, e1Pt, s2Pt,e2Pt;
+				//toSeg and calcSeg has same dir
 				std::tie(hasOverlap, s1Pt, e1Pt, s2Pt,e2Pt) = calcOverlap(toSeg,calcSeg);
 				
 				if (!hasOverlap) continue;
@@ -333,8 +333,7 @@ namespace CloudReg
 				vecCutSeg.emplace_back(std::make_pair(e1Pt,e2Pt));
 				LOG(INFO)<< "type: "<< optName  << " findSeg:" << calcIndex[i] <<" " << calcIndex[j];
 
-				
-
+			
 				std::vector<seg_pair_t> OverlapSegJ;
 				{
 					auto iterHole = holeBorder.find(calcIndex[j]);
@@ -379,7 +378,7 @@ namespace CloudReg
 
 				std::size_t optIndex, indexOther;
 				int dir;
-				std::tie(optIndex, indexOther, dir) = getWallGrowAxisAndDir(calcSeg.first, calcSeg.second);
+				std::tie(optIndex, indexOther, dir) = getWallGrowAxisAndDir(e2Pt, s2Pt);
 				
 				auto rangeSegCalc = [](std::vector<seg_pair_t>& OverlapSeg, seg_pair_t& rangeSeg, bool& moveOk) {
 					for (auto& seg : OverlapSeg)
@@ -393,6 +392,7 @@ namespace CloudReg
 							rangeSeg.first = s1Pt;
 							rangeSeg.second = e1Pt;
 							moveOk = true;
+							LOG(INFO) << "rangeSegCalc: " << (rangeSeg.first - rangeSeg.second).norm();
 							break;
 						}
 
@@ -400,7 +400,6 @@ namespace CloudReg
 				};
 
 				//left
-#if 1
 				{
 					
 					auto moveRange = getMoveRange(e2Pt, s2Pt,true);	
@@ -451,8 +450,7 @@ namespace CloudReg
 					save_value.vecCalcRet.emplace_back(calcRet);
 
 				}
-#endif
-#if 0
+
 				//right
 				{
 
@@ -489,7 +487,7 @@ namespace CloudReg
 
 					if (!moveOk) {
 						calcPt = moveRange[2];
-						LOG(INFO) << "left right ori position";
+						LOG(INFO) << "right use ori position";
 					}
 
 
@@ -504,7 +502,6 @@ namespace CloudReg
 					save_value.vecCalcRet.emplace_back(calcRet);
 
 				}
-#endif
 				mapCalcRet.emplace_back(save_value);
 
 
