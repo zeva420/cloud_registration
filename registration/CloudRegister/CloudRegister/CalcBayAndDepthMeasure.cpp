@@ -325,6 +325,13 @@ namespace CloudReg
 					}
 				};
 
+				//parallel plane
+				auto plane2planeDist = [](const Eigen::Vector4d& planeA, const Eigen::Vector4d& planeB)->double
+				{
+					auto n = planeA.block<3, 1>(0, 0);
+					return fabs(planeA[3] - planeB[3])/n.norm();
+				};
+
 				//left
 				{
 					
@@ -354,7 +361,7 @@ namespace CloudReg
 						else
 						{
 							calcPt = rangeSeg.second;
-							LOG(INFO) << "left move to edge ok";
+							LOG(INFO) << "left use pos or move to edge ok";
 						}
 						
 					}
@@ -369,8 +376,13 @@ namespace CloudReg
 					auto calcRet = calcArea(pWallJ, planeI, calcPt, indexOther);
 					if (calcRet.value < EPS_FLOAT_DOUBLE)
 					{
-						calcRet = calcArea(pWallI, planeJ, calcPtOther, indexOther);
 						LOG(INFO) << "left try to use other";
+						calcRet = calcArea(pWallI, planeJ, calcPtOther, indexOther);						
+						if (calcRet.value < EPS_FLOAT_DOUBLE)
+						{
+							LOG(INFO) << "left use plane to plane";
+							calcRet.value = plane2planeDist(planeI,planeJ);
+						}
 
 					}
 					save_value.vecCalcRet.emplace_back(calcRet);
@@ -406,7 +418,7 @@ namespace CloudReg
 						else
 						{
 							calcPt = rangeSeg.first;
-							LOG(INFO) << "right move to edge ok";
+							LOG(INFO) << "right use pos or move to edge ok";
 						}
 
 					}
@@ -421,8 +433,13 @@ namespace CloudReg
 					auto calcRet = calcArea(pWallJ, planeI, calcPt, indexOther);
 					if (calcRet.value < EPS_FLOAT_DOUBLE)
 					{
-						calcRet = calcArea(pWallI, planeJ, calcPtOther, indexOther);
 						LOG(INFO) << "right try to use other";
+						calcRet = calcArea(pWallI, planeJ, calcPtOther, indexOther);
+						if (calcRet.value < EPS_FLOAT_DOUBLE)
+						{
+							LOG(INFO) << "right use plane to plane";
+							calcRet.value = plane2planeDist(planeI, planeJ);
+						}
 
 					}
 					save_value.vecCalcRet.emplace_back(calcRet);
