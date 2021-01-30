@@ -74,7 +74,8 @@ namespace CloudReg
 		{
 			if (pt[2] - centerPt[2] > 1.0) continue; //not check roof
 
-			if (pt[0] > xCenterMin && pt[0] < xCenterMax && pt[1] > yCenterMin && pt[1] < yCenterMax)
+			double dist = std::sqrtf(std::pow(pt[0] - centerPt[0], 2) + std::pow(pt[1] - centerPt[1], 2));
+			if(dist <= moveRangeTh)
 			{
 				
 				double xMax, yMax, xMin, yMin;
