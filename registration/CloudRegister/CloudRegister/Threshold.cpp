@@ -1,15 +1,3 @@
-/**
- **********************************************************************************
- *                          RoadDB Confidential
- *       Copyright (c) Continental AG. 2016-2018, RoadDB 2019-2020
- *
- *      This software is furnished under license and may be used or
- *      copied only in accordance with the terms of such license.
- **********************************************************************************
- * @file   Threshold.cpp
- * @brief  class for Threshold
- **********************************************************************************
- */
 
 #include "Threshold.h"
 #include <boost/property_tree/ptree.hpp>
