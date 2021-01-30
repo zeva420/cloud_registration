@@ -244,7 +244,7 @@ int main()
 				vecBorder.insert(vecBorder.end(), vecSegs.begin(), vecSegs.end());
 			}
 			pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_filtered(new pcl::PointCloud<pcl::PointXYZ>());
-			uniformSampling(0.01, item.pCloud_, pCloud_filtered);
+			uniformSampling(0.005, item.pCloud_, pCloud_filtered);
 
 			std::string file_name = name + "_" + std::to_string(index) + ".pcd";
 			writePCDFile(file_name, pCloud_filtered, vecBorder);
@@ -286,7 +286,7 @@ int main()
 	}
 #endif
 
-#if 1
+#if 0
 	using namespace CloudReg;
 	{
 		std::vector<seg_pair_t> vecSeg;
@@ -393,7 +393,7 @@ int main()
 				}
 			}
 		}
-		//writePCDFile("room_hole.pcd", nullptr, vecSeg);
+		writePCDFile("room_hole.pcd", nullptr, vecSeg);
 	}
 #endif
 	 //obj.calcWallVerticality();
