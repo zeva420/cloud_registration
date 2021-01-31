@@ -136,7 +136,7 @@ namespace CloudReg
         
         pcl::ConvexHull<pcl::PointXYZ> hull;                  
         hull.setInputCloud(boundingbox_ptr);                 
-        hull.setDimension(2);                                 
+        hull.setDimension(2);
         std::vector<pcl::Vertices> polygons;                 
         pcl::PointCloud<pcl::PointXYZ>::Ptr surface_hull (new pcl::PointCloud<pcl::PointXYZ>);
         hull.reconstruct(*surface_hull, polygons);           
@@ -144,10 +144,10 @@ namespace CloudReg
         pcl::PointCloud<pcl::PointXYZ>::Ptr objects (new pcl::PointCloud<pcl::PointXYZ>);
         pcl::CropHull<pcl::PointXYZ> bb_filter;               
         bb_filter.setDim(2);
-		bb_filter.setNegative(negative);
         bb_filter.setInputCloud(pCloud);                       
         bb_filter.setHullIndices(polygons);                   
-        bb_filter.setHullCloud(surface_hull);                 
+        bb_filter.setHullCloud(surface_hull);
+		bb_filter.setCropOutside(negative);
         bb_filter.filter(*objects);                           
 
 		// LOG(INFO) << "inPut: " << pCloud->points.size() << " outPut: " << objects->points.size();
@@ -321,19 +321,6 @@ namespace CloudReg
 			e2Pt = calcSeg.second;
 
 		}
-
-		/*{
-			double length1 = (s1Pt - e1Pt).norm();
-			double length2 = (toSeg.first - toSeg.second).norm();
-			if (length1 - length2 > 0.1) ret = false;
-		}
-
-		{
-			double length1 = (s2Pt - e2Pt).norm();
-			double length2 = (calcSeg.first - calcSeg.second).norm();
-			if (length1 - length2 > 0.1) ret = false;
-		}*/
-
 		
 		return std::make_tuple(ret, s1Pt, e1Pt, s2Pt, e2Pt);
 	}

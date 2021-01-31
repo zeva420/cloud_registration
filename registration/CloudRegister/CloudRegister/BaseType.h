@@ -28,8 +28,6 @@
 #define EPS_FLOAT_DOUBLE 0.00001
 #endif
 
-
-
 namespace Eigen
 {
 	template<class T, class Alloc = Eigen::aligned_allocator<T>>
@@ -130,6 +128,34 @@ namespace CloudReg
 		std::vector<calcMeassurment_t> vecCalcRet;
 	};
 
+	enum CloudItemType {
+		CLOUD_BEAM_E,
+		CLOUD_BOTTOM_E,
+		CLOUD_WALL_E,
+		CLOUD_TOP_E,
+		CLOUD_MAX_E
+	};
+
+	struct CloudItem {
+		EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+			CloudItem(pcl::PointCloud<pcl::PointXYZ>::Ptr pData)
+			:pCloud_(pData)
+		{
+		}
+
+		//origin data
+		const pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_;
+		pcl::PointCloud<pcl::PointXYZ>::Ptr pCADCloud_;
+		CloudItemType type_ = CLOUD_MAX_E;
+		std::size_t parentIndex_ = 9999;
+		Eigen::Vector4d cloudPlane_;
+		Eigen::Vector4d cadPlane_;
+		// if type is WALL include windows and door,the border.front belong to wall 
+		std::vector<std::vector<seg_pair_t>> cloudBorder_;
+		std::vector<std::vector<seg_pair_t>> cadBorder_;
+	};
+
+	using vecItems_t = Eigen::vector<CloudItem>;
 
 	struct pairHash
 	{

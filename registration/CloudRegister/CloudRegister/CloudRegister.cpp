@@ -14,6 +14,7 @@
 #include "CalcWallFlatness.h"
 #include "CalcSquareness.h"
 #include "CalcRootFlatness.h"
+#include "CloudRefine.h"
 
 namespace CloudReg {
 CloudRegister::CloudRegister() {
@@ -80,6 +81,9 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	//fill return value
 	fillRet(model, obj);
 
+	//refine some detail
+	CloudRefine refine;
+	refine.run(mapCloudItem_);
 	return true;
 }
 
@@ -204,25 +208,6 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 
 			item.cloudBorder_.push_back(cloudSegs);
 
-			//refine cut
-			{	
-				if (it.first == CLOUD_WALL_E)
-				{
-					std::vector<Eigen::Vector3d> vecPts;
-					for (auto& seg : item.cloudBorder_.front())
-					{
-						vecPts.emplace_back(seg.first);												
-					}
-					
-					auto pNew = filerCloudByConvexHull(item.pCloud_, vecPts);
-					item.pCloud_->swap(*pNew);
-				}
-				else if (it.first == CLOUD_BOTTOM_E || it.first == CLOUD_TOP_E)
-				{					
-					auto pNew = refineBySegment(item.cloudBorder_.front(), item.pCloud_);
-					item.pCloud_->swap(*pNew);					
-				}
-			}
 		}		
 	}
 
@@ -431,7 +416,7 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 			CloudItem item(pData);
 			item.type_ = CLOUD_BEAM_E;
 			item.pCADCloud_ = cadCloud[ITEM_BEAM_E][i];
-			item.parentIndex_ = item.parentIndex_;
+			item.parentIndex_ = beam.parentIndex_;
 			item.cloudPlane_ = ret[i].cloudPlane_;
 			item.cadPlane_ = ret[i].cadPlane_;
 			item.cadBorder_.push_back(beam.segments_);
@@ -441,6 +426,7 @@ void CloudRegister::fillRet(CADModel& cad, TransformOptimize& optimitor)
 	}
 
 	calcAllCloudBorder(cad);
+	
 }
 
 std::tuple<std::vector<calcIdx2Meassurment_t>, std::vector<seg_pair_t>>

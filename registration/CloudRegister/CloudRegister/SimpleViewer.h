@@ -23,8 +23,9 @@ public:
 
 	void addLine(const Point& s, const Point& e, double r, double g, double b);
 
+#ifdef VISUALIZATION_ENABLED
 	pcl::visualization::PCLVisualizer& viewer() { return viewer_; }
-
+#endif
 	// would block the thread
 	void show();
 

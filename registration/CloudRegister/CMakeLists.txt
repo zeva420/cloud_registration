@@ -85,6 +85,7 @@ CloudRegister/Threshold.cpp
 CloudRegister/CalcWallFlatness.cpp
 CloudRegister/CalcCorner.cpp
 CloudRegister/CalcSquareness.cpp
+CloudRegister/CloudRefine.cpp
 )
 
 target_link_libraries(${PROJECT_NAME}
