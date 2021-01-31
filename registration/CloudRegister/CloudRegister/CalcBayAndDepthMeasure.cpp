@@ -222,31 +222,6 @@ namespace CloudReg
 		std::vector<std::size_t> vecHorizenIndex;
 		groupDirectionIndex(horizenSeg, rootBorder, vecVerticalIndex, vecHorizenIndex);
 
-		auto rangeSegCalc = [](std::vector<seg_pair_t> OverlapSeg, seg_pair_t rangeSeg, bool& moveOk) {
-			for (auto& seg : OverlapSeg)
-			{
-				bool hasOverlap;
-				Eigen::Vector3d s1Pt, e1Pt, s2Pt, e2Pt;
-				std::tie(hasOverlap, s1Pt, e1Pt, s2Pt, e2Pt) = calcOverlap(rangeSeg, seg);
-
-				if (hasOverlap)
-				{
-					rangeSeg.first = s1Pt;
-					rangeSeg.second = e1Pt;
-					moveOk = true;
-					LOG(INFO) << "rangeSegCalc: " << (rangeSeg.first - rangeSeg.second).norm();
-					break;
-				}
-
-			}
-		};
-
-		//parallel plane
-		auto plane2planeDist = [](const Eigen::Vector4d& planeA, const Eigen::Vector4d& planeB)->double
-		{
-			auto n = planeA.block<3, 1>(0, 0);
-			return fabs(planeA[3] - planeB[3]) / n.norm();
-		};
 		
 		const auto& calcIndex = optType == 0 ? vecHorizenIndex : vecVerticalIndex;
 
@@ -327,46 +302,136 @@ namespace CloudReg
 				auto& planeI = vecPlane[calcIndex[i]];
 				auto& planeJ = vecPlane[calcIndex[j]];
 
-								
-				auto movePtandClac = [&](std::vector<seg_pair_t> OverlapSeg,seg_pair_t& rangeSegEdge, 
-					seg_pair_t& rangeSegCenter,bool bLeft)->calcMeassurment_t {
+				std::size_t optIndex, indexOther;
+				int dir;
+				std::tie(optIndex, indexOther, dir) = getWallGrowAxisAndDir(e2Pt, s2Pt);
+				
+				auto rangeSegCalc = [](std::vector<seg_pair_t>& OverlapSeg, seg_pair_t& rangeSeg, bool& moveOk) {
+					for (auto& seg : OverlapSeg)
+					{
+						bool hasOverlap;
+						Eigen::Vector3d s1Pt, e1Pt, s2Pt, e2Pt;
+						std::tie(hasOverlap, s1Pt, e1Pt, s2Pt, e2Pt) = calcOverlap(rangeSeg, seg);
+
+						if (hasOverlap)
+						{
+							std::size_t optIndex, indexOther;
+							int dir;
+							std::tie(optIndex, indexOther, dir) = getWallGrowAxisAndDir(s1Pt, e1Pt);
+
+							s1Pt[optIndex] += dir * 0.01;
+							e1Pt[optIndex] -= dir * 0.01;
+							rangeSeg.first = s1Pt;
+							rangeSeg.second = e1Pt;
+							moveOk = true;
+							LOG(INFO) << "rangeSegCalc: " << (rangeSeg.first - rangeSeg.second).norm();
+							break;
+						}
+
+					}
+				};
+
+				//parallel plane
+				auto plane2planeDist = [](const Eigen::Vector4d& planeA, const Eigen::Vector4d& planeB)->double
+				{
+					auto n = planeA.block<3, 1>(0, 0);
+					return fabs(planeA[3] - planeB[3])/n.norm();
+				};
+
+				//left
+				{
 					
-					const std::string sideName = bLeft == true ? "left side" : "right side";
-					std::size_t optIndex, indexOther;
-					int dir;
-					std::tie(optIndex, indexOther, dir) = getWallGrowAxisAndDir(e2Pt, s2Pt);
+					auto moveRange = getMoveRange(e2Pt, s2Pt,true);	
+					
+					bool moveOk = false;
+					Eigen::Vector3d calcPt(0, 0, 0);
+					if (!OverlapSeg.empty())
+					{						
+						//try move to edge first
+						seg_pair_t rangeSeg;
+						rangeSeg.first = moveRange[0];
+						rangeSeg.second = moveRange[2];
+						rangeSegCalc(OverlapSeg, rangeSeg, moveOk);
+
+						if (!moveOk)
+						{
+							rangeSeg.first = moveRange[2];
+							rangeSeg.second = moveRange[1];
+							rangeSegCalc(OverlapSeg, rangeSeg, moveOk);
+							if (moveOk) {
+								calcPt = rangeSeg.first;
+								LOG(INFO) << "left move to center ok";
+							}
+								
+						}
+						else
+						{
+							calcPt = rangeSeg.second;
+							LOG(INFO) << "left use pos or move to edge ok";
+						}
+						
+					}
+
+					if (!moveOk) {
+						calcPt = moveRange[2];
+						LOG(INFO) << "left use ori position";
+					}
+
+					
+					auto calcPtOther = pointToPlaneRoot(planeI, calcPt);
+					auto calcRet = calcArea(pWallJ, planeI, calcPt, indexOther);
+					if (calcRet.value < EPS_FLOAT_DOUBLE)
+					{
+						LOG(INFO) << "left try to use other";
+						calcRet = calcArea(pWallI, planeJ, calcPtOther, indexOther);						
+						if (calcRet.value < EPS_FLOAT_DOUBLE)
+						{
+							LOG(INFO) << "left use plane to plane";
+							calcRet.value = plane2planeDist(planeI,planeJ);
+						}
+
+					}
+					save_value.vecCalcRet.emplace_back(calcRet);
+
+				}
+
+				//right
+				{
+
+					auto moveRange = getMoveRange(e2Pt, s2Pt, false);
 
 					bool moveOk = false;
 					Eigen::Vector3d calcPt(0, 0, 0);
 					if (!OverlapSeg.empty())
 					{
 						//try move to edge first
-						
-						rangeSegCalc(OverlapSeg, rangeSegEdge, moveOk);
+						seg_pair_t rangeSeg;
+						rangeSeg.first = moveRange[2];
+						rangeSeg.second = moveRange[0];
+						rangeSegCalc(OverlapSeg, rangeSeg, moveOk);
 
 						if (!moveOk)
-						{			
-							rangeSegCalc(OverlapSeg, rangeSegEdge, moveOk);
+						{
+							rangeSeg.first = moveRange[1];
+							rangeSeg.second = moveRange[2];
+							rangeSegCalc(OverlapSeg, rangeSeg, moveOk);
 							if (moveOk) {
-								if (bLeft) calcPt = rangeSegCenter.first;
-								else calcPt = rangeSegCenter.second;
-								LOG(INFO) << sideName << " move to center ok";
+								calcPt = rangeSeg.second;
+								LOG(INFO) << "right move to center ok";
 							}
 
 						}
 						else
 						{
-							if(bLeft) calcPt = rangeSegEdge.second;
-							else calcPt = rangeSegEdge.first;
-							LOG(INFO) << sideName << " use pos or move to edge ok";
+							calcPt = rangeSeg.first;
+							LOG(INFO) << "right use pos or move to edge ok";
 						}
 
 					}
 
 					if (!moveOk) {
-						if (bLeft) calcPt = rangeSegEdge.second;
-						else calcPt = rangeSegEdge.first;
-						LOG(INFO) << sideName <<" use ori position";
+						calcPt = moveRange[2];
+						LOG(INFO) << "right use ori position";
 					}
 
 
@@ -374,37 +439,18 @@ namespace CloudReg
 					auto calcRet = calcArea(pWallJ, planeI, calcPt, indexOther);
 					if (calcRet.value < EPS_FLOAT_DOUBLE)
 					{
-						LOG(INFO) << sideName <<" try to use other";
+						LOG(INFO) << "right try to use other";
 						calcRet = calcArea(pWallI, planeJ, calcPtOther, indexOther);
 						if (calcRet.value < EPS_FLOAT_DOUBLE)
 						{
-							LOG(INFO) << sideName <<" use plane to plane";
+							LOG(INFO) << "right use plane to plane";
 							calcRet.value = plane2planeDist(planeI, planeJ);
 						}
 
 					}
+					save_value.vecCalcRet.emplace_back(calcRet);
 
-					return calcRet;
-				};
-
-				//left
-				{
-					auto moveRange = getMoveRange(e2Pt, s2Pt, true);
-					seg_pair_t rangeSegEdge = std::make_pair(moveRange[0], moveRange[2]);
-					seg_pair_t rangeSegCenter = std::make_pair(moveRange[2], moveRange[1]);
-					auto value = movePtandClac(OverlapSeg, rangeSegEdge, rangeSegCenter,true);
-					save_value.vecCalcRet.emplace_back(value);
 				}
-
-				//right
-				{
-					auto moveRange = getMoveRange(e2Pt, s2Pt, false);
-					seg_pair_t rangeSegEdge = std::make_pair(moveRange[2], moveRange[0]);
-					seg_pair_t rangeSegCenter = std::make_pair(moveRange[1], moveRange[2]);
-					auto value = movePtandClac(OverlapSeg, rangeSegEdge, rangeSegCenter, false);
-					save_value.vecCalcRet.emplace_back(value);
-				}
-			
 				mapCalcRet.emplace_back(save_value);
 
 
