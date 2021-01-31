@@ -405,20 +405,26 @@ CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
 		}
 #else
 		// we use the one with minimal distance
-		auto pr = ll::min_by([&](std::size_t i)->float {
+		auto indices = ll::range(allplanes.size());
+		auto planedis = ll::mapf([&](std::size_t i)->float {
 			const auto& pc = allplanes[i];
 			if (!pc.cloud_ || pc.cloud_->empty()) return false;
 
 			float dis = phom.transpose().dot(pc.abcd_);
 			return std::fabs(dis);
-		}, ll::range(allplanes.size()));
+		}, indices);
 
-		if (pr.second < ON_PLANE_CHECK_THRESH) {
-			std::size_t i = *pr.first;
+		auto ins = ll::filter([&](std::size_t i) {
+			if (planedis[i] > ON_PLANE_CHECK_THRESH) return false;
 			int cnt = trees[i].nearestKSearch(p, 1, searchIndices, searchDis);
-			if (cnt > 0 && searchDis.front() < MAX_DIS_SQUARED)
-				clusters[i].emplace_back(idx);
-		}
+			return cnt > 0 && searchDis.front() < MAX_DIS_SQUARED;
+		}, indices);
+
+		if (ins.empty()) continue;
+
+		std::size_t i = *(ll::min_by([&planedis](std::size_t i) { return planedis[i]; }, ins).first);
+
+		clusters[i].emplace_back(idx);
 #endif
 	}
 
