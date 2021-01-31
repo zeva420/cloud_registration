@@ -220,19 +220,21 @@ namespace CloudReg
 			seg_pair_t calcSeg;
 
 			if (bLeft)
-				calcSeg = vecHorizen.back();
+				calcSeg = vecVertical.back();
 			else
-				calcSeg = vecHorizen.front();
+				calcSeg = vecVertical.front();
 
+			
 			std::size_t optIndex, indexOther;
 			int dir;
-			std::tie(optIndex, indexOther, dir) = getWallGrowAxisAndDir(calcSeg.first, calcSeg.second);
+			std::tie(optIndex, indexOther, dir) = getWallGrowAxisAndDir(seg.first, seg.second);
 
-			auto vecPt = createRulerBox(vecHorizen.back(), indexOther, 0.05, calcLength * 2);
+			auto vecPt = createRulerBox(calcSeg, indexOther, 0.05, calcLength * 2);
 			auto filerPt = getRulerCorners(vecPt);
 			pRefine = filerCloudByConvexHull(pCloud, filerPt);
 			pLeft = filerCloudByConvexHull(pCloud, filerPt, false);
 
+			LOG(INFO)<<pCloud->points.size() << " -- " << pRefine->points.size() << " -- " << pLeft->points.size();
 			return std::make_tuple(pRefine, pLeft);
 		};
 		
@@ -246,11 +248,11 @@ namespace CloudReg
 			std::tie(pRefineA, pLeftA) = getRangeCloud(leftWall.cloudBorder_.front(), 
 					leftWall.pCloud_,true);		
 			
+
 			//right
 			PointCloud::Ptr pRefineB, pLeftB;
 			std::tie(pRefineB, pLeftB) = getRangeCloud(rightWall.cloudBorder_.front(),
 				rightWall.pCloud_, false);
-			
 
 			splitePt(pRefineA, leftWall.cloudPlane_, pRefineB, rightWall.cloudPlane_);
 			pRefineA->insert(pRefineA->end(), pLeftA->begin(), pLeftA->end());
@@ -260,6 +262,17 @@ namespace CloudReg
 			rightWall.pCloud_->swap(*pRefineB);
 			
 
+		}
+
+		for (auto& wall : vecWall)
+		{
+			std::vector<Eigen::Vector3d> vecPts;
+			for (auto& seg : wall.cloudBorder_.front())
+			{
+				vecPts.emplace_back(seg.first);
+			}
+			auto pNew = filerCloudByConvexHull(wall.pCloud_, vecPts);
+			wall.pCloud_->swap(*pNew);
 		}
 		
 	}
