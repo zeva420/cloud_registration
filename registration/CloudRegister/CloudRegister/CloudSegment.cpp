@@ -375,6 +375,7 @@ CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
 
 		Eigen::Vector4f phom(p.x, p.y, p.z, 1.);
 
+#if 0
 		auto ins = ll::filter([&](std::size_t i) {
 			const auto& pc = allplanes[i];
 			if (!pc.cloud_ || pc.cloud_->empty()) return false;
@@ -402,6 +403,23 @@ CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
 				clusters[i].emplace_back(idx);
 			}
 		}
+#else
+		// we use the one with minimal distance
+		auto pr = ll::min_by([&](std::size_t i)->float {
+			const auto& pc = allplanes[i];
+			if (!pc.cloud_ || pc.cloud_->empty()) return false;
+
+			float dis = phom.transpose().dot(pc.abcd_);
+			return std::fabs(dis);
+		}, ll::range(allplanes.size()));
+
+		if (pr.second < ON_PLANE_CHECK_THRESH) {
+			std::size_t i = *pr.first;
+			int cnt = trees[i].nearestKSearch(p, 1, searchIndices, searchDis);
+			if (cnt > 0 && searchDis.front() < MAX_DIS_SQUARED)
+				clusters[i].emplace_back(idx);
+		}
+#endif
 	}
 
 	{
@@ -619,7 +637,7 @@ std::vector<CloudSegment::PlaneCloud> CloudSegment::detectRegionPlanes(
 std::vector<CloudSegment::PlaneCloud> CloudSegment::detectRegionPlanes(
 	PointCloud::Ptr cloud, pcl::PointCloud<pcl::Normal>::Ptr normals, double anglediff, double curvediff, std::size_t min_points) const {
 	// normals
-	if(!normals) normals = computeNormals(cloud);
+	if (!normals) normals = computeNormals(cloud);
 
 	std::vector<pcl::PointIndices> clusters;
 	{
@@ -935,11 +953,11 @@ Eigen::vector<trans2d::Matrix2x3f> CloudSegment::computeSegmentAlignCandidates(c
 		trans2d::Matrix2x3f T_;
 		float error_;
 
-		#ifdef UBUNTU_SWITCH
+#ifdef UBUNTU_SWITCH
 		float a() const { return std::atan2(T_(1, 0), T_(0, 0)); }
-		#else
+#else
 		float a() const { return std::atan2f(T_(1, 0), T_(0, 0)); }
-		#endif
+#endif
 
 		std::string to_string() const {
 			std::stringstream ss;
@@ -1051,8 +1069,9 @@ Eigen::vector<trans2d::Matrix2x3f> CloudSegment::computeSegmentAlignCandidates(c
 }
 
 CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr thecloud) const {
-	// we now process the ORIGINAL cloud
 	constexpr double SLICE_HALF_THICKNESS = 0.1f;
+	constexpr double NORMAL_CHECK = 0.866; // 30
+	constexpr double GROWTH_ANGLE = 10. / 180. * geo::PI;
 
 	// simple boxcrop
 	auto cloud = geo::filterPoints(thecloud, [&](const Point& p) {
@@ -1104,7 +1123,7 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 				const pcl::Normal& pn = normals->points[i];
 				Eigen::Vector3d pnv(pn.normal_x, pn.normal_y, pn.normal_z);
 
-				if (std::fabs(pnv.dot(n)) > 0.886) indices.push_back(i); // 30
+				if (std::fabs(pnv.dot(n)) > NORMAL_CHECK) indices.push_back(i);
 			}
 
 			slice = geo::getSubSet(cloud, indices);
@@ -1122,11 +1141,18 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 		}
 
 		//todo: we can optimize the normal calculation in the below process
-		auto planes = detectRegionPlanes(slice, slicenormals, 5. / 180. * geo::PI, 1., slice->size() / 4);
+		auto planes = detectRegionPlanes(slice, slicenormals, GROWTH_ANGLE, 1., slice->size() / 4);
 		if (planes.empty()) return PlaneCloud();
 
-		return *std::max_element(planes.begin(), planes.end(),
-			[](const PlaneCloud& pc1, const PlaneCloud& pc2) {
+		if (0) {
+			SimpleViewer viewer;
+			viewer.addCloud(slice);
+			for (const auto& p : planes) viewer.addCloud(p.cloud_);
+
+			viewer.show();
+		}
+
+		return *std::max_element(planes.begin(), planes.end(), [](const PlaneCloud& pc1, const PlaneCloud& pc2) {
 			return pc1.cloud_->size() > pc2.cloud_->size();
 		});
 	};
@@ -1159,9 +1185,39 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 			double floorz2 = cadz2_ - MIN_WALL_HEIGHT - (i - 1) * HIST_STEP;
 			LOG(INFO) << ll::unsafe_format("slice floor %.3f -> %.3f.", floorz1, floorz2);
 
-			auto slice = geo::passThrough(cloud, "z", floorz1, floorz2);
+			PointCloud::Ptr slice(new PointCloud());
+			pcl::PointCloud<pcl::Normal>::Ptr slicenormals(new pcl::PointCloud<pcl::Normal>());
+			{
+				std::vector<int> indices;
+				{
+					for (int i = 0; i < cloud->size(); ++i) {
+						const auto& p = cloud->points[i];
+						if (p.z > floorz1&& p.z < floorz2) {
+							const auto& n = normals->points[i];
+							if (std::fabs(n.normal_z) > NORMAL_CHECK) indices.push_back(i);
+						}
+					}
+				}
+
+				slice = geo::getSubSet(cloud, indices);
+				{
+					pcl::ExtractIndices<pcl::Normal> ei;
+					ei.setInputCloud(normals);
+					pcl::PointIndices::Ptr pi(new pcl::PointIndices());
+					pi->indices = indices;
+					ei.setIndices(pi);
+					ei.setNegative(false);
+					ei.filter(*slicenormals);
+				}
+			}
+
+			// auto slice = geo::passThrough(cloud, "z", floorz1, floorz2);
 			//todo: we can still use box crop here.
-			auto pc = detectRegionPlanes(slice, 5. / 180. * geo::PI, 1., slice->size() / 2).front();
+			auto planes = detectRegionPlanes(slice, slicenormals, GROWTH_ANGLE, 1., slice->size() / 4);
+			auto pc = *std::max_element(planes.begin(), planes.end(), [](const PlaneCloud& pc1, const PlaneCloud& pc2) {
+				return pc1.cloud_->size() > pc2.cloud_->size();
+			});
+
 			sr.clouds_[mit].emplace_back(pc);
 		} else {
 			for (const auto& mi : cadModel_.getTypedModelItems(mit))
