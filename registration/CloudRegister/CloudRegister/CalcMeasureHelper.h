@@ -59,6 +59,9 @@ namespace CloudReg
                     std::pair<seg_pair_t, seg_pair_t> validWalls);
 
 	PointCloud::Ptr refineBySegment(const std::vector<seg_pair_t>& border, PointCloud::Ptr pCloud);
+
+	void refineByHole(const std::vector<seg_pair_t>& border, PointCloud::Ptr pCloud);
+
 }
 
 

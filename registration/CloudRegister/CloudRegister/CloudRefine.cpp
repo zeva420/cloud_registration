@@ -296,9 +296,26 @@ namespace CloudReg
 					}
 					auto pNew = filerCloudByConvexHull(wall.pCloud_, vecPts);
 					wall.pCloud_->swap(*pNew);
+
+					for (std::size_t i = 1; i < wall.cloudBorder_.size(); i++)
+					{
+						if (wall.cloudBorder_[i].size() == 4)
+						{
+							std::vector<Eigen::Vector3d> vecPts;
+							for (auto& seg : wall.cloudBorder_[i])
+							{
+								vecPts.emplace_back(seg.first);
+							}
+							auto pNew = filerCloudByConvexHull(wall.pCloud_, vecPts, false);
+							wall.pCloud_->swap(*pNew);
+						}
+						else {
+							refineByHole(wall.cloudBorder_[i], wall.pCloud_);
+						}
+					}
 				}
 
-				
+								
 			}
 			else if (value.first == CLOUD_BOTTOM_E || value.first == CLOUD_TOP_E)
 			{

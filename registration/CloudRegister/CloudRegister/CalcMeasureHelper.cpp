@@ -695,4 +695,49 @@ namespace CloudReg
 
 	}
 
+	void refineByHole(const std::vector<seg_pair_t>& border, PointCloud::Ptr pCloud)
+	{
+		const double calcLengthTh = 0.01f;
+		const Eigen::Vector3d& horizenSeg = border.front().first - border.front().second;
+		std::vector<std::size_t> vecVerticalIndex;
+		std::vector<std::size_t> vecHorizenIndex;
+		groupDirectionIndex(horizenSeg, border, vecVerticalIndex, vecHorizenIndex);
+
+		std::vector<PointCloud::Ptr> vecCloud;
+
+		const auto& calcIndex = vecVerticalIndex;
+		
+		for (std::size_t i = 0; i < calcIndex.size(); i++)
+		{
+			seg_pair_t toSeg = border[calcIndex[i]];
+
+
+			for (std::size_t j = i + 1; j < calcIndex.size(); j++)
+			{
+				seg_pair_t calcSeg = border[calcIndex[j]];
+
+				bool hasOverlap;
+				Eigen::Vector3d s1Pt, e1Pt, s2Pt, e2Pt;
+				std::tie(hasOverlap, s1Pt, e1Pt, s2Pt, e2Pt) = calcOverlap(toSeg, calcSeg);
+
+				if (!hasOverlap) continue;
+
+				if ((s1Pt - e1Pt).norm() < calcLengthTh || (s2Pt - e2Pt).norm() < calcLengthTh)
+					continue;
+
+				std::vector<Eigen::Vector3d> filerPt;
+				filerPt.emplace_back(s1Pt);
+				filerPt.emplace_back(e1Pt);
+				filerPt.emplace_back(e2Pt);
+				filerPt.emplace_back(s2Pt);
+
+				auto pNew = filerCloudByConvexHull(pCloud, filerPt,false);
+				pCloud->swap(*pNew);
+				
+			}
+		}
+
+
+	}
+
 }
