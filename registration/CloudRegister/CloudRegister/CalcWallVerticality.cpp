@@ -4,33 +4,6 @@
 // #define VISUALIZATION_ENABLED
 namespace CloudReg
 {
-    Eigen::Vector4d calcWallPlane(std::vector<seg_pair_t> vecVertical)
-	{
-		pcl::PointCloud<pcl::PointXYZ> cloud;
-		cloud.width = vecVertical.size()*2;
-		cloud.height = 1;
-		cloud.is_dense = false;
-		cloud.points.resize(cloud.width * cloud.height);
-		
-		for (size_t i = 0; i < vecVertical.size(); ++i)
-		{
-			auto& ptA = vecVertical[i].first;
-			auto& ptB = vecVertical[i].second;
-
-			cloud.points[i*2].x = ptA[0];
-			cloud.points[i*2].y = ptA[1];
-			cloud.points[i*2].z = ptA[2];
-			
-			cloud.points[i*2 + 1].x = ptB[0];
-			cloud.points[i*2 + 1].y = ptB[1];
-			cloud.points[i*2 + 1].z = ptB[2];
-		}
-        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_ptr(new pcl::PointCloud<pcl::PointXYZ>);
-        cloud_ptr=cloud.makeShared();
-        Eigen::Vector4d cadPlane =  calcPlaneParam(cloud_ptr);
-        return cadPlane;
-	}
-
     std::vector<Eigen::Vector3d> calBox(Eigen::Vector3d midPt, int type, int hAixs, Eigen::Vector3d rulern, calcMeassurment_t& measure)
     {
         double boxWidth = 0.025; //25mm
@@ -80,12 +53,14 @@ namespace CloudReg
         Eigen::Vector3d rulern = (pt2 - pt1).normalized();
         Eigen::Vector3d horizenn = (pt3 - pt1).normalized();
         double moveDis = (length < 1) ? 0.2 : 0.3;
-        if (type == 1)  //left ruler
+        if (type == 1)       //left ruler
         {
             pt1 = pt1 + moveDis * horizenn;  //300mm
             pt2 = pt2 + moveDis * horizenn;
-            pt2 = pt2 - 0.2 * rulern;    //200mm
+            pt2 = pt2 - 0.2 * rulern;        //200mm
             adjustHeight(vecWallHorizen, 0.2, pt1, pt2, rulern); //For heterosexual walls
+            if((pt1 - pt2).norm() > 2)
+                pt1 = pt2 - 2 * rulern;
         }
         else if (type == 2)  //right ruler
         {
@@ -93,16 +68,22 @@ namespace CloudReg
             pt2 = pt2 + moveDis * horizenn;
             pt1 = pt1 + 0.2 * rulern;
             adjustHeight(vecWallHorizen, 0., pt1, pt2, rulern);
+            if((pt1 - pt2).norm() > 2)
+                pt2 = pt1 + 2 * rulern;
         }
-        else   //middle ruler
+        else                 //middle ruler
         {
             pt1 = pt1 + length / 2 * horizenn;
             pt2 = pt2 + length / 2 * horizenn;
-            pt1 = pt1 + 0.1 * rulern;
-            pt2 = pt2 - 0.1 * rulern;
-            adjustHeight(vecWallHorizen, 0.1, pt1, pt2, rulern);
+            adjustHeight(vecWallHorizen, 0., pt1, pt2, rulern);
+            double resDis = (std::fabs(pt1[2] - pt2[2]) - 2) / 2;
+            if (resDis > 0)
+            {
+                pt1 = pt1 + resDis * rulern;
+                pt2 = pt2 - resDis * rulern;
+            }
         }
-        
+
         int minIndex = (hAixs == 0) ? 1 : 0;
         Eigen::Vector3d valid1, valid2;
         std::vector<double> sumAll;
