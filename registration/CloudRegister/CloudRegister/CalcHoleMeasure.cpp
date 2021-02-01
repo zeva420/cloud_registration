@@ -176,17 +176,19 @@ namespace CloudReg
 			std::size_t baseIndex =  (A2.norm() - A1.norm()) > 0.1 ?  vecHorizen.size()-1 : 0;
 			const seg_pair_t& baseSeg = vecHorizen[baseIndex];
 		
+			std::vector<calcMeassurment_t> vecHeight;
 			for(std::size_t i = 0; i < vecHorizen.size(); i++)
 			{
 				if (i == baseIndex) continue;
 
 				const auto& seg = vecHorizen[i];
 				auto vecPts = ininterpolateSeg(seg.first, seg.second, 0.01f);
-				auto vecHeight = calcHoleDist(baseSeg, vecPts, rangeCloud, 15, true);
-				vecRet.emplace_back(vecHeight);
-				for(auto& item : vecHeight)
+				auto tmp = calcHoleDist(baseSeg, vecPts, rangeCloud, 15, true);
+				vecHeight.insert(vecHeight.end(), tmp.begin(), tmp.end());
+				for(auto& item : tmp)
 					vecRange.insert(vecRange.end(), item.rangeSeg.begin(), item.rangeSeg.end());
 			}
+			vecRet.emplace_back(vecHeight);
 		}
 
 		//width
@@ -198,19 +200,20 @@ namespace CloudReg
 			std::size_t baseIndex =  A1.norm() >= A2.norm() ? 0 : vecVertical.size()-1;
 			
 			const seg_pair_t& baseSeg = vecVertical[baseIndex];
-
+			std::vector<calcMeassurment_t> vecWidth;
 			for(std::size_t i = 0; i < vecVertical.size(); i++)
 			{
 				if (i == baseIndex) continue;
 
 				const auto& seg = vecVertical[i];
 				auto vecPts = ininterpolateSeg(seg.first, seg.second, 0.01f);
-				auto vecWidth = calcHoleDist(baseSeg, vecPts, rangeCloud, 15, false);
-				vecRet.emplace_back(vecWidth);
+				auto tmp = calcHoleDist(baseSeg, vecPts, rangeCloud, 15, false);
+				vecWidth.insert(vecWidth.end(), tmp.begin(), tmp.end());
 				
-				for(auto& item : vecWidth)
+				for(auto& item : tmp)
 					vecRange.insert(vecRange.end(), item.rangeSeg.begin(), item.rangeSeg.end());
 			}
+			vecRet.emplace_back(vecWidth);
 		}
 
 		//cross
