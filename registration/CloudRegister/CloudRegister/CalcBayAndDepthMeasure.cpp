@@ -235,8 +235,8 @@ namespace CloudReg
 					std::size_t optIndex, indexOther;
 					int dir;
 					std::tie(optIndex, indexOther, dir) = getWallGrowAxisAndDir(s1Pt, e1Pt);
-					s1Pt[optIndex] += dir * 0.1;
-					e1Pt[optIndex] -= dir * 0.1;
+					s1Pt[optIndex] += dir * 0.01;
+					e1Pt[optIndex] -= dir * 0.01;
 
 					rangeSeg.first = s1Pt;
 					rangeSeg.second = e1Pt;
