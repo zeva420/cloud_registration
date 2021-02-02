@@ -1077,7 +1077,7 @@ Eigen::vector<trans2d::Matrix2x3f> CloudSegment::computeSegmentAlignCandidates(c
 CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr thecloud) const {
 	constexpr double SLICE_HALF_THICKNESS = 0.1f;
 	constexpr double NORMAL_CHECK = 0.866; // 30
-	constexpr double GROWTH_ANGLE = 5. / 180. * geo::PI;
+	constexpr double GROWTH_ANGLE = 10. / 180. * geo::PI;
 
 	// simple boxcrop
 	auto cloud = geo::filterPoints(thecloud, [&](const Point& p) {
