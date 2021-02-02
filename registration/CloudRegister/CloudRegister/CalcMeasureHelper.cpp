@@ -592,8 +592,16 @@ namespace CloudReg
 			std::vector<Eigen::Vector3d> corners = getRulerCorners(rulerFilter);
 			auto rangeCloud = filerCloudByConvexHull(pCloud, corners);
 			if (!rangeCloud->points.empty()) 
-               filterClouds.emplace_back(rangeCloud);
-
+			{
+				// Eigen::VectorXf coeff;
+				// std::vector<int> inlierIdxs;
+				// planeFitting(0.005, rangeCloud, coeff, inlierIdxs);
+				// auto inliers = geo::getSubSet(rangeCloud, inlierIdxs, false);
+				// filterClouds.emplace_back(inliers);
+				// std::cout << "rangeCloud " << rangeCloud->points.size() << "---" << inliers->points.size() << std::endl;
+				filterClouds.emplace_back(rangeCloud);
+			}
+               
 			auto boxes = getAllRulerBox(ruler, thicknessDir, 0., 0.005, 0.01, 0.025); //step 5mm  len 10mm width 25mm
 			allBoxes.insert(allBoxes.end(), boxes.begin(), boxes.end());
 		}
