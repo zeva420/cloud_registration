@@ -55,21 +55,21 @@ namespace CloudReg
         double moveDis = (length < 1) ? 0.2 : 0.3;
         if (type == 1)       //left ruler
         {
-            pt1 = pt1 + moveDis * horizenn;  //300mm
-            pt2 = pt2 + moveDis * horizenn;
-            pt2 = pt2 - 0.2 * rulern;        //200mm
-            adjustHeight(vecWallHorizen, 0.2, pt1, pt2, rulern); //For heterosexual walls
-            if((pt1 - pt2).norm() > 2)
-                pt1 = pt2 - 2 * rulern;
-        }
-        else if (type == 2)  //right ruler
-        {
             pt1 = pt1 + moveDis * horizenn;
             pt2 = pt2 + moveDis * horizenn;
             pt1 = pt1 + 0.2 * rulern;
             adjustHeight(vecWallHorizen, 0., pt1, pt2, rulern);
             if((pt1 - pt2).norm() > 2)
                 pt2 = pt1 + 2 * rulern;
+        }
+        else if (type == 2)  //right ruler
+        {
+            pt1 = pt1 + moveDis * horizenn;  //300mm
+            pt2 = pt2 + moveDis * horizenn;
+            pt2 = pt2 - 0.2 * rulern;        //200mm
+            adjustHeight(vecWallHorizen, 0.2, pt1, pt2, rulern); //For heterosexual walls
+            if((pt1 - pt2).norm() > 2)
+                pt1 = pt2 - 2 * rulern;
         }
         else                 //middle ruler
         {
@@ -91,15 +91,16 @@ namespace CloudReg
         auto vecRulerPts = ininterpolateSeg(pt1, pt2, 0.025);
         LOG(INFO) << "ruler get boxes num: " << vecRulerPts.size();
 
-        std::vector<Eigen::Vector3d> rulerFilter = createRulerBox(std::make_pair(pt1, pt2), minIndex, 0., 0.04); // > 0.025
-        std::vector<Eigen::Vector3d> rulercorners = getRulerCorners(rulerFilter);
-        auto filterCloud = filerCloudByConvexHull(pCloud, rulercorners);
+        // Eigen::VectorXf coeff;
+        // std::vector<int> inlierIdxs;
+        // planeFitting(0.005, pCloud, coeff, inlierIdxs);
+        // auto inliers = geo::getSubSet(pCloud, inlierIdxs, false);
 
         for(size_t i = 0; i < vecRulerPts.size() - 1; ++i)
         {
             auto pt = vecRulerPts[i];
             auto corners = calBox(pt, type, hAixs, rulern, item);
-            auto rangeCloud = filerCloudByConvexHull(filterCloud, corners);
+            auto rangeCloud = filerCloudByConvexHull(pCloud, corners);
             if (rangeCloud->points.empty()) 
             {
                 // LOG(ERROR) << "filerCloudByRange failed";
@@ -118,7 +119,7 @@ namespace CloudReg
         {
             auto pt = vecRulerPts[i];
             auto corners = calBox(pt, type, hAixs, rulern, item);
-            auto rangeCloud = filerCloudByConvexHull(filterCloud, corners);
+            auto rangeCloud = filerCloudByConvexHull(pCloud, corners);
             if (rangeCloud->points.empty()) 
             {
                 // LOG(ERROR) << "filerCloudByRange failed";
