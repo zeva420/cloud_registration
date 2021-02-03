@@ -217,9 +217,11 @@ namespace CloudReg
 			auto rightWall = allWallBorder[idx.second];
 
 			if (calcLength(leftWall.back()) < calcLengthTh ||
-					calcLength(rightWall.back()) < calcLengthTh)
+				calcLength(rightWall.back()) < calcLengthTh)
+			{
+				LOG(INFO) << "calc between: " << std::to_string(idx.first) << " - " << std::to_string(idx.second) << " too short";
 				continue;
-
+			}
 			//check hole
 			{
 				auto iter = holeBorder.find(idx.first);

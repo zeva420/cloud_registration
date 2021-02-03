@@ -674,7 +674,7 @@ CloudRegister::calcRootFlatness(const std::string& planeType, const double calcL
 }
 
 std::map<std::pair<std::size_t, std::size_t>, std::vector<calcMeassurment_t>>
-CloudRegister::calcAllCorner()
+CloudRegister::calcAllCorner(const double calcLengthTh)
 {
 	std::map<std::pair<std::size_t, std::size_t>, std::vector<calcMeassurment_t>> result;
 	const auto& itemWall = mapCloudItem_[CLOUD_WALL_E];
@@ -697,7 +697,7 @@ CloudRegister::calcAllCorner()
 		}
 	}
 
-	const double calcLengthTh = 0.13;
+	
 	result = CalcCorner(allWallBorder, holeBorder, vecCloud, calcLengthTh);
 	
 	std::stringstream ss;

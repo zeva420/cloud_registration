@@ -31,7 +31,7 @@ namespace CloudReg
 		
 		//calcAllCorner: corner of two neighbouring walls (in height 0.3m and 1.5m)
 		std::map<std::pair<std::size_t, std::size_t>, std::vector<calcMeassurment_t>>
-			calcAllCorner();
+			calcAllCorner(const double calcLengthTh = 0.13);
 
 		//calcLengthTh: the shorest wall length, 
 		std::tuple<std::vector<calcIdx2Meassurment_t>,std::vector<seg_pair_t>>

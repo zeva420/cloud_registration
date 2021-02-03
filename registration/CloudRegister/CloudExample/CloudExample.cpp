@@ -286,8 +286,9 @@ int main()
 	}
 #endif
 
-#if 0
 	using namespace CloudReg;
+#if 0
+	
 	{
 		std::vector<seg_pair_t> vecSeg;
 		std::vector<calcIdx2Meassurment_t> vecRet;
@@ -380,10 +381,12 @@ int main()
 	
 	{
 		std::vector<seg_pair_t> vecSeg;
+		
 		std::map<std::pair<std::size_t, std::size_t>, std::vector<std::vector<calcMeassurment_t>>> vecRet;
 		vecRet= obj.calcAllHole();
 		for (auto& item : vecRet)
 		{
+			std::cout << "echo hole size :" << item.second.size() << std::endl;
 			for (auto& vectype : item.second)
 			{
 				for (auto& value : vectype) {
@@ -400,7 +403,19 @@ int main()
 	//obj.calcWallFlatness();
 	 //obj.calcAllSquareness();
 	//obj.calcRootFlatness();
-	//obj.calcAllCorner();
+	auto allCorner = obj.calcAllCorner();
+	std::vector<seg_pair_t> vecSeg;
+	for (auto& value : allCorner)
+	{		
+		
+		for (auto& item : value.second)
+		{
+			std::cout << "between wall:" << value.first.first << "---" << value.first.second 
+				<< " " << item.value << std::endl;
+			vecSeg.insert(vecSeg.end(), item.rangeSeg.begin(), item.rangeSeg.end());
+		}
+	}
+	writePCDFile("room_corner.pcd", nullptr, vecSeg);
 	return 0;
 }
 
