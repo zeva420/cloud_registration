@@ -22,7 +22,7 @@
 
 #include "glog/logging.h"
 
-
+#define VISUALIZATION_ENABLED
 namespace CloudReg
 {
 	Eigen::vector<Eigen::Vector3d> ininterpolateSeg(const Eigen::Vector3d& sPoint, const Eigen::Vector3d& ePoint, const double step)
@@ -475,21 +475,87 @@ namespace CloudReg
 		pcl::copyPointCloud(*boundPoints, *inputPoints);
 
 		float disthresh = 0.01;
-		std::vector<Eigen::VectorXf> lineCoeffs;
-		std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> linePoints;
+		std::vector<Eigen::VectorXf> detectLineCoeffs;
+		std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> detectLinePoints;
 		while (inputPoints->size() > 10)
 		{
 			std::vector<int> indices;
 			Eigen::VectorXf params;
 			std::tie(indices, params) = geo::detectOneLineRansac(inputPoints, disthresh);
 			auto inliers = geo::getSubSet(inputPoints, indices, false);
-			lineCoeffs.push_back(params);
-			linePoints.push_back(inliers);       
+			detectLineCoeffs.push_back(params);
+			detectLinePoints.push_back(inliers);       
 
 			auto tmpLeft = geo::getSubSet(inputPoints, indices, true);
 			inputPoints->swap(*tmpLeft);
 		}
 
+		auto inSameSideOfLine = [&cloudPlane](const Eigen::VectorXf &line, 
+				const pcl::PointCloud<pcl::PointXYZ>::Ptr inliers,
+				const double rate_Th)->std::pair<bool, int> {
+			Eigen::Vector3f p = line.block<3, 1>(0, 0);
+			Eigen::Vector3f n = line.block<3, 1>(3, 0);	
+			Eigen::Vector3f planeNormal(cloudPlane(0), cloudPlane(1), cloudPlane(2));
+
+			int leftSum = 0;
+			int rightSum = 0;					
+			for (const auto &pt : inliers->points)
+			{
+				Eigen::Vector3f point(pt.x, pt.y, pt.z);
+				float flag = (point - p).cross(n).dot(planeNormal);
+				int &side = (flag < 0) ? leftSum : rightSum;	
+				side++;
+			}
+			float rate1 = (float)leftSum / (float)inliers->size();
+			float rate2 = (float)rightSum / (float)inliers->size();
+			if (rate1 > rate_Th)
+			{
+				return std::make_pair(true, -1);
+			}
+			else if (rate2 > rate_Th)
+			{
+				return std::make_pair(true, 1);
+			}
+			else
+			{
+				return std::make_pair(false, 0);
+			}
+		};
+
+		//check inside line, delete outerside line
+		std::vector<Eigen::VectorXf> lineCoeffs;
+		std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> linePoints;
+		const double rate_Th = 0.95;
+		for (size_t i = 0; i < detectLineCoeffs.size(); i++)
+		{
+			bool isInsideLine = false;
+			int lastSide = 0;
+			Eigen::VectorXf line = detectLineCoeffs[i];
+			for (size_t j = 0; j < detectLinePoints.size(); j++)
+			{
+				if (i == j) continue;
+				pcl::PointCloud<pcl::PointXYZ>::Ptr inliers = detectLinePoints[j];
+				auto ret = inSameSideOfLine(line, inliers, rate_Th);
+				if (false == ret.first) 
+				{
+					isInsideLine = true;
+					break;
+				}
+				else if (0 != lastSide && lastSide != ret.second)
+				{
+					isInsideLine = true;
+					break;
+				}
+				lastSide = ret.second;
+			}
+			if (true == isInsideLine)
+			{
+				lineCoeffs.push_back(line);
+				linePoints.push_back(detectLinePoints[i]);
+			}
+		}
+		int deleteNum = detectLineCoeffs.size() - lineCoeffs.size();
+		
 		for (const auto &seg : outerSegs)
 		{
 			Eigen::VectorXf line(6);
@@ -505,7 +571,8 @@ namespace CloudReg
 			}
 			linePoints.push_back(points); 
 		}
-		LOG(INFO) << "lineCoeffs:" << lineCoeffs.size() << ", linePoints:" << linePoints.size();
+		LOG(INFO) << "lineCoeffs:" << lineCoeffs.size() << ", linePoints:" << linePoints.size()
+			<< " deleteNum:" << deleteNum << " outerSegs:" << outerSegs.size();
  
 		//calc intersection node between two lines
 		std::vector<Eigen::Vector3d> vecNodes;
@@ -558,6 +625,24 @@ namespace CloudReg
 				}	
 			}
 			std::string file_name = "findLine-" + name + ".pcd";
+			pcl::io::savePCDFile(file_name, *pCloud);				
+		}
+
+		{	
+			pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloud(new pcl::PointCloud<pcl::PointXYZRGB>());
+			for (auto &p1 : boundPoints->points)
+			{
+				pcl::PointXYZRGB p2;
+				p2.x = p1.x;
+				p2.y = p1.y;
+				p2.z = p1.z;
+				p2.r = 255;
+				p2.g = 255;
+				p2.b = 255;
+				pCloud->push_back(p2);
+			}	
+			
+			std::string file_name = "boundPoints-" + name + ".pcd";
 			pcl::io::savePCDFile(file_name, *pCloud);				
 		}
 #endif

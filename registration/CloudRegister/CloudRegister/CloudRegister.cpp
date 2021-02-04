@@ -21,7 +21,7 @@ CloudRegister::CloudRegister() {
 	google::InitGoogleLogging("Cloud");
 	FLAGS_log_dir = "./";
 
-//#define VISUALIZATION_ENABLED
+// #define VISUALIZATION_ENABLED
 #ifdef VISUALIZATION_ENABLED
 	google::LogToStderr();
 #endif
@@ -211,6 +211,14 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 		}		
 	}
 
+
+	auto dist_to_line = [](const Eigen::Vector3d &point, const seg_pair_t &seg)->double {
+		Eigen::Vector3d p = seg.first;
+		Eigen::Vector3d n = (seg.second - seg.first) / (seg.second - seg.first).norm();	
+		double dist = (point - p).cross(n).norm();	
+		return dist;	
+	};
+
 	//find nearest_pt (in vecNodes pts, or cloud pts) for each hole cadBorder
 	for (auto &it : mapCloudItem_)
 	{
@@ -224,9 +232,40 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 
 			LOG(INFO) << "------get hole border for " << name << "-" << i << "------";
 			const auto &outerSegs = item.cloudBorder_.front();
+			const auto &cadOuterSegs = item.cadBorder_.front();
+
+			//find outerSeg candidate which is in the line of holeSegs'
+			std::vector<seg_pair_t> cadHoleSegs;
+			for (int k = 0; k < item.cadBorder_.size(); k++)
+			{
+				if (0 == k) continue;
+				const auto &vecSegs = item.cadBorder_[k];
+				cadHoleSegs.insert(cadHoleSegs.end(), vecSegs.begin(), vecSegs.end());
+			}
+			std::vector<size_t> segIdxCandidates;
+			for (size_t j = 0; j < cadOuterSegs.size(); j++)
+			{
+				auto &seg1 = cadOuterSegs[j];
+				bool find = false;
+				for (auto &seg2 : cadHoleSegs)
+				{
+					if (dist_to_line(seg1.first, seg2) < 1e-5 
+						&& dist_to_line(seg1.second, seg2) < 1e-5)
+					{
+						find = true;
+						break;
+					}
+				}
+				if (find) segIdxCandidates.push_back(j);
+			}
+			std::vector<seg_pair_t> candidates;
+			for (auto &idx : segIdxCandidates)
+			{
+				candidates.push_back(outerSegs[idx]);
+			}
 
 			std::vector<Eigen::Vector3d> vecNodes;
-			vecNodes = calcWallNodes(name + std::to_string(i), item.pCloud_, item.cloudPlane_, outerSegs);
+			vecNodes = calcWallNodes(name + std::to_string(i), item.pCloud_, item.cloudPlane_, candidates);
 		
 			//find hole segs
 			auto cloudPts = convertCloudToEigenVec(item.pCloud_);
