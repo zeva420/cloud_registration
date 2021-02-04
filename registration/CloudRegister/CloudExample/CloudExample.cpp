@@ -300,7 +300,7 @@ int main()
 			{
 				std::cout << "calcRoofNetHeight: " << std::to_string(oneVec.idx.first)
 					<< " " << std::to_string(oneVec.idx.second)
-					<< " " << one.value << std::endl;
+					<< " " << one.value* 1000 << std::endl;
 				vecSeg.insert(vecSeg.end(), one.rangeSeg.begin(), one.rangeSeg.end());
 			}
 		}
@@ -354,7 +354,7 @@ int main()
 			for (auto& value : item.vecCalcRet)
 			{
 				std::cout << "calcDepth: " << item.idx.first << "- " << item.idx.second 
-					<< " value:" << value.value<< std::endl;
+					<< " value:" << value.value * 1000 << std::endl;
 				vecSeg.insert(vecSeg.end(), value.rangeSeg.begin(), value.rangeSeg.end());
 			}
 		}
@@ -370,7 +370,7 @@ int main()
 			for (auto& value : item.vecCalcRet)
 			{
 				std::cout << "calcBay: " << item.idx.first << "- " << item.idx.second
-					<< " value:" << value.value << std::endl;
+					<< " value:" << value.value *1000 << std::endl;
 				vecSeg.insert(vecSeg.end(), value.rangeSeg.begin(), value.rangeSeg.end());
 			}
 		}
@@ -391,7 +391,7 @@ int main()
 			{
 				for (auto& value : vectype) {
 					std::cout << "calcAllHole: " << item.first.first << " - " << item.first.second
-						<< " value:" << value.value << std::endl;
+						<< " value:" << value.value * 1000 << std::endl;
 					vecSeg.insert(vecSeg.end(), value.rangeSeg.begin(), value.rangeSeg.end());
 				}
 			}
@@ -416,8 +416,8 @@ int main()
 		
 	
 #endif
-	 obj.calcWallVerticality();
-	obj.calcWallFlatness();
+	 //obj.calcWallVerticality();
+	//obj.calcWallFlatness();
 	 //obj.calcAllSquareness();
 	//obj.calcRootFlatness();
 	
