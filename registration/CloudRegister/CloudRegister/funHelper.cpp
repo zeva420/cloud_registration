@@ -310,7 +310,7 @@ namespace CloudReg
 			const std::pair<Eigen::Vector3d, Eigen::Vector3d> &seg)
 	{
 		const double distTh = 0.4 *0.4;
-		const double dotTh = 0.996;
+		const double dotTh = 0.9978;
 
 		auto findCadidatePts = [](const std::vector<Eigen::Vector3d> &vecPts, const Eigen::Vector3d &point,
 		        const double distTh)->std::map<double, Eigen::Vector3d> {
