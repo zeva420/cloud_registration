@@ -219,20 +219,26 @@ namespace CloudReg
 			if (calcLength(leftWall.back()) < calcLengthTh ||
 				calcLength(rightWall.back()) < calcLengthTh)
 			{
-				LOG(INFO) << "calc between: " << std::to_string(idx.first) << " - " << std::to_string(idx.second) << " too short";
+				LOG(INFO) << "CalcCorner: between wall: " << std::to_string(idx.first) << " - " << std::to_string(idx.second) << " too short";
 				continue;
 			}
+			std::cout << "CalcCorner:calc between: " << std::to_string(idx.first) << " - " << std::to_string(idx.second) << std::endl;
 			//check hole
 			{
+				//the dir is first = right
 				auto iter = holeBorder.find(idx.first);
 				if(iter != holeBorder.end())
 				{
 					auto& vecHole = iter->second;
-					auto ptA = leftWall.back().second;
-				
+					auto ptA = leftWall.back().first;
+
 					std::vector<Eigen::Vector3d> vecPt;
-					for(auto& hole : vecHole)
-					vecPt.emplace_back(hole.back().first);
+					for (auto& hole : vecHole)
+					{
+						vecPt.emplace_back(hole.back().first);
+						vecPt.emplace_back(hole.back().second);
+					}
+					
 
 					std::size_t optIndex,indexOther; 
 					int dir;
@@ -247,8 +253,11 @@ namespace CloudReg
 							 return left[optIndex] > right[optIndex];});
 					}
 					auto ptB = vecPt.front();
-					if ((ptA-ptB).norm() < calcLengthTh)
+					if ((ptA - ptB).norm() < calcLengthTh)
+					{						
+						LOG(INFO) << "CalcCorner: check hole in wall " << std::to_string(idx.first) << " too short";
 						continue;
+					}
 				}
 			}
 			
@@ -258,11 +267,14 @@ namespace CloudReg
 				if(iter != holeBorder.end())
 				{
 					auto& vecHole = iter->second;
-					auto ptA = leftWall.back().first;
+					auto ptA = rightWall.back().second;
+					
 				
 					std::vector<Eigen::Vector3d> vecPt;
-					for(auto& hole : vecHole)
+					for (auto& hole : vecHole) {
+						vecPt.emplace_back(hole.back().first);
 						vecPt.emplace_back(hole.back().second);
+					}
 
 					std::size_t optIndex,indexOther; 
 					int dir;
@@ -277,13 +289,16 @@ namespace CloudReg
 							 return left[optIndex] > right[optIndex];});
 					}
 					auto ptB = vecPt.back();
-					if ((ptA-ptB).norm() < calcLengthTh)
+					if ((ptA - ptB).norm() < calcLengthTh)
+					{
+						LOG(INFO) << "CalcCorner: check hole in wall " << std::to_string(idx.second) << " too short";
 						continue;
+					}
 				}
 			}
 
 			// getCornerByPlaneNorm
-			LOG(INFO) << "calc between: " << std::to_string(idx.first) << " - " << std::to_string(idx.second);
+			LOG(INFO) << "CalcCorner:calc between: " << std::to_string(idx.first) << " - " << std::to_string(idx.second);
 			//0.3
 			{
 				calcMeassurment_t meassurment 
