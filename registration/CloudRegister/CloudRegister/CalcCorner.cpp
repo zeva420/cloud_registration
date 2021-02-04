@@ -108,12 +108,16 @@ namespace CloudReg
 					|| std::get<0>(roughRight)->size() < cloudSize_first)
 		{
 			LOG(WARNING) << "roughLeft size:" << std::get<0>(roughLeft)->size()
-				<< "or roughRight:" << std::get<0>(roughRight)->size() << " < " << cloudSize_first;
+				<< " or roughRight:" << std::get<0>(roughRight)->size() << " < " << cloudSize_first
+				<< " height:" << height;
+			
+			auto left = calcCornerArea(leftSeg, pLeftCloud, height, true, calcWidth_second, calcLength_second);
+			auto right = calcCornerArea(rightSeg, pRightCloud, height, false, calcWidth_second, calcLength_second);
 			calcMeassurment_t meassurment;
 			meassurment.value = -1;
-			meassurment.rangeSeg = std::get<1>(roughLeft);
-			meassurment.rangeSeg.insert(meassurment.rangeSeg.end(), 
-						std::get<1>(roughRight).begin(), std::get<1>(roughRight).end());
+			meassurment.rangeSeg = std::get<1>(left);
+			meassurment.rangeSeg.insert(meassurment.rangeSeg.end(),
+				std::get<1>(right).begin(), std::get<1>(right).end());
 			return meassurment;
 		}
 
@@ -127,6 +131,28 @@ namespace CloudReg
 		std::vector<int> inlierIdxs2;
 		planeFitting(planeFitDistTh, std::get<0>(roughRight), coeff2, inlierIdxs2);
 		auto inliers2 = geo::getSubSet(std::get<0>(roughRight), inlierIdxs2, false);
+		
+
+		PointCloud::Ptr inliers1_new(new PointCloud());
+		PointCloud::Ptr inliers2_new(new PointCloud());
+		auto checkPt = [&](const PointCloud::Ptr pCheck) {
+			for (auto& pt : pCheck->points)
+			{
+				double dist1 = std::fabs(pointToPLaneDist(coeff1,pt));
+				double dist2 = std::fabs(pointToPLaneDist(coeff2,pt));
+				if (dist1 < dist2) inliers1_new->push_back(pt);
+				else	inliers2_new->push_back(pt);			
+			}			
+		};
+
+			
+		checkPt(inliers1);
+		checkPt(inliers2);
+		//std::cout << "before:"<< inliers1->points.size() << " -- " << inliers2->points.size() << std::endl;
+		//std::cout << "after:" <<inliers1_new->points.size() << " -- " << inliers2_new->points.size() << std::endl;
+		
+		inliers1->swap(*inliers1_new);
+		inliers2->swap(*inliers2_new);
 
 		pcl::PointCloud<pcl::PointXYZ>::Ptr inliers1_new(new pcl::PointCloud<pcl::PointXYZ>());
 		pcl::PointCloud<pcl::PointXYZ>::Ptr inliers2_new(new pcl::PointCloud<pcl::PointXYZ>());
@@ -150,7 +176,8 @@ namespace CloudReg
 					|| std::get<0>(right)->size() < cloudSize_second)
 		{
 			LOG(WARNING) << "left size:" << std::get<0>(left)->size()
-				<< "or right:" << std::get<0>(right)->size() << " < " << cloudSize_second;
+				<< "or right:" << std::get<0>(right)->size() << " < " << cloudSize_second
+				<< " height:" << height;
 			calcMeassurment_t meassurment;
 			meassurment.value = -1;
 			meassurment.rangeSeg = std::get<1>(left);
@@ -188,7 +215,6 @@ namespace CloudReg
 		meassurment.rangeSeg.insert(meassurment.rangeSeg.end(), 
 					std::get<1>(right).begin(), std::get<1>(right).end());
 
-#define VISUALIZATION_ENABLED		
 #ifdef VISUALIZATION_ENABLED
 		{
 			std::string file_name = "corner-" + std::to_string(idxPair.first) 
@@ -270,7 +296,8 @@ namespace CloudReg
 							 return left[optIndex] > right[optIndex];});
 					}
 					auto ptB = vecPt.front();
-					if ((ptA - ptB).norm() < calcLengthTh)
+					
+					if (ptB[2] < 0.3 && (ptA - ptB).norm() < calcLengthTh)
 					{						
 						LOG(INFO) << "CalcCorner: check hole in wall " << std::to_string(idx.first) 
 							<< " too short: " << (ptA - ptB).norm();
@@ -307,7 +334,7 @@ namespace CloudReg
 							 return left[optIndex] > right[optIndex];});
 					}
 					auto ptB = vecPt.back();
-					if ((ptA - ptB).norm() < calcLengthTh)
+					if (ptB[2] < 0.3 && (ptA - ptB).norm() < calcLengthTh)
 					{
 						LOG(INFO) << "CalcCorner: check hole in wall " << std::to_string(idx.second) 
 							<< " too short: " << (ptA - ptB).norm();
