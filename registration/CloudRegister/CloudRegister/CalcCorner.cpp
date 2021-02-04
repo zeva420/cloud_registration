@@ -108,12 +108,16 @@ namespace CloudReg
 					|| std::get<0>(roughRight)->size() < cloudSize_first)
 		{
 			LOG(WARNING) << "roughLeft size:" << std::get<0>(roughLeft)->size()
-				<< "or roughRight:" << std::get<0>(roughRight)->size() << " < " << cloudSize_first;
+				<< " or roughRight:" << std::get<0>(roughRight)->size() << " < " << cloudSize_first
+				<< " height:" << height;
+			
+			auto left = calcCornerArea(leftSeg, pLeftCloud, height, true, calcWidth_second, calcLength_second);
+			auto right = calcCornerArea(rightSeg, pRightCloud, height, false, calcWidth_second, calcLength_second);
 			calcMeassurment_t meassurment;
 			meassurment.value = -1;
-			meassurment.rangeSeg = std::get<1>(roughLeft);
-			meassurment.rangeSeg.insert(meassurment.rangeSeg.end(), 
-						std::get<1>(roughRight).begin(), std::get<1>(roughRight).end());
+			meassurment.rangeSeg = std::get<1>(left);
+			meassurment.rangeSeg.insert(meassurment.rangeSeg.end(),
+				std::get<1>(right).begin(), std::get<1>(right).end());
 			return meassurment;
 		}
 
@@ -150,7 +154,8 @@ namespace CloudReg
 					|| std::get<0>(right)->size() < cloudSize_second)
 		{
 			LOG(WARNING) << "left size:" << std::get<0>(left)->size()
-				<< "or right:" << std::get<0>(right)->size() << " < " << cloudSize_second;
+				<< "or right:" << std::get<0>(right)->size() << " < " << cloudSize_second
+				<< " height:" << height;
 			calcMeassurment_t meassurment;
 			meassurment.value = -1;
 			meassurment.rangeSeg = std::get<1>(left);
@@ -270,7 +275,8 @@ namespace CloudReg
 							 return left[optIndex] > right[optIndex];});
 					}
 					auto ptB = vecPt.front();
-					if ((ptA - ptB).norm() < calcLengthTh)
+					
+					if (ptB[2] < 0.3 && (ptA - ptB).norm() < calcLengthTh)
 					{						
 						LOG(INFO) << "CalcCorner: check hole in wall " << std::to_string(idx.first) 
 							<< " too short: " << (ptA - ptB).norm();
@@ -307,7 +313,7 @@ namespace CloudReg
 							 return left[optIndex] > right[optIndex];});
 					}
 					auto ptB = vecPt.back();
-					if ((ptA - ptB).norm() < calcLengthTh)
+					if (ptB[2] < 0.3 && (ptA - ptB).norm() < calcLengthTh)
 					{
 						LOG(INFO) << "CalcCorner: check hole in wall " << std::to_string(idx.second) 
 							<< " too short: " << (ptA - ptB).norm();
