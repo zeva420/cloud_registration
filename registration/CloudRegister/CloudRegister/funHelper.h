@@ -21,6 +21,7 @@ namespace CloudReg
 							pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered);
 
 	double pointToPLaneDist(const Eigen::Vector4d &plane, const pcl::PointXYZ &p);
+	double pointToPLaneDist(const Eigen::VectorXf &plane, const pcl::PointXYZ &p);
 
 	Eigen::Vector3d pointToPlaneRoot(const Eigen::Vector4d &plane, const Eigen::Vector3d &point);
 

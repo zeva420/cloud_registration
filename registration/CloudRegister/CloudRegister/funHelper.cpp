@@ -126,6 +126,16 @@ namespace CloudReg
 		return dist;
 	}
 
+	double pointToPLaneDist(const Eigen::VectorXf &plane, const pcl::PointXYZ &p)
+	{
+		Eigen::Vector3d n(plane(0), plane(1), plane(2));
+		double d = plane(3);
+		Eigen::Vector3d point(p.x, p.y, p.z);
+		double dist = (n.dot(point) + d) / n.norm();
+		return dist;
+	}
+
+
 	Eigen::Vector3d pointToPlaneRoot(const Eigen::Vector4d &plane, const Eigen::Vector3d &point)
 	{
 		Eigen::Vector3d root;
