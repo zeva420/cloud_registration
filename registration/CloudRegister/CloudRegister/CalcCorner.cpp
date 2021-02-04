@@ -128,6 +128,22 @@ namespace CloudReg
 		planeFitting(planeFitDistTh, std::get<0>(roughRight), coeff2, inlierIdxs2);
 		auto inliers2 = geo::getSubSet(std::get<0>(roughRight), inlierIdxs2, false);
 
+		pcl::PointCloud<pcl::PointXYZ>::Ptr inliers1_new(new pcl::PointCloud<pcl::PointXYZ>());
+		pcl::PointCloud<pcl::PointXYZ>::Ptr inliers2_new(new pcl::PointCloud<pcl::PointXYZ>());
+		auto checkPt = [&](const PointCloud::Ptr pCheck) {
+			for (auto& pt : pCheck->points)
+			{
+				double dist1 = pointToPLaneDist(coeff1,pt);
+				double dist2 = pointToPLaneDist(coeff2,pt);
+				auto pTmp = dist1 < dist2 ? inliers1_new : inliers2_new;
+				pTmp->points.emplace_back(pt);
+			}
+		};
+		checkPt(inliers1);
+		checkPt(inliers2);
+		inliers1->swap(*inliers1_new);
+		inliers2->swap(*inliers2_new);
+
 		//get small-scale area
 		auto left = calcCornerArea(leftSeg, inliers1, height, true, calcWidth_second, calcLength_second);
 		auto right = calcCornerArea(rightSeg, inliers2, height, false, calcWidth_second, calcLength_second);
@@ -172,16 +188,17 @@ namespace CloudReg
 		meassurment.rangeSeg = std::get<1>(left);
 		meassurment.rangeSeg.insert(meassurment.rangeSeg.end(), 
 					std::get<1>(right).begin(), std::get<1>(right).end());
-		
+
+#define VISUALIZATION_ENABLED		
 #ifdef VISUALIZATION_ENABLED
 		{
 			std::string file_name = "corner-" + std::to_string(idxPair.first) 
-					+ "-" + std::to_string(idxPair.second) + "-0.3m" + ".pcd";
+					+ "-" + std::to_string(idxPair.second) + "-" + std::to_string(height) + ".pcd";
 			saveTwoPieceCloud(file_name, std::get<0>(roughLeft), std::get<0>(roughRight));
 		}
 		{
 			std::string file_name = "inliers-" + std::to_string(idxPair.first) 
-					+ "-" + std::to_string(idxPair.second) + "-0.3m" + ".pcd";
+					+ "-" + std::to_string(idxPair.second) + "-" + std::to_string(height) + ".pcd";
 			saveTwoPieceCloud(file_name, std::get<1>(ret), std::get<2>(ret));
 		}			
 #endif
