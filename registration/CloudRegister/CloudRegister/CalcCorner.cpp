@@ -10,10 +10,6 @@ namespace CloudReg
 		calcCornerArea(const seg_pair_t& seg, const PointCloud::Ptr pWall, double height, bool bLeft,
 			double calcWidth, double calcLength)
 	{
-		pcl::PointXYZ min;
-		pcl::PointXYZ max;		
-		pcl::getMinMax3D(*pWall, min, max);
-
 		std::size_t optIndex,indexOther; 
 		int dir;
 		std::tie(optIndex,indexOther,dir) = getWallGrowAxisAndDir(seg.first, seg.second);
@@ -35,8 +31,8 @@ namespace CloudReg
 			pt2[2] = height;
 		}
 
-		double thickness = indexOther == 0 ? (max.x - min.x) : (max.y - min.y);	
-		auto vecPt = createRulerBox(std::make_pair(pt1,pt2),indexOther,thickness,calcWidth*2);
+
+		auto vecPt = createRulerBox(std::make_pair(pt1,pt2),indexOther,0.02,calcWidth*2);
 		auto rangeSeg = calcBoxSegPair(vecPt);
 		auto filerPt = getRulerCorners(vecPt); 
 		auto pCloud = filerCloudByConvexHull(pWall,filerPt); 
