@@ -39,12 +39,24 @@ namespace CloudReg
         LOG(ERROR) << "adjust ruler height filed";
     }
 
+    PointCloud::Ptr getSingleWallCloud(const std::vector<seg_pair_t>& vecWallHorizen, const PointCloud::Ptr pCloud,
+                                        Eigen::Vector3d pt1, Eigen::Vector3d pt2, double length, int minIndex)
+    {
+        Eigen::Vector3d rulern = (pt2 - pt1).normalized();
+        adjustHeight(vecWallHorizen, 0., pt1, pt2, rulern);
+        std::vector<Eigen::Vector3d> rulerFilter = createRulerBox(std::make_pair(pt1, pt2), minIndex, 0., length); // 
+        std::vector<Eigen::Vector3d> corners = getRulerCorners(rulerFilter);
+        auto rangeCloud = filerCloudByConvexHull(pCloud, corners);
+        return rangeCloud;
+    }
+
     calcMeassurment_t calOneRulerData(const std::vector<seg_pair_t>& vecWallHorizen,
                                         double length,
                                         seg_pair_t Vertical1, seg_pair_t Vertical2, int type,
                                         const PointCloud::Ptr pCloud,
                                         Eigen::Vector4d cadPlane, int hAixs)
     {
+        int minIndex = (hAixs == 0) ? 1 : 0;
         Eigen::Vector3d pt1 = (Vertical1.first[2] < Vertical1.second[2] + 1e-6) ? Vertical1.first : Vertical1.second;
         Eigen::Vector3d pt2 = (Vertical1.first == pt1) ? Vertical1.second : Vertical1.first;
         pt1[2] = vecWallHorizen[0].first[2];
@@ -53,6 +65,13 @@ namespace CloudReg
         Eigen::Vector3d rulern = (pt2 - pt1).normalized();
         Eigen::Vector3d horizenn = (pt3 - pt1).normalized();
         double moveDis = (length < 1) ? 0.2 : 0.3;
+        auto singWallCloud = getSingleWallCloud(vecWallHorizen, pCloud, pt1 + length / 2 * horizenn, pt2 + length / 2 * horizenn, length, minIndex);
+       
+        Eigen::VectorXf coeff;
+        std::vector<int> inlierIdxs;
+        planeFitting(0.005, singWallCloud, coeff, inlierIdxs);
+        auto inliers = geo::getSubSet(singWallCloud, inlierIdxs, false);
+        
         if (type == 1)       //left ruler
         {
             pt1 = pt1 + moveDis * horizenn;
@@ -84,23 +103,18 @@ namespace CloudReg
             }
         }
 
-        int minIndex = (hAixs == 0) ? 1 : 0;
+        
         Eigen::Vector3d valid1, valid2;
         std::vector<double> sumAll;
         calcMeassurment_t item;
         auto vecRulerPts = ininterpolateSeg(pt1, pt2, 0.025);
         LOG(INFO) << "ruler get boxes num: " << vecRulerPts.size();
 
-        // Eigen::VectorXf coeff;
-        // std::vector<int> inlierIdxs;
-        // planeFitting(0.005, pCloud, coeff, inlierIdxs);
-        // auto inliers = geo::getSubSet(pCloud, inlierIdxs, false);
-
         for(size_t i = 0; i < vecRulerPts.size() - 1; ++i)
         {
             auto pt = vecRulerPts[i];
             auto corners = calBox(pt, type, hAixs, rulern, item);
-            auto rangeCloud = filerCloudByConvexHull(pCloud, corners);
+            auto rangeCloud = filerCloudByConvexHull(inliers, corners);
             if (rangeCloud->points.empty()) 
             {
                 // LOG(ERROR) << "filerCloudByRange failed";
@@ -119,7 +133,7 @@ namespace CloudReg
         {
             auto pt = vecRulerPts[i];
             auto corners = calBox(pt, type, hAixs, rulern, item);
-            auto rangeCloud = filerCloudByConvexHull(pCloud, corners);
+            auto rangeCloud = filerCloudByConvexHull(inliers, corners);
             if (rangeCloud->points.empty()) 
             {
                 // LOG(ERROR) << "filerCloudByRange failed";
