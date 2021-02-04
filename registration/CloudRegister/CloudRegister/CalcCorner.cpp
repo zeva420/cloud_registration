@@ -219,10 +219,11 @@ namespace CloudReg
 			if (calcLength(leftWall.back()) < calcLengthTh ||
 				calcLength(rightWall.back()) < calcLengthTh)
 			{
-				LOG(INFO) << "CalcCorner: between wall: " << std::to_string(idx.first) << " - " << std::to_string(idx.second) << " too short";
+				LOG(INFO) << "CalcCorner: between wall: " << std::to_string(idx.first) << " - " 
+					<< std::to_string(idx.second) << " too short:";
 				continue;
 			}
-			std::cout << "CalcCorner:calc between: " << std::to_string(idx.first) << " - " << std::to_string(idx.second) << std::endl;
+			
 			//check hole
 			{
 				//the dir is first = right
@@ -255,7 +256,8 @@ namespace CloudReg
 					auto ptB = vecPt.front();
 					if ((ptA - ptB).norm() < calcLengthTh)
 					{						
-						LOG(INFO) << "CalcCorner: check hole in wall " << std::to_string(idx.first) << " too short";
+						LOG(INFO) << "CalcCorner: check hole in wall " << std::to_string(idx.first) 
+							<< " too short: " << (ptA - ptB).norm();
 						continue;
 					}
 				}
@@ -291,7 +293,8 @@ namespace CloudReg
 					auto ptB = vecPt.back();
 					if ((ptA - ptB).norm() < calcLengthTh)
 					{
-						LOG(INFO) << "CalcCorner: check hole in wall " << std::to_string(idx.second) << " too short";
+						LOG(INFO) << "CalcCorner: check hole in wall " << std::to_string(idx.second) 
+							<< " too short: " << (ptA - ptB).norm();
 						continue;
 					}
 				}
