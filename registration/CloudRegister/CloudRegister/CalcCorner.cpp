@@ -127,20 +127,26 @@ namespace CloudReg
 		std::vector<int> inlierIdxs2;
 		planeFitting(planeFitDistTh, std::get<0>(roughRight), coeff2, inlierIdxs2);
 		auto inliers2 = geo::getSubSet(std::get<0>(roughRight), inlierIdxs2, false);
+		
 
-		pcl::PointCloud<pcl::PointXYZ>::Ptr inliers1_new(new pcl::PointCloud<pcl::PointXYZ>());
-		pcl::PointCloud<pcl::PointXYZ>::Ptr inliers2_new(new pcl::PointCloud<pcl::PointXYZ>());
+		PointCloud::Ptr inliers1_new(new PointCloud());
+		PointCloud::Ptr inliers2_new(new PointCloud());
 		auto checkPt = [&](const PointCloud::Ptr pCheck) {
 			for (auto& pt : pCheck->points)
 			{
-				double dist1 = pointToPLaneDist(coeff1,pt);
-				double dist2 = pointToPLaneDist(coeff2,pt);
-				auto pTmp = dist1 < dist2 ? inliers1_new : inliers2_new;
-				pTmp->points.emplace_back(pt);
-			}
+				double dist1 = std::fabs(pointToPLaneDist(coeff1,pt));
+				double dist2 = std::fabs(pointToPLaneDist(coeff2,pt));
+				if (dist1 < dist2) inliers1_new->push_back(pt);
+				else	inliers2_new->push_back(pt);			
+			}			
 		};
+
+			
 		checkPt(inliers1);
 		checkPt(inliers2);
+		//std::cout << "before:"<< inliers1->points.size() << " -- " << inliers2->points.size() << std::endl;
+		//std::cout << "after:" <<inliers1_new->points.size() << " -- " << inliers2_new->points.size() << std::endl;
+		
 		inliers1->swap(*inliers1_new);
 		inliers2->swap(*inliers2_new);
 
@@ -189,7 +195,7 @@ namespace CloudReg
 		meassurment.rangeSeg.insert(meassurment.rangeSeg.end(), 
 					std::get<1>(right).begin(), std::get<1>(right).end());
 
-#define VISUALIZATION_ENABLED		
+//#define VISUALIZATION_ENABLED		
 #ifdef VISUALIZATION_ENABLED
 		{
 			std::string file_name = "corner-" + std::to_string(idxPair.first) 
