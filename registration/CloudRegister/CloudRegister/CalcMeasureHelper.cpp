@@ -598,7 +598,6 @@ namespace CloudReg
 				planeFitting(0.005, rangeCloud, coeff, inlierIdxs);
 				auto inliers = geo::getSubSet(rangeCloud, inlierIdxs, false);
 				filterClouds.emplace_back(inliers);
-				// std::cout << "rangeCloud " << rangeCloud->points.size() << "---" << inliers->points.size() << std::endl;
 				// filterClouds.emplace_back(rangeCloud);
 			}
                
@@ -632,6 +631,10 @@ namespace CloudReg
                 // LOG(ERROR) << "filerCloudByRange failed";
                 continue;
             }
+			
+			if(plane != Eigen::Vector4d(0, 0, 0, 0))
+				plane1 = plane;
+				
             double sum = 0;
             for (auto &p : rangeCloud->points)
                 sum += pointToPLaneDist(plane1, p); //sum += std::fabs(pointToPLaneDist(plane, p));

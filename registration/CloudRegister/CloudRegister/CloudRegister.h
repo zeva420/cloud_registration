@@ -60,16 +60,16 @@ namespace CloudReg
 
 		//planeType = cloud, use cloud plane, else use cad plane
 		std::map<int, std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>>
-			calcWallVerticality(const std::string& planeType = "cad");
+			calcWallVerticality(const std::string& planeType = "local"); // "cloud" "cad" "local"
 
 		std::map<int, std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>>
-			calcWallFlatness(const std::string& planeType = "cad");
+			calcWallFlatness(const std::string& planeType = "local"); // "cloud" "cad" "local"
 
 		std::map<std::pair<int, int>,std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>>
     		calcAllSquareness(const double calcLengthTh = 1.);
 
 		std::vector<std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>> 
-    		calcRootFlatness(const std::string& planeType = "cad", const double calcLengthTh = 1.5);
+    		calcRootFlatness(const std::string& planeType = "local", const double calcLengthTh = 1.5); // "cloud" "cad" "local"
 
 	private:
 		

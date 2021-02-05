@@ -625,9 +625,11 @@ CloudRegister::calcWallVerticality(const std::string& planeType)
 				holeBorders.emplace_back(wall.cloudBorder_[j]);
 		}
 		
-		Eigen::Vector4d plane = wall.cadPlane_;
+		Eigen::Vector4d plane(0, 0, 0, 0);
 		if (planeType == "cloud")
 			plane = wall.cloudPlane_;
+		else if(planeType == "cad")
+			plane = wall.cadPlane_;
 			
 		auto result = calcVerticality(wallBorder, holeBorders, wall.pCloud_, plane, i);
 		auto measure = std::get<0>(result);
@@ -659,9 +661,11 @@ CloudRegister::calcWallFlatness(const std::string& planeType)
 				holeBorders.emplace_back(wall.cloudBorder_[j]);
 		}
 		
-		Eigen::Vector4d plane = wall.cadPlane_;
+		Eigen::Vector4d plane(0, 0, 0, 0);
 		if (planeType == "cloud")
 			plane = wall.cloudPlane_;
+		else if(planeType == "cad")
+			plane = wall.cadPlane_;
 			
 		auto result = calWallFlatness(wallBorder, holeBorders, wall.pCloud_, plane, i);
 		auto measure = std::get<0>(result);
@@ -704,9 +708,11 @@ CloudRegister::calcRootFlatness(const std::string& planeType, const double calcL
 {
 	const auto& itemRoot = mapCloudItem_[CLOUD_BOTTOM_E].front();
 	const auto& rootBorder = itemRoot.cloudBorder_.front();
-	Eigen::Vector4d plane = itemRoot.cadPlane_;
+	Eigen::Vector4d plane(0, 0, 0, 0);
 	if (planeType == "cloud")
 		plane = itemRoot.cloudPlane_;
+	else if(planeType == "cad")
+		plane = itemRoot.cadPlane_;
 	
 	auto result = calRootFlatness(rootBorder, plane, itemRoot.pCloud_, calcLengthTh);
 	return result;

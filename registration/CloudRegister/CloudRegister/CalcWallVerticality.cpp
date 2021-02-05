@@ -117,7 +117,10 @@ namespace CloudReg
         Eigen::Vector3d test(planeX[0], planeX[1], 0);
         test = test.normalized();
         Eigen::Vector4d plane1 = Eigen::Vector4d(test[0], test[1] , test[2], planeX[3]);
-       
+
+        if(cadPlane != Eigen::Vector4d(0, 0, 0, 0))
+            plane1 = cadPlane;
+        
         for(size_t i = 0; i < vecRulerPts.size() - 1; ++i)
         {
             auto pt = vecRulerPts[i];
