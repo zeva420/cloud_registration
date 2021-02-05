@@ -4,6 +4,47 @@
 namespace CloudReg
 {
 
+	void calcPlane(PointCloud::Ptr pCloud, const Eigen::Vector3d& sPt, const Eigen::Vector3d& ePt, const Eigen::Vector3d& pt, Eigen::Vector4d& plane)
+	{
+		auto calcPtOther = pointToPlaneRoot(plane, pt);
+
+		const double calcHalfPara = 0.05;
+		const double planeFitDistTh = 0.003;
+		pcl::PointXYZ min;
+		pcl::PointXYZ max;
+		pcl::getMinMax3D(*pCloud, min, max);
+
+		min.x = calcPtOther[0] - calcHalfPara;
+		min.y = calcPtOther[1] - calcHalfPara;
+		max.x = calcPtOther[0] + calcHalfPara;
+		max.y = calcPtOther[1] + calcHalfPara;
+
+		seg_pair_t seg;
+		seg.first << min.x, min.y + (max.y - min.y) / 2, min.z;
+		seg.second << max.x, min.y + (max.y - min.y) / 2, min.z;
+		auto vecPt = createRulerBox(seg, 2, 0.02, calcHalfPara * 2);
+
+
+		auto filerPt = getRulerCorners(vecPt);
+		auto pLeft = filerCloudByConvexHull(pCloud, filerPt);
+
+		if (!pLeft->points.empty())
+		{
+			Eigen::VectorXf coeff;
+			std::vector<int> inlierIdxs;
+
+			planeFitting(planeFitDistTh, pLeft, coeff, inlierIdxs);
+			if (inlierIdxs.size() > 50)
+			{
+				plane[0] = coeff[0];
+				plane[1] = coeff[1];
+				plane[2] = coeff[2];
+				plane[3] = coeff[3];
+				LOG(INFO) << "use cloud get new plane";
+			}
+		}
+	}
+
 	calcMeassurment_t calcArea(PointCloud::Ptr pRoof, const Eigen::Vector4d& plane, 
 			const Eigen::Vector3d& sPt, const Eigen::Vector3d& ePt, const Eigen::Vector3d& pt,
 			bool hasMoreLine)
@@ -230,12 +271,14 @@ namespace CloudReg
 	std::tuple<std::vector<calcIdx2Meassurment_t>,std::vector<seg_pair_t >>
 		CalcNetHeight(const std::vector<seg_pair_t>& roofBorder,
 			const PointCloud::Ptr pCloud,
+			const PointCloud::Ptr pOther,
 			const Eigen::Vector4d& plane,
 			const Eigen::Vector3d& center,
 			const std::string& name,
 			const double calcLengthTh,
 			const double moveRangeTh,
-			bool hasMoreLine)
+			bool hasMoreLine,
+			bool getNewPlane)
 	{
 		const Eigen::Vector3d& horizenSeg = roofBorder.front().first - roofBorder.front().second;
 		std::vector<std::size_t> vecVerticalIndex;
@@ -286,7 +329,11 @@ namespace CloudReg
 				std::vector<calcMeassurment_t> tmp;
 				for (auto& pt : vecCalcPt)
 				{
-					auto ret = calcArea(pCloud, plane, s1Pt, e1Pt, pt,hasMoreLine);
+					Eigen::Vector4d otherPlane = plane;
+					if (getNewPlane)
+						calcPlane(pOther, s1Pt, e1Pt, pt, otherPlane);
+					
+					auto ret = calcArea(pCloud, otherPlane, s1Pt, e1Pt, pt,hasMoreLine);
 					if (!ret.rangeSeg.empty())
 					{
 						tmp.emplace_back(ret);
@@ -360,7 +407,7 @@ namespace CloudReg
 		{
 			const std::string name = "roof_height_range.pcd";			
 			std::vector<seg_pair_t> cutSeg;
-			std::tie(vecroofRet, cutSeg) = CalcNetHeight(roofBorder,pRoof,calcPlane, center, name,calcLengthTh, moveRangeTh);
+			std::tie(vecroofRet, cutSeg) = CalcNetHeight(roofBorder,pRoof, pRoot, calcPlane, center, name,calcLengthTh, moveRangeTh);
 			calcAvgDiff(vecroofRet);
 			vecSeg1.insert(vecSeg1.end(),cutSeg.begin(), cutSeg.end());
 		}
@@ -369,7 +416,7 @@ namespace CloudReg
 		{
 			const std::string name = "root_height_range.pcd";
 			std::vector<seg_pair_t> cutSeg;
-			std::tie(vecrootRet, cutSeg) = CalcNetHeight(rootBorder,pRoot,calcPlane, center, name, calcLengthTh, moveRangeTh);
+			std::tie(vecrootRet, cutSeg) = CalcNetHeight(rootBorder,pRoot, pRoof, calcPlane, center, name, calcLengthTh, moveRangeTh);
 			calcAvgDiff(vecrootRet);
 			vecSeg2.insert(vecSeg2.end(), cutSeg.begin(), cutSeg.end());
 		}
