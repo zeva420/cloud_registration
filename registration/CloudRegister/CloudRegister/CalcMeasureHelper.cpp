@@ -593,13 +593,13 @@ namespace CloudReg
 			auto rangeCloud = filerCloudByConvexHull(pCloud, corners);
 			if (!rangeCloud->points.empty()) 
 			{
-				// Eigen::VectorXf coeff;
-				// std::vector<int> inlierIdxs;
-				// planeFitting(0.005, rangeCloud, coeff, inlierIdxs);
-				// auto inliers = geo::getSubSet(rangeCloud, inlierIdxs, false);
-				// filterClouds.emplace_back(inliers);
+				Eigen::VectorXf coeff;
+				std::vector<int> inlierIdxs;
+				planeFitting(0.005, rangeCloud, coeff, inlierIdxs);
+				auto inliers = geo::getSubSet(rangeCloud, inlierIdxs, false);
+				filterClouds.emplace_back(inliers);
 				// std::cout << "rangeCloud " << rangeCloud->points.size() << "---" << inliers->points.size() << std::endl;
-				filterClouds.emplace_back(rangeCloud);
+				// filterClouds.emplace_back(rangeCloud);
 			}
                
 			auto boxes = getAllRulerBox(ruler, thicknessDir, 0., 0.005, 0.01, 0.025); //step 5mm  len 10mm width 25mm
@@ -615,11 +615,13 @@ namespace CloudReg
         std::vector<double> sumAll;
         for(size_t i = 0; i < allBoxes.size(); ++i)
         {
+			Eigen::Vector4d plane1;
             auto box = allBoxes[i];
 			std::vector<Eigen::Vector3d> corners = getRulerCorners(box);
 			PointCloud::Ptr rangeCloud;
 			for(auto& filterCloud: filterClouds)
 			{
+				plane1 = calcPlaneParam(filterCloud);
 				rangeCloud = filerCloudByConvexHull(filterCloud, corners);
 				if (!rangeCloud->points.empty())
 					break;
@@ -632,7 +634,7 @@ namespace CloudReg
             }
             double sum = 0;
             for (auto &p : rangeCloud->points)
-                sum += std::fabs(pointToPLaneDist(plane, p));
+                sum += pointToPLaneDist(plane1, p); //sum += std::fabs(pointToPLaneDist(plane, p));
             double avg = sum / rangeCloud->points.size();
             sumAll.emplace_back(avg);
         }

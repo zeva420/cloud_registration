@@ -103,18 +103,26 @@ namespace CloudReg
             }
         }
 
-        
         Eigen::Vector3d valid1, valid2;
         std::vector<double> sumAll;
         calcMeassurment_t item;
         auto vecRulerPts = ininterpolateSeg(pt1, pt2, 0.025);
         LOG(INFO) << "ruler get boxes num: " << vecRulerPts.size();
 
+        std::vector<Eigen::Vector3d> rulerFilter = createRulerBox(std::make_pair(pt1, pt2), minIndex, 0., 0.04); // 
+        std::vector<Eigen::Vector3d> corners = getRulerCorners(rulerFilter);
+        auto inliers1 = filerCloudByConvexHull(inliers, corners);
+
+        auto planeX = calcPlaneParam(inliers1);
+        Eigen::Vector3d test(planeX[0], planeX[1], 0);
+        test = test.normalized();
+        Eigen::Vector4d plane1 = Eigen::Vector4d(test[0], test[1] , test[2], planeX[3]);
+       
         for(size_t i = 0; i < vecRulerPts.size() - 1; ++i)
         {
             auto pt = vecRulerPts[i];
             auto corners = calBox(pt, type, hAixs, rulern, item);
-            auto rangeCloud = filerCloudByConvexHull(inliers, corners);
+            auto rangeCloud = filerCloudByConvexHull(inliers1, corners);
             if (rangeCloud->points.empty()) 
             {
                 // LOG(ERROR) << "filerCloudByRange failed";
@@ -122,7 +130,7 @@ namespace CloudReg
             }
             double sum = 0;
             for (auto &p : rangeCloud->points)
-                sum += std::fabs(pointToPLaneDist(cadPlane, p));
+                sum += pointToPLaneDist(plane1, p);
             double avg = sum / rangeCloud->points.size();
             sumAll.emplace_back(avg);
             valid1 = pt;
@@ -133,7 +141,7 @@ namespace CloudReg
         {
             auto pt = vecRulerPts[i];
             auto corners = calBox(pt, type, hAixs, rulern, item);
-            auto rangeCloud = filerCloudByConvexHull(inliers, corners);
+            auto rangeCloud = filerCloudByConvexHull(inliers1, corners);
             if (rangeCloud->points.empty()) 
             {
                 // LOG(ERROR) << "filerCloudByRange failed";
@@ -141,7 +149,7 @@ namespace CloudReg
             }
             double sum = 0;
             for (auto &p : rangeCloud->points)
-                sum += std::fabs(pointToPLaneDist(cadPlane, p));
+                sum += pointToPLaneDist(plane1, p);
             double avg = sum / rangeCloud->points.size();
             sumAll.emplace_back(avg);
             valid2 = pt;
@@ -160,7 +168,7 @@ namespace CloudReg
         else
         {
             item.value = std::fabs(sumAll[0] - sumAll[1]);
-            LOG(INFO) << "verticality avg is " << item.value;
+            LOG(INFO) << "verticality avg is " << sumAll[0] << " " << sumAll[1] <<" "<<item.value;
             std::vector<Eigen::Vector3d> rPoints = createRulerBox(std::make_pair(valid1, valid2), minIndex, 0.025, 0.025);
             std::vector<seg_pair_t> pair =  calcBoxSegPair(rPoints);
             item.rangeSeg.insert(item.rangeSeg.end(), pair.begin(), pair.end());
