@@ -22,7 +22,7 @@
 
 #include "glog/logging.h"
 
-#define VISUALIZATION_ENABLED
+// #define VISUALIZATION_ENABLED
 namespace CloudReg
 {
 	Eigen::vector<Eigen::Vector3d> ininterpolateSeg(const Eigen::Vector3d& sPoint, const Eigen::Vector3d& ePoint, const double step)
@@ -462,9 +462,45 @@ namespace CloudReg
 	}
 
 	std::vector<Eigen::Vector3d> calcWallNodes(const std::string &name, 
-			pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, Eigen::Vector4d &cloudPlane,
-			const std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &outerSegs)
+			const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, 
+			const Eigen::Vector4d &cloudPlane,
+			const std::vector<std::vector<seg_pair_t>> &cadBorder,
+			const std::vector<seg_pair_t> &outerSegs)
 	{
+		//get cad outerSegs and cad holeSegs
+		const auto &cadOuterSegs = cadBorder.front();
+		std::vector<seg_pair_t> cadHoleSegs;
+		for (size_t k = 1; k < cadBorder.size(); k++)
+		{
+			const auto &vecSegs = cadBorder[k];
+			cadHoleSegs.insert(cadHoleSegs.end(), vecSegs.begin(), vecSegs.end());
+		}
+
+		auto dist_to_seg = [](const Eigen::Vector3d &point, const seg_pair_t &seg)->double {
+			Eigen::Vector3d p = seg.first;
+			Eigen::Vector3d n = (seg.second - seg.first).normalized();
+			double dist = (point - p).cross(n).norm();	
+			return dist;	
+		};
+		//find cloud outerSeg candidate which has overlap with holeSeg
+		std::vector<seg_pair_t> candidateSegs;
+		for (size_t j = 0; j < cadOuterSegs.size(); j++)
+		{
+			auto &seg1 = cadOuterSegs[j];
+			bool find = false;
+			for (auto &seg2 : cadHoleSegs)
+			{
+				if (dist_to_seg(seg1.first, seg2) < 1e-5 
+					&& dist_to_seg(seg1.second, seg2) < 1e-5)
+				{
+					find = true;
+					break;
+				}
+			}
+			if (find) candidateSegs.push_back(outerSegs[j]);
+		}
+
+		//detect lines in cloud wall
 		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filter(new pcl::PointCloud<pcl::PointXYZ>());
         projectionToPlane(cloudPlane, cloud, cloud_filter);
 
@@ -493,36 +529,60 @@ namespace CloudReg
 			Eigen::VectorXf params;
 			std::tie(indices, params) = geo::detectOneLineRansac(inputPoints, disthresh);
 			auto inliers = geo::getSubSet(inputPoints, indices, false);
-			detectLineCoeffs.push_back(params);
-			detectLinePoints.push_back(inliers);       
-
+			if (inliers->size() > 10)
+			{
+				Eigen::Vector3f n = params.block<3, 1>(3, 0).normalized();
+				bool isGood = false;
+				for (const auto &seg : cadHoleSegs)
+				{
+					Eigen::Vector3f segDir 
+						= (seg.second.cast<float>() - seg.first.cast<float>()).normalized();
+					float dot = std::fabs(n.dot(segDir));
+					if (dot > 0.996) 
+					{
+						isGood = true;
+						break;
+					}
+				}
+				if (isGood)
+				{
+					detectLineCoeffs.push_back(params);
+					detectLinePoints.push_back(inliers);  
+				}
+			}
 			auto tmpLeft = geo::getSubSet(inputPoints, indices, true);
 			inputPoints->swap(*tmpLeft);
 		}
 
 		auto inSameSideOfLine = [&cloudPlane](const Eigen::VectorXf &line, 
 				const pcl::PointCloud<pcl::PointXYZ>::Ptr inliers,
-				const double rate_Th)->std::pair<bool, int> {
+				const float rate_Th)->std::pair<bool, int> {
 			Eigen::Vector3f p = line.block<3, 1>(0, 0);
-			Eigen::Vector3f n = line.block<3, 1>(3, 0);	
+			Eigen::Vector3f n = line.block<3, 1>(3, 0).normalized();
 			Eigen::Vector3f planeNormal(cloudPlane(0), cloudPlane(1), cloudPlane(2));
-
+			planeNormal /= planeNormal.norm();
+			
 			int leftSum = 0;
 			int rightSum = 0;					
 			for (const auto &pt : inliers->points)
 			{
 				Eigen::Vector3f point(pt.x, pt.y, pt.z);
-				float flag = (point - p).cross(n).dot(planeNormal);
+				Eigen::Vector3f cross = (point - p).cross(n);
+				float dist = cross.norm();
+				if (dist < 0.05) continue;
+
+				float flag = cross.dot(planeNormal);
 				int &side = (flag < 0) ? leftSum : rightSum;	
 				side++;
 			}
-			float rate1 = (float)leftSum / (float)inliers->size();
-			float rate2 = (float)rightSum / (float)inliers->size();
-			if (rate1 > rate_Th)
+			int total = leftSum + rightSum;
+			float leftRate = (float)leftSum / (float)total;
+			float rightRate = (float)rightSum / (float)total;
+			if (leftRate > rate_Th)
 			{
 				return std::make_pair(true, -1);
 			}
-			else if (rate2 > rate_Th)
+			else if (rightRate > rate_Th)
 			{
 				return std::make_pair(true, 1);
 			}
@@ -532,19 +592,55 @@ namespace CloudReg
 			}
 		};
 
+		auto tooClose = [](const Eigen::VectorXf &line, 
+			const pcl::PointCloud<pcl::PointXYZ>::Ptr inliers, 
+			const float rate_Th)->bool 
+		{
+			Eigen::Vector3f p = line.block<3, 1>(0, 0);
+			Eigen::Vector3f n = line.block<3, 1>(3, 0).normalized();	
+			int sum = 0;
+			for (const auto &pt : inliers->points)
+			{
+				Eigen::Vector3f point(pt.x, pt.y, pt.z);
+				Eigen::Vector3f cross = (point - p).cross(n);
+				float dist = cross.norm();
+				if (dist < 0.05) 
+				{
+					sum++;
+				}
+			}	
+			float rate = (float)sum / (float)inliers->size();
+			if (rate > rate_Th)
+			{
+				return true;
+			}
+			return false;
+		};
+
+		auto dist_to_line = [](const Eigen::Vector3f &point, const Eigen::VectorXf &line)->double {
+			Eigen::Vector3f p = line.block<3, 1>(0, 0);
+			Eigen::Vector3f n = line.block<3, 1>(3, 0).normalized();
+			float dist = (point - p).cross(n).norm();	
+			return dist;	
+		};
+
 		//check inside line, delete outerside line
-		std::vector<Eigen::VectorXf> lineCoeffs;
-		std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> linePoints;
-		const double rate_Th = 0.95;
+		std::vector<Eigen::VectorXf> leftLineCoeffs;
+		std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> leftLinePoints;	
+		const float rate_Th = 0.95;
+		const float distTh = 0.4;
+		const float dotTh = 0.996;
 		for (size_t i = 0; i < detectLineCoeffs.size(); i++)
 		{
+			Eigen::VectorXf line = detectLineCoeffs[i];
 			bool isInsideLine = false;
 			int lastSide = 0;
-			Eigen::VectorXf line = detectLineCoeffs[i];
 			for (size_t j = 0; j < detectLinePoints.size(); j++)
 			{
 				if (i == j) continue;
 				pcl::PointCloud<pcl::PointXYZ>::Ptr inliers = detectLinePoints[j];
+				if(true == tooClose(line, inliers, rate_Th)) continue;
+
 				auto ret = inSameSideOfLine(line, inliers, rate_Th);
 				if (false == ret.first) 
 				{
@@ -556,17 +652,42 @@ namespace CloudReg
 					isInsideLine = true;
 					break;
 				}
+				
 				lastSide = ret.second;
 			}
+
+			if (false == isInsideLine)
+			{
+				isInsideLine = true;
+				Eigen::Vector3f n = line.block<3, 1>(3, 0).normalized();
+				float minDist = float(RAND_MAX);
+				for (const auto &seg : outerSegs)
+				{
+					Eigen::Vector3f segDir = (seg.second.cast<float>() - seg.first.cast<float>()).normalized();
+					float dot = std::fabs(n.dot(segDir));
+					if (dot < dotTh) continue;
+
+					float dist1 = dist_to_line(seg.first.cast<float>(), line);
+					float dist2 = dist_to_line(seg.second.cast<float>(), line);
+					minDist = std::min(minDist, (dist1+dist2)/2.0f);
+				}
+				if (minDist < distTh)
+				{
+					isInsideLine = false;			
+				}				
+			}
+
 			if (true == isInsideLine)
 			{
-				lineCoeffs.push_back(line);
-				linePoints.push_back(detectLinePoints[i]);
+				leftLineCoeffs.push_back(line);
+				leftLinePoints.push_back(detectLinePoints[i]);
 			}
 		}
-		int deleteNum = detectLineCoeffs.size() - lineCoeffs.size();
-		
-		for (const auto &seg : outerSegs)
+		int deleteNum = detectLineCoeffs.size() - leftLineCoeffs.size();
+
+		std::vector<Eigen::VectorXf> lineCoeffs = leftLineCoeffs;
+		std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> linePoints = leftLinePoints;
+		for (const auto &seg : candidateSegs)
 		{
 			Eigen::VectorXf line(6);
 			Eigen::Vector3d n = (seg.second - seg.first).normalized();
@@ -581,8 +702,11 @@ namespace CloudReg
 			}
 			linePoints.push_back(points); 
 		}
-		LOG(INFO) << "lineCoeffs:" << lineCoeffs.size() << ", linePoints:" << linePoints.size()
-			<< " deleteNum:" << deleteNum << " outerSegs:" << outerSegs.size();
+		LOG(INFO) << "detectLineCoeffs:" << detectLineCoeffs.size()
+			<< " leftLineCoeffs:" << leftLineCoeffs.size()
+			<< " candidateSegs:" << candidateSegs.size()
+			<< " lineCoeffs:" << lineCoeffs.size()
+			<< " outerSegs:" << outerSegs.size();
  
 		//calc intersection node between two lines
 		std::vector<Eigen::Vector3d> vecNodes;
@@ -612,6 +736,56 @@ namespace CloudReg
 
 //debug files		
 #ifdef VISUALIZATION_ENABLED
+		{	
+			std::default_random_engine e;
+    		std::uniform_real_distribution<double> random(0,1);
+			pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloud(new pcl::PointCloud<pcl::PointXYZRGB>());
+			for (size_t i = 0; i < detectLinePoints.size(); ++i)
+			{
+				auto cloud = detectLinePoints[i];
+				int r = int(random(e)*255);
+				int g = int(random(e)*255);
+				int b = int(random(e)*255);
+				for (auto &p1 : cloud->points)
+				{
+					pcl::PointXYZRGB p2;
+					p2.x = p1.x;
+					p2.y = p1.y;
+					p2.z = p1.z;
+					p2.r = r;
+					p2.g = g;
+					p2.b = b;
+					pCloud->push_back(p2);
+				}	
+			}
+			std::string file_name = "origLine-" + name + ".pcd";
+			pcl::io::savePCDFile(file_name, *pCloud);				
+		}
+		{	
+			std::default_random_engine e;
+    		std::uniform_real_distribution<double> random(0,1);
+			pcl::PointCloud<pcl::PointXYZRGB>::Ptr pCloud(new pcl::PointCloud<pcl::PointXYZRGB>());
+			for (size_t i = 0; i < leftLinePoints.size(); ++i)
+			{
+				auto cloud = leftLinePoints[i];
+				int r = int(random(e)*255);
+				int g = int(random(e)*255);
+				int b = int(random(e)*255);
+				for (auto &p1 : cloud->points)
+				{
+					pcl::PointXYZRGB p2;
+					p2.x = p1.x;
+					p2.y = p1.y;
+					p2.z = p1.z;
+					p2.r = r;
+					p2.g = g;
+					p2.b = b;
+					pCloud->push_back(p2);
+				}	
+			}
+			std::string file_name = "leftLine-" + name + ".pcd";
+			pcl::io::savePCDFile(file_name, *pCloud);				
+		}
 		{	
 			std::default_random_engine e;
     		std::uniform_real_distribution<double> random(0,1);
