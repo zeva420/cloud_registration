@@ -45,7 +45,8 @@ namespace CloudReg
 
 	std::pair<double, std::pair<Eigen::Vector3d, Eigen::Vector3d>> findNearestSeg(
 										const std::vector<Eigen::Vector3d> &vecPts, 
-										const std::pair<Eigen::Vector3d, Eigen::Vector3d> &seg);
+										const std::pair<Eigen::Vector3d, Eigen::Vector3d> &seg,
+										const double searchDist);
 
 	std::pair<double, Eigen::Vector3d> findNearestPt(
 			const std::vector<Eigen::Vector3d> &vecPts, const Eigen::Vector3d &point);

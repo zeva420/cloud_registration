@@ -328,9 +328,10 @@ namespace CloudReg
 
 	std::pair<double, std::pair<Eigen::Vector3d, Eigen::Vector3d>> findNearestSeg(
 			const std::vector<Eigen::Vector3d> &vecPts, 
-			const std::pair<Eigen::Vector3d, Eigen::Vector3d> &seg)
+			const std::pair<Eigen::Vector3d, Eigen::Vector3d> &seg,
+			const double searchDist)
 	{
-		const double distTh = 0.4 *0.4;
+		const double distTh = searchDist * searchDist;
 		const double dotTh = 0.996;
 
 		auto findCadidatePts = [](const std::vector<Eigen::Vector3d> &vecPts, const Eigen::Vector3d &point,
@@ -347,6 +348,7 @@ namespace CloudReg
 		std::map<double, Eigen::Vector3d> candidatesMap1 = findCadidatePts(vecPts, seg.first, distTh);
 		std::map<double, Eigen::Vector3d> candidatesMap2 = findCadidatePts(vecPts, seg.second, distTh);
 
+		std::vector<std::pair<double, std::pair<Eigen::Vector3d, Eigen::Vector3d>>> vecTemp;
 		Eigen::Vector3d normlizedSeg = (seg.first - seg.second) / (seg.first - seg.second).norm();
 		for (const auto &it1 : candidatesMap1)
 		{
@@ -355,12 +357,25 @@ namespace CloudReg
 			{
 				const auto &pt2 = it2.second;
 				double dot = (pt1 - pt2).dot(normlizedSeg) / (pt1 - pt2).norm();
+
 				if (dot > dotTh)
 				{
-					double aveDist = (it1.first + it2.first) / 2.0;
-					return std::make_pair(aveDist, std::make_pair(pt1, pt2));
+					double dist1 = (pt1 - seg.first).norm();
+					double dist2 = (pt2 - seg.second).norm();
+					//std::cout << "dist" << dist1 << " " << dist2 << std::endl;
+					vecTemp.emplace_back(std::make_pair(std::fabs(dist1-dist2), std::make_pair(pt1, pt2)));
+					//double aveDist = (it1.first + it2.first) / 2.0;
+					//return std::make_pair(aveDist, std::make_pair(pt1, pt2));
 				}
 			}
+		}
+
+		if (!vecTemp.empty())
+		{
+			std::sort(vecTemp.begin(), vecTemp.end(), [&](const std::pair<double, std::pair<Eigen::Vector3d, Eigen::Vector3d>>& left, const std::pair<double, std::pair<Eigen::Vector3d, Eigen::Vector3d>>& right) {
+				return left.first < right.first;});
+
+			return vecTemp.front();
 		}
 
 		auto ptPair = std::make_pair(Eigen::Vector3d(0.0, 0.0, 0.0), Eigen::Vector3d(0.0, 0.0, 0.0));

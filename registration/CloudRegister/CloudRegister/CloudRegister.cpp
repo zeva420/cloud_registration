@@ -164,19 +164,19 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 		return;
 	}
 
-	const double distTh = 0.3;
+	const double distTh = 0.1;
 	auto findNearestSegOfNodeOrCloudPt = [&](const std::vector<Eigen::Vector3d> &pCloud, 
 			const std::vector<Eigen::Vector3d> &vecNodes, 
 			const seg_pair_t &seg)
 			->std::pair<double, seg_pair_t> {
-		auto ret1 = findNearestSeg(vecNodes, seg);
+		auto ret1 = findNearestSeg(vecNodes, seg,0.4);
 		if (ret1.first < distTh)
 		{
 			LOG(INFO) << "find node seg, dist1:" <<ret1.first;
 			return ret1;
 		}
 
-		auto ret2 = findNearestSeg(pCloud, seg);
+		auto ret2 = findNearestSeg(pCloud, seg, 0.4);
 		LOG(INFO) << "empty, to find cloud seg, dist1:" <<ret2.first;
 		return ret2;
 	};
