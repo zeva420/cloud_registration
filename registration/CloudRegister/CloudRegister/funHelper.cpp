@@ -22,7 +22,6 @@
 
 #include "glog/logging.h"
 
-// #define VISUALIZATION_ENABLED
 namespace CloudReg
 {
 	Eigen::vector<Eigen::Vector3d> ininterpolateSeg(const Eigen::Vector3d& sPoint, const Eigen::Vector3d& ePoint, const double step)
@@ -749,14 +748,18 @@ namespace CloudReg
 
 				auto ret1 = findNearestPt(vecPts1, interSectionPt);
 				auto ret2 = findNearestPt(vecPts2, interSectionPt);
-				if (ret1.first > 1.5 || ret2.first > 1.5) continue;
+				if (ret1.first > 0.8 || ret2.first > 0.8) continue;
 
 				vecNodes.push_back(interSectionPt);
 			}
+			
 		}
+
+		
 		LOG(INFO) << "vecNodes:" << vecNodes.size();
 
-//debug files		
+//debug files
+
 #ifdef VISUALIZATION_ENABLED
 		{	
 			std::default_random_engine e;

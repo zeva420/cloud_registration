@@ -95,21 +95,26 @@ namespace CloudReg
 				continue;
 			}
 			seg_pair_t toSeg = std::make_pair(ptA, ptB);
-			seg_pair_t calcSeg = vecHorizen.front();
+			double length1 = (vecHorizen.front().first - vecHorizen.front().second).norm();
+			double length2 = (vecHorizen.back().first - vecHorizen.back().second).norm();
+			seg_pair_t calcSeg = length1 >= length2 ? vecHorizen.front() : vecHorizen.back();
 
-
-			bool hasOverlap;
-			Eigen::Vector3d s1Pt, e1Pt, s2Pt, e2Pt;
-			std::tie(hasOverlap, s1Pt, e1Pt, s2Pt, e2Pt) = calcOverlap(toSeg, calcSeg);
-
-			if (hasOverlap)
+			if (vecHorizen.front().first[2] < 0.5)
 			{
-				if (ptA.norm() != s1Pt.norm())
+
+				bool hasOverlap;
+				Eigen::Vector3d s1Pt, e1Pt, s2Pt, e2Pt;
+				std::tie(hasOverlap, s1Pt, e1Pt, s2Pt, e2Pt) = calcOverlap(toSeg, calcSeg);
+
+				if (hasOverlap)
 				{
-					LOG(INFO) << "getOverlapWithHole seg length: " << (ptA - s1Pt).norm();
-					vecSeg.emplace_back(std::make_pair(ptA, s1Pt));
+					if (ptA.norm() != s1Pt.norm())
+					{
+						LOG(INFO) << "getOverlapWithHole seg length: " << (ptA - s1Pt).norm();
+						vecSeg.emplace_back(std::make_pair(ptA, s1Pt));
+					}
+					ptA = e1Pt;
 				}
-				ptA = e1Pt;
 			}
 
 			if (i == vecHole.size() - 1)
@@ -162,7 +167,7 @@ namespace CloudReg
 	{
 		std::vector<Eigen::Vector3d> vecPts;
 
-		const double MaxMoveTh = 0.18;
+		const double MaxMoveTh = 0.2;
 		Eigen::Vector3d pt(0, 0, 0);
 		Eigen::Vector3d ptLeft(0, 0, 0); //move to edge
 		Eigen::Vector3d ptRight(0, 0, 0);//move to center
@@ -231,13 +236,19 @@ namespace CloudReg
 
 				if (hasOverlap)
 				{
-				
-					std::size_t optIndex, indexOther;
-					int dir;
-					std::tie(optIndex, indexOther, dir) = getWallGrowAxisAndDir(s1Pt, e1Pt);
-					s1Pt[optIndex] += dir * 0.01;
-					e1Pt[optIndex] -= dir * 0.01;
+					double length = (s1Pt - e1Pt).norm();
+					if (length < 0.2)
+					{
+						auto vecPt = ininterpolateSeg(s1Pt,e1Pt,0.001);
+						std::size_t moveStep = (length*1000)/4;
+						if (vecPt.size() > moveStep*2)
+						{
+							s1Pt = vecPt[moveStep];
+							e1Pt = vecPt[vecPt.size() - moveStep - 1];
+						}
+						LOG(INFO) << "rangeSegCalc: add overlap:" << length;
 
+					}
 					rangeSeg.first = s1Pt;
 					rangeSeg.second = e1Pt;
 					moveOk = true;
@@ -262,8 +273,11 @@ namespace CloudReg
 		{
 			seg_pair_t toSeg = rootBorder[calcIndex[i]];
 			if ((toSeg.first - toSeg.second).norm() < calcLengthTh)
+			{
+				LOG(INFO) << "type: " << optName << " findSeg:" << calcIndex[i] 
+					<< " too short:" << (toSeg.first - toSeg.second).norm();
 				continue;
-			
+			}
 
 			//if(calcIndex[i] != 0) continue;
 
@@ -273,10 +287,13 @@ namespace CloudReg
 				
 				seg_pair_t calcSeg = rootBorder[calcIndex[j]];
 				if ((calcSeg.first - calcSeg.second).norm() < calcLengthTh)
+				{
+					LOG(INFO) << "type: " << optName << " findSeg:" << calcIndex[j]
+						<< " too short:" << (calcSeg.first - calcSeg.second).norm();
 					continue;
+				}
 
-
-				//LOG(INFO)<< "calcSeg: " << vecHorizenIndex[i] <<" " << vecHorizenIndex[j];
+				//LOG(INFO) << "type: " << optName << " calcSeg: " << vecHorizenIndex[i] <<" " << vecHorizenIndex[j];
 				bool hasOverlap;
 				Eigen::Vector3d s1Pt, e1Pt, s2Pt,e2Pt;
 				//toSeg and calcSeg has same dir
@@ -284,9 +301,12 @@ namespace CloudReg
 				
 				if (!hasOverlap) continue;
 
-				if((s1Pt-e1Pt).norm() < calcLengthTh || (s2Pt-e2Pt).norm() < calcLengthTh)
+				if ((s1Pt - e1Pt).norm() < calcLengthTh || (s2Pt - e2Pt).norm() < calcLengthTh)
+				{
+					LOG(INFO) << "type: " << optName << " findSeg:" << calcIndex[i] << " " << calcIndex[j]
+						<< " too short: " << (s1Pt - e1Pt).norm() << " " << (s2Pt - e2Pt).norm();
 					continue;
-		
+				}
 				vecCutSeg.emplace_back(std::make_pair(s1Pt,s2Pt));
 				vecCutSeg.emplace_back(std::make_pair(e1Pt,e2Pt));
 				LOG(INFO)<< "type: "<< optName  << " findSeg:" << calcIndex[i] <<" " << calcIndex[j];
