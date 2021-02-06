@@ -348,7 +348,6 @@ namespace CloudReg
 		std::map<double, Eigen::Vector3d> candidatesMap1 = findCadidatePts(vecPts, seg.first, distTh);
 		std::map<double, Eigen::Vector3d> candidatesMap2 = findCadidatePts(vecPts, seg.second, distTh);
 
-		std::vector<std::pair<double, std::pair<Eigen::Vector3d, Eigen::Vector3d>>> vecTemp;
 		Eigen::Vector3d normlizedSeg = (seg.first - seg.second) / (seg.first - seg.second).norm();
 		for (const auto &it1 : candidatesMap1)
 		{
@@ -357,25 +356,12 @@ namespace CloudReg
 			{
 				const auto &pt2 = it2.second;
 				double dot = (pt1 - pt2).dot(normlizedSeg) / (pt1 - pt2).norm();
-
 				if (dot > dotTh)
 				{
-					double dist1 = (pt1 - seg.first).norm();
-					double dist2 = (pt2 - seg.second).norm();
-					//std::cout << "dist" << dist1 << " " << dist2 << std::endl;
-					vecTemp.emplace_back(std::make_pair(std::fabs(dist1-dist2), std::make_pair(pt1, pt2)));
-					//double aveDist = (it1.first + it2.first) / 2.0;
-					//return std::make_pair(aveDist, std::make_pair(pt1, pt2));
+					double aveDist = (it1.first + it2.first) / 2.0;
+					return std::make_pair(aveDist, std::make_pair(pt1, pt2));
 				}
 			}
-		}
-
-		if (!vecTemp.empty())
-		{
-			std::sort(vecTemp.begin(), vecTemp.end(), [&](const std::pair<double, std::pair<Eigen::Vector3d, Eigen::Vector3d>>& left, const std::pair<double, std::pair<Eigen::Vector3d, Eigen::Vector3d>>& right) {
-				return left.first < right.first;});
-
-			return vecTemp.front();
 		}
 
 		auto ptPair = std::make_pair(Eigen::Vector3d(0.0, 0.0, 0.0), Eigen::Vector3d(0.0, 0.0, 0.0));
@@ -536,6 +522,7 @@ namespace CloudReg
 		pcl::copyPointCloud(*boundPoints, *inputPoints);
 
 		float disthresh = 0.01;
+		float connect_thresh = 0.3;
 		std::vector<Eigen::VectorXf> detectLineCoeffs;
 		std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> detectLinePoints;
 		while (inputPoints->size() > 10)
@@ -543,30 +530,50 @@ namespace CloudReg
 			std::vector<int> indices;
 			Eigen::VectorXf params;
 			std::tie(indices, params) = geo::detectOneLineRansac(inputPoints, disthresh);
-			auto inliers = geo::getSubSet(inputPoints, indices, false);
-			if (inliers->size() > 10)
+			if (indices.size() < 10) break;
+
+			//check direction
+			Eigen::Vector3f n = params.block<3, 1>(3, 0).normalized();
+			bool isGoodDir = false;
+			for (const auto &seg : cadHoleSegs)
 			{
-				Eigen::Vector3f n = params.block<3, 1>(3, 0).normalized();
-				bool isGood = false;
-				for (const auto &seg : cadHoleSegs)
+				Eigen::Vector3f segDir 
+					= (seg.second.cast<float>() - seg.first.cast<float>()).normalized();
+				float dot = std::fabs(n.dot(segDir));
+				if (dot > 0.996) 
 				{
-					Eigen::Vector3f segDir 
-						= (seg.second.cast<float>() - seg.first.cast<float>()).normalized();
-					float dot = std::fabs(n.dot(segDir));
-					if (dot > 0.996) 
-					{
-						isGood = true;
-						break;
-					}
-				}
-				if (isGood)
-				{
-					detectLineCoeffs.push_back(params);
-					detectLinePoints.push_back(inliers);  
+					isGoodDir = true;
+					break;
 				}
 			}
-			auto tmpLeft = geo::getSubSet(inputPoints, indices, true);
-			inputPoints->swap(*tmpLeft);
+
+			//get multi-section of inliers, remove too small section outliers
+			auto inliers = geo::getSubSet(inputPoints, indices, false);
+			if (isGoodDir)
+			{
+				PointCloud::Ptr goodInliers(new PointCloud());
+				PointCloud::Ptr tmpInput(new PointCloud());
+				pcl::copyPointCloud(*inliers, *tmpInput);
+				while (tmpInput->size() > 10)
+				{
+					std::vector<int> sectionIndex = clusterMainStructure(tmpInput, connect_thresh);
+					if (sectionIndex.size() < 10) break;
+
+					auto section = geo::getSubSet(tmpInput, sectionIndex, false);
+					goodInliers->insert(goodInliers->end(), section->begin(), section->end());
+					
+					auto tmpLeft = geo::getSubSet(tmpInput, sectionIndex, true);
+					tmpInput->swap(*tmpLeft);
+				}
+				if (goodInliers->size() > 10)
+				{
+					detectLineCoeffs.push_back(params);
+					detectLinePoints.push_back(goodInliers);  
+				}				
+			}
+			
+			auto leftPoints = geo::getSubSet(inputPoints, indices, true);
+			inputPoints->swap(*leftPoints);
 		}
 
 		auto inSameSideOfLine = [&cloudPlane](const Eigen::VectorXf &line, 
