@@ -638,8 +638,7 @@ bool CloudBorder::matchLineToCadHoleSeg(
 			const auto &seg = sortSegs[j];
 			Eigen::Vector3f seg_vec = seg.second.cast<float>() - seg.first.cast<float>();
 			Eigen::Vector3f segDir = seg_vec.normalized();
-			//cloud is allways in right side of segDir,
-			//rule: dir of segDir.cross(cadPlaneNormal) is left(flag = -1), the reverse dir is right(flag = 1)
+			//NOte: cloud is allways in right side of segDir,
 			//rule: dir of segDir.cross(cadPlaneNormal) is right(flag = 1), the reverse dir is left(flag = -1)
 			int segFlag = 1;
 
