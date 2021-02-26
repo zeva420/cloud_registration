@@ -715,21 +715,6 @@ CloudRegister::calcAllCorner(const double calcLengthTh)
 	
 	result = CalcCorner(allWallBorder, holeBorder, vecCloud, calcLengthTh);
 	
-	std::stringstream ss;
-	ss << "*****calc All Corner:" << std::endl;
-	for (const auto &it : result)
-	{
-		const auto &pair = it.first;
-		const auto &vecValue = it.second;
-		ss << "wall pair:" << pair.first << "-" << pair.second << ", 0.3m-1.5m: ";
-		for (auto &v : vecValue)
-		{
-			ss << v.value << "  ";
-		}
-		ss << std::endl;
-	}
-	LOG(INFO) << ss.str();
-
 	return result;
 }
 
