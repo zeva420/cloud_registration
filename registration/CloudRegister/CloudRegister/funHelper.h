@@ -58,19 +58,6 @@ namespace CloudReg
 							const std::set<std::set<int>> &idGroups, 
 							std::vector<Eigen::Vector3d> &focalPointVec);
 
-	std::vector<Eigen::Vector3d> calcWallNodes(const std::string &name, 
-			const pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
-			const Eigen::Vector4d &cloudPlane,
-			const std::vector<std::vector<seg_pair_t>> &cadBorder,
-			const std::vector<seg_pair_t> &outerSegs);
-
-	pcl::PointCloud<pcl::PointXYZ>::Ptr calcCloudBorder(
-			const std::string &name,
-			pcl::PointCloud<pcl::PointXYZ>::Ptr cloud,
-			Eigen::Vector4d &cloudPlane,
-			std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &cadBorder,
-			std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> &cloudBorder);	
-
 	double distToLine(const Eigen::Vector3d& p, 
 						const Eigen::Vector3d& s, const Eigen::Vector3d& e);
 

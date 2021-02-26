@@ -5,6 +5,7 @@
 #include "CalcMeasureHelper.h"
 #include "CADModel.h"
 #include "TransformOptimize.h"
+#include "CloudBorder.h"
 #include "CloudSegment.h"
 #include "CalcCorner.h"
 #include "CalcNetHeight.h"
@@ -224,19 +225,28 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 
 			LOG(INFO) << "------get hole border for " << name << "-" << i << "------";
 			const auto &outerSegs = item.cloudBorder_.front();
-			std::vector<Eigen::Vector3d> vecNodes;
-			vecNodes = calcWallNodes(name + std::to_string(i), item.pCloud_, item.cloudPlane_, 
-						item.cadBorder_, outerSegs);
-		
+
+			std::map<size_t, std::map<size_t, std::vector<Eigen::Vector3d>>> mapHole2Nodes;
+			CloudBorder obj;
+			mapHole2Nodes = obj.calcWallNodes(name + std::to_string(i), item.pCloud_, item.cloudPlane_, 
+						item.cadBorder_, item.cadPlane_, outerSegs);
+
 			//find hole segs
+			std::vector<Eigen::Vector3d> allNodes;
 			auto cloudPts = convertCloudToEigenVec(item.pCloud_);
-			for (int k = 0; k < item.cadBorder_.size(); k++)
+			for (int k = 1; k < item.cadBorder_.size(); k++)
 			{
-				if (0 == k) continue;
 				const auto &vecSegs = item.cadBorder_[k];
 				std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> cloudSegs;
-				for (const auto &seg : vecSegs)
+				for (size_t j = 0; j < vecSegs.size(); j++)
 				{
+					const auto &seg = vecSegs[j];
+					std::vector<Eigen::Vector3d> vecNodes;
+					if (mapHole2Nodes.count(k) && mapHole2Nodes[k].count(j))
+					{
+						vecNodes = mapHole2Nodes[k][j];
+						allNodes.insert(allNodes.end(), vecNodes.begin(), vecNodes.end());
+					}
 					std::pair<double, std::pair<Eigen::Vector3d, Eigen::Vector3d>> bestSeg;
 					bestSeg = findNearestSegOfNodeOrCloudPt(cloudPts, vecNodes, seg);
 					if (bestSeg.first < distTh) cloudSegs.push_back(bestSeg.second);
@@ -253,12 +263,12 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 					 << " != cloudBorder_.size:" << item.cloudBorder_.size();
 			}
 #ifdef VISUALIZATION_ENABLED
-			if (!vecNodes.empty())
+			if (!allNodes.empty())
 			{
 				pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud(new pcl::PointCloud<pcl::PointXYZ>());
-				for (size_t i = 0; i < vecNodes.size(); ++i)
+				for (size_t i = 0; i < allNodes.size(); ++i)
 				{
-					pcl::PointXYZ p(vecNodes[i](0), vecNodes[i](1), vecNodes[i](2));
+					pcl::PointXYZ p(allNodes[i](0), allNodes[i](1), allNodes[i](2));
 					pCloud->push_back(p);
 				}			
 				std::string file_name = "vecNodes-" + name + "-" + std::to_string(i)  + ".pcd";

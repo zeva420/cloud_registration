@@ -75,6 +75,7 @@ CloudRegister/GeometryUtils.cpp
 CloudRegister/TransformOptimize.cpp
 CloudRegister/CloudSegment.cpp
 CloudRegister/SimpleViewer.cpp
+CloudRegister/CloudBorder.cpp
 CloudRegister/CalcNetHeight.cpp
 CloudRegister/CalcHoleMeasure.cpp
 CloudRegister/CalcBayAndDepthMeasure.cpp
