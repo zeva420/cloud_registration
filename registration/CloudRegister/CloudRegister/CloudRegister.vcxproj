@@ -161,6 +161,7 @@
     <ClCompile Include="CalcSquareness.cpp" />
     <ClCompile Include="CalcWallFlatness.cpp" />
     <ClCompile Include="CalcWallVerticality.cpp" />
+    <ClCompile Include="CloudBorder.cpp" />
     <ClCompile Include="CloudRefine.cpp" />
     <ClCompile Include="CloudRegister.cpp" />
     <ClCompile Include="CloudSegment.cpp" />
@@ -183,6 +184,7 @@
     <ClInclude Include="CalcSquareness.h" />
     <ClInclude Include="CalcWallFlatness.h" />
     <ClInclude Include="CalcWallVerticality.h" />
+    <ClInclude Include="CloudBorder.h" />
     <ClInclude Include="CloudRefine.h" />
     <ClInclude Include="CloudRegister.h" />
     <ClInclude Include="CloudSegment.h" />

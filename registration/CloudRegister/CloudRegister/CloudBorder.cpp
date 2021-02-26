@@ -3,10 +3,9 @@
 #include "CalcMeasureHelper.h"
 #include "glog/logging.h"
 
-#define VISUALIZATION_ENABLED
+//#define VISUALIZATION_ENABLED
 namespace CloudReg
 {
-
 std::map<size_t, std::map<size_t, std::vector<Eigen::Vector3d>>> CloudBorder::calcWallNodes(
 		const std::string &name, 
 		const PointCloud::Ptr cloud, 
@@ -608,10 +607,10 @@ bool CloudBorder::anticlockwiseSortSegVec(
 			<< " matchIdxs.size:" << matchIdxs.size();
 		return false;
 	}
-	else
-	{
-		return true;
-	}
+	
+	
+	return true;
+	
 }
 
 bool CloudBorder::matchLineToCadHoleSeg(
@@ -687,9 +686,9 @@ bool CloudBorder::matchLineToCadHoleSeg(
 						+ "-sort" + std::to_string(j)
 						+ "-seg" + std::to_string(origIdx) + ".pcd";
 				savePcdFileOfBelongLines(file_name, linePoints, lineIdxs, seg);			
-			}				
-		}
+			}						
 #endif
+		}
 		mapHole2Lines[k] = mapSeg2Lines;
 	}
 
