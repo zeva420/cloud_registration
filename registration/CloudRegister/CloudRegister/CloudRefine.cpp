@@ -64,6 +64,85 @@ namespace CloudReg
 		LOG(INFO) << "after:" << pCloudA->points.size() << " -- " << pCloudB->points.size();
 	}
 
+	void refineByHole(const std::vector<seg_pair_t>& border, PointCloud::Ptr pCloud)
+	{
+		const double calcLengthTh = 0.01f;
+		const Eigen::Vector3d& horizenSeg = border.front().first - border.front().second;
+		std::vector<std::size_t> vecVerticalIndex;
+		std::vector<std::size_t> vecHorizenIndex;
+		groupDirectionIndex(horizenSeg, border, vecVerticalIndex, vecHorizenIndex);
+
+		std::vector<PointCloud::Ptr> vecCloud;
+
+		const auto& calcIndex = vecVerticalIndex;
+
+		for (std::size_t i = 0; i < calcIndex.size(); i++)
+		{
+			seg_pair_t toSeg = border[calcIndex[i]];
+
+
+			for (std::size_t j = i + 1; j < calcIndex.size(); j++)
+			{
+				seg_pair_t calcSeg = border[calcIndex[j]];
+
+				bool hasOverlap;
+				Eigen::Vector3d s1Pt, e1Pt, s2Pt, e2Pt;
+				std::tie(hasOverlap, s1Pt, e1Pt, s2Pt, e2Pt) = calcOverlap(toSeg, calcSeg);
+
+				if (!hasOverlap) continue;
+
+				if ((s1Pt - e1Pt).norm() < calcLengthTh || (s2Pt - e2Pt).norm() < calcLengthTh)
+					continue;
+
+				std::vector<Eigen::Vector3d> filerPt;
+				filerPt.emplace_back(s1Pt);
+				filerPt.emplace_back(e1Pt);
+				filerPt.emplace_back(e2Pt);
+				filerPt.emplace_back(s2Pt);
+
+				auto pNew = filerCloudByConvexHull(pCloud, filerPt, false);
+				pCloud->swap(*pNew);
+
+			}
+		}
+
+
+	}
+
+	PointCloud::Ptr refineBySegment(const std::vector<seg_pair_t>& border, const PointCloud::Ptr pCloud)
+	{
+		Eigen::vector<Eigen::Vector2f> points;
+		for (auto& value : border)
+			points.emplace_back(Eigen::Vector2f(value.first[0], value.first[1]));
+
+		auto is_in_contour = [&](const Point& p) {
+			float y = p.y;
+			std::vector<float> xs;
+			for (std::size_t i = 0; i < points.size(); ++i) {
+				const Eigen::Vector2f& s = points[i];
+				const Eigen::Vector2f& e = points[(i + 1) % points.size()];
+				if (std::fabs(e(1) - s(1)) < 1e-6) continue;
+
+				float t = (y - s(1)) / (e(1) - s(1));
+				if (t > 0 && t < 1) {
+					float x = (1 - t) * s(0) + t * e(0);
+					xs.push_back(x);
+				}
+			}
+
+			std::sort(xs.begin(), xs.end());
+			for (std::size_t i = 0; i < xs.size(); ++i) {
+				if (xs[i] > p.x) return i % 2 == 1;
+			}
+
+			return false;
+		};
+		auto pNew = geo::filterPoints(pCloud, is_in_contour);
+
+		return pNew;
+
+	}
+
 	void refineTop(std::map<CloudItemType, vecItems_t>& ret)
 	{
 				
