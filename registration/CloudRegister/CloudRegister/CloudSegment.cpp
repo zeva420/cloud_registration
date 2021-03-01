@@ -58,7 +58,7 @@ CloudSegment::SegmentResult CloudSegment::run() {
 	}
 
 #ifdef VISUALIZATION_ENABLED
-	if (0) {
+	if (1) {
 		SimpleViewer viewer;
 		viewer.addCloud(sparsedCloud());
 		viewer.show();
@@ -1089,7 +1089,8 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 	// normals
 	auto normals = computeNormals(cloud);
 
-	auto get_slice = [&](const Eigen::vector<Eigen::Vector3d>& points) {
+	auto get_slice = [&](const Eigen::vector<Eigen::Vector3d>& points,
+		const std::vector<Eigen::vector<Eigen::Vector3d>>& holes) {
 		LL_ASSERT(points.size() > 2 && "?");
 
 		// crop box, 
@@ -1158,9 +1159,60 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 			viewer.show();
 		}
 
-		return *std::max_element(planes.begin(), planes.end(), [](const PlaneCloud& pc1, const PlaneCloud& pc2) {
-			return pc1.cloud_->size() < pc2.cloud_->size();
+		if (planes.size() == 1)  return planes.front();
+
+		std::stringstream ss;
+		for (auto pr : ll::enumerate(planes))
+			ss << pr.index << "] " << pr.iter->cloud_->size() << ", \t" << pr.iter->abcd_.transpose() << "\n";
+		LOG(INFO) << "more than one planes were detected: \n" << ss.str();
+
+		if (0) {
+			SimpleViewer viewer;
+			auto add_outline = [&viewer](const Eigen::vector<Eigen::Vector3d>& outline) {
+				for (std::size_t i = 0; i < outline.size(); ++i) {
+					auto s = geo::P_(outline[i].cast<float>());
+					auto e = geo::P_(outline[(i + 1) % outline.size()].cast<float>());
+					viewer.addSegment(s, e, 255., 255., 255.);
+				}
+			};
+
+			for (const auto& plane : planes) viewer.addCloud(plane.cloud_);
+			add_outline(points);
+			for (const auto& hole : holes) add_outline(hole);
+
+			viewer.show();
+		}
+
+		// we now check if we should merge them into one.
+		std::sort(planes.begin(), planes.end(), [](const PlaneCloud& pc1, const PlaneCloud& pc2) {
+			return pc1.cloud_->size() > pc2.cloud_->size();
 		});
+		auto base = planes.front();
+
+		for (std::size_t i = 1; i < planes.size(); ++i) {
+			const auto& plane = planes[i];
+			double p = plane.abcd_.block<3, 1>(0, 0).cross(base.abcd_.block<3, 1>(0, 0)).norm();
+			if (p > 0.02) continue;
+
+			// parallel, then we check each points
+			std::size_t inners = std::count_if(plane.cloud_->points.begin(), plane.cloud_->points.end(),
+				[&points, &holes](const Point& p) {
+				Eigen::Vector3d vp(p.x, p.y, p.z);
+				return geo::isInShape2D(vp, points, holes);
+			});
+
+			float ratio = static_cast<float>(inners) / plane.cloud_->size();
+			LOG(INFO) << ll::unsafe_format("inner ratio: %d / %d = %.2f %%", inners, plane.cloud_->size(), ratio*100.f);
+			if (ratio > 0.7f) {
+				base.cloud_->points.insert(base.cloud_->points.end(), plane.cloud_->points.begin(), plane.cloud_->points.end());
+				LOG(INFO) << "a piece joined: " << plane.cloud_->size();
+			}
+		}
+
+		base.cloud_->width = 1;
+		base.cloud_->height = base.cloud_->size();
+
+		return base;
 	};
 
 	// for roof only, copy from refineSegmentResult.
@@ -1287,9 +1339,28 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 
 	SegmentResult sr(T_);
 
+	std::vector<Eigen::vector<Eigen::Vector3d>> noholes;
+	const auto& walls = cadModel_.getTypedModelItems(ITEM_WALL_E);
+	std::vector<std::vector<ModelItem>> wallHoles(walls.size());
+	if (cadModel_.containModels(ITEM_HOLE_E)) {
+		const auto& holes = cadModel_.getTypedModelItems(ITEM_HOLE_E);
+		for (const auto& hole : holes) {
+			if (hole.parentIndex_ >= 0 && hole.parentIndex_ < walls.size()) wallHoles[hole.parentIndex_].push_back(hole);
+			else LOG(WARNING) << "invalid hole parent index: " << hole.parentIndex_;
+		}
+	}
+	for (auto pr : ll::zip(walls.begin(), walls.end(), wallHoles.begin(), wallHoles.end())) {
+		const auto& wall = *pr.first;
+		const auto& holes = *pr.second;
+
+		auto slice = get_slice(wall.points_, ll::mapf([](const ModelItem& mi) { return mi.points_; }, holes));
+		sr.clouds_[ITEM_WALL_E].emplace_back(slice);
+	}
+
+
 	for (int i = 0; i < ITEM_MAX_E; ++i) {
 		ModelItemType mit = static_cast<ModelItemType>(i);
-		if (mit == ITEM_HOLE_E) continue; // we dont care about holes.
+		if (mit == ITEM_HOLE_E || mit == ITEM_WALL_E) continue; // we dont care about holes. and, we alreay procced the walls.
 
 		if (mit == ITEM_BOTTOM_E) {
 			// floor need handle carefully.
@@ -1347,14 +1418,14 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 			});
 
 			sr.clouds_[mit].emplace_back(pc);
-		} 
+		}
 		//else if (mit == ITEM_TOP_E) {
 		//	for (const auto& mi : cadModel_.getTypedModelItems(mit))
 		//		sr.clouds_[mit].emplace_back(get_roof_slice(mi.points_));
 		//} 
 		else {
 			for (const auto& mi : cadModel_.getTypedModelItems(mit))
-				sr.clouds_[mit].emplace_back(get_slice(mi.points_));
+				sr.clouds_[mit].emplace_back(get_slice(mi.points_, noholes));
 		}
 	}
 
@@ -1442,6 +1513,7 @@ void CloudSegment::_show_result(const SegmentResult& sr) const {
 #if VISUALIZATION_ENABLED	
 	SimpleViewer viewer;
 
+	// viewer.addCloud(sparsedCloud_, 128., 128., 128.);
 	for (const auto& pr : sr.clouds_)
 		for (const auto& pc : pr.second)
 			if (pc.cloud_)

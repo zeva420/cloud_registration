@@ -20,6 +20,7 @@
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/filters/conditional_removal.h>
 #include "funHelper.h"
+#include "glog/logging.h"
 
 // trans2d
 #define RBLOCK(T) T.block<2, 2>(0, 0)
@@ -99,12 +100,12 @@ float distance_to_segment_2d(const Eigen::Vector2f& p, const Eigen::Vector2f& s,
 }
 
 std::vector<std::size_t> sort_points_counter_clockwise(const Eigen::vector<Eigen::Vector2f>& points) {
-	#ifdef UBUNTU_SWITCH
+#ifdef UBUNTU_SWITCH
 	auto cen_theta = ll::mapf([](const Eigen::Vector2f& p) { return (float)std::atan2(double(p[1]), double(p[0])); }, points);
-	#else
+#else
 	auto cen_theta = ll::mapf([](const Eigen::Vector2f& p) { return std::atan2f(p[1], p[0]); }, points);
-	#endif
-	
+#endif
+
 	auto indices = ll::range(cen_theta.size());
 	std::sort(indices.begin(), indices.end(), [&cen_theta](std::size_t i, std::size_t j) { return cen_theta[i] < cen_theta[j]; });
 
@@ -121,6 +122,74 @@ SegmentIntersectInfo zIntersectSegment(const Eigen::Vector3d& a, const Eigen::Ve
 	if (sii.valid()) sii.point_ = a * (1 - sii.lambda_) + b * sii.lambda_;
 
 	return sii;
+}
+
+Eigen::vector<Eigen::Vector3d> intersectContour(const Eigen::Vector3d& s, const Eigen::Vector3d& e,
+	const Eigen::vector<Eigen::Vector3d>& points) {
+	Eigen::Vector3d se = e - s;
+
+	Eigen::vector<Eigen::Vector3d> intersections;
+	for (std::size_t i = 0; i < points.size(); ++i) {
+		Eigen::Vector3d s2 = points[i];
+		Eigen::Vector3d e2 = points[(i + 1) % points.size()];
+		Eigen::Vector3d s2e2 = e2 - s2;
+
+		Eigen::Vector3d c1 = (s2 - s).cross(se);
+		Eigen::Vector3d c2 = s2e2.cross(se);
+		double t = -c2.transpose().dot(c1) / c2.squaredNorm();
+
+		if (t > 0. && t < 1.) intersections.emplace_back(s2 + s2e2 * t);
+	}
+
+	return intersections;
+}
+
+bool isInShape2D(const Eigen::Vector3d& point, const Eigen::vector<Eigen::Vector3d>& outline, const std::vector<Eigen::vector<Eigen::Vector3d> >& holes) {
+	Eigen::Vector3d minp = Eigen::Vector3d::Ones() * 100.; //! 
+	Eigen::Vector3d maxp = Eigen::Vector3d::Ones() * -100.;
+	for (const Eigen::Vector3d& p : outline) {
+		for (int i = 0; i < 3; ++i) {
+			if (p(i) < minp(i)) minp(i) = p(i);
+			if (p(i) > maxp(i)) maxp(i) = p(i);
+		}
+	}
+
+	// this is not very readable, may refactor someday. or, just write more duplicate codes...
+	int dim1{ 0 }, dim2{ 1 }, dimfix{ 2 };
+	Eigen::Vector3d dp = maxp - minp;
+	if (dp(0) < 1e-6) std::swap(dimfix, dim1);
+	else if (dp(1) < 1e-6) std::swap(dimfix, dim2);
+
+	//todo: should use margin check instead.
+	for (int i = 0; i < 3; ++i)
+		if (i != dimfix) 
+			if (point[i] > maxp[i] || point[i] < minp[i]) return false;
+
+	// we check dim1 & dim2
+	Eigen::Vector3d s = point;
+	Eigen::Vector3d e = Eigen::Vector3d::Zero();
+	e[dim1] = 1.; // just need to pass the point
+	e += point;
+
+	Eigen::vector<Eigen::Vector3d> intersections = intersectContour(s, e, outline);
+	if (intersections.empty()) return false;
+
+	for (const auto& hole : holes) {
+		Eigen::vector<Eigen::Vector3d> ins = intersectContour(s, e, hole);
+		intersections.insert(intersections.end(), ins.begin(), ins.end());
+	}
+
+	if (!intersections.empty() && intersections.size() % 2 != 0) {
+		LOG(INFO) << "intersections issue, cannot judge, intersection size: " << intersections.size();
+		return false;
+	}
+
+	Eigen::Vector3d se = e - s;
+	std::size_t left = std::count_if(intersections.begin(), intersections.end(), [&s, &se](const Eigen::Vector3d& ip) {
+		return (ip - s).dot(se) < 0.;
+	});
+
+	return left % 2 == 1;
 }
 
 // cloud
@@ -142,13 +211,13 @@ PointCloud::Ptr downsampleUniformly(PointCloud::Ptr cloud, float radius) {
 	pcl::UniformSampling<Point> filter;
 	filter.setInputCloud(cloud);
 	filter.setRadiusSearch(radius);
-	#ifdef UBUNTU_SWITCH
+#ifdef UBUNTU_SWITCH
 	pcl::PointCloud<int> keypointIndices;
 	filter.compute(keypointIndices);
 	pcl::copyPointCloud(*cloud, keypointIndices.points, *filtered);
-	#else
+#else
 	filter.filter(*filtered);
-	#endif
+#endif
 
 	return filtered;
 }

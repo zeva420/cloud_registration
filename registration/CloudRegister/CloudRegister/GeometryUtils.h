@@ -73,6 +73,10 @@ struct SegmentIntersectInfo {
 };
 extern SegmentIntersectInfo zIntersectSegment(const Eigen::Vector3d& a, const Eigen::Vector3d& b, double z);
 
+// see CADModel::InterpolateShape
+// warn, no error check.
+extern bool isInShape2D(const Eigen::Vector3d& point, const Eigen::vector<Eigen::Vector3d>& outline, const std::vector<Eigen::vector<Eigen::Vector3d> >& holes);
+
 /* cloud operations */
 
 extern PointCloud::Ptr passThrough(PointCloud::Ptr cloud, const std::string& field, float low, float high);

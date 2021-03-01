@@ -453,10 +453,10 @@ namespace CloudReg
 			}
 
 #ifdef VISUALIZATION_ENABLED
-			std::string name = optName + "_wall_" +std::to_string(value.first.first) + "_" + std::to_string(value.first.second) + ".pcd";
-			pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_filtered(new pcl::PointCloud<pcl::PointXYZ>());
-			uniformSampling(0.01, vecCloud[value.first.first], pCloud_filtered);
-			writePCDFile(name, pCloud_filtered, vecRange);
+			//std::string name = optName + "_wall_" +std::to_string(value.first.first) + "_" + std::to_string(value.first.second) + ".pcd";
+			//pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_filtered(new pcl::PointCloud<pcl::PointXYZ>());
+			//uniformSampling(0.01, vecCloud[value.first.first], pCloud_filtered);
+			//writePCDFile(name, pCloud_filtered, vecRange);
 #endif // DEBUG
 		}
 		//std::string name = "root_" + optName + ".pcd";
