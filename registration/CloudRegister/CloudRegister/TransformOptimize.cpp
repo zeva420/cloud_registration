@@ -16,8 +16,8 @@
 #include <pcl/sample_consensus/sac_model_plane.h>
 #include <pcl/registration/transformation_estimation_svd.h>
 
-
-
+#include <pcl/filters/voxel_grid.h>
+#include <pcl/common/common.h>
 #include <random>
 
 
@@ -175,12 +175,30 @@ bool TransformOptimize::getCloudPlaneCoeff(const Eigen::Vector3d &center)
 	return true;
 }
 
+
+
+
 bool TransformOptimize::calcPlaneCoeff(PointCloud::Ptr inputCloud, 
                     const Eigen::Vector3d &center, Eigen::Vector4d &planeCoeff)
 {
     Eigen::VectorXf coeff;
     std::vector<int> inlierIdxs;
-    planeFitting(0.003, inputCloud, coeff, inlierIdxs);
+	//planeFittingBySac(0.01, inputCloud, coeff, inlierIdxs);
+
+	pcl::PointXYZ pointmax, pointmin;
+	pcl::getMinMax3D(*inputCloud, pointmin, pointmax);
+
+	float sx = (pointmax.x - pointmin.x)*0.008f / 6.71416;
+	float sy = (pointmax.y - pointmin.y)*0.008f / 5.72985;
+	float sz = (pointmax.z - pointmin.z)*0.008f / 3.59943;
+
+	pcl::PointCloud<pcl::PointXYZ>::Ptr cloudFiltered(new pcl::PointCloud<pcl::PointXYZ>());
+	pcl::VoxelGrid<pcl::PointXYZ> avg;
+	avg.setInputCloud(inputCloud);
+	avg.setLeafSize(sx, sy, sz);
+	avg.filter(*cloudFiltered);
+
+	planeFitting(0.003, cloudFiltered, coeff, inlierIdxs);
     // auto inliers = geo::getSubSet(inputCloud, inlierIdxs, false);
     // Eigen::Vector4d plane = calcPlaneParam(inliers);
 
