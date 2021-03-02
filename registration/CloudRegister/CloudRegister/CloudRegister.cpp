@@ -33,7 +33,7 @@ CloudRegister::~CloudRegister() {
 }
 
 bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecCloudPtr,
-	const std::string& CAD_File, const bool bNeedOptimize) {
+	const std::string& CAD_File, const bool bNeedOptimize, const bool bOriginCloud) {
 
 	if (vecCloudPtr.empty())
 	{
@@ -73,7 +73,7 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	}
     Eigen::Vector3f tmpPt = sr.T_.block<3,3>(0,0) * Eigen::Vector3f(0,0,0) + sr.T_.block<3,1>(0,3);
 	centerPt_ << tmpPt(0), tmpPt(1), tmpPt(2);
-	if(!obj.run(clouds, model, centerPt_, bNeedOptimize))
+	if(!obj.run(clouds, model, centerPt_, bNeedOptimize, bOriginCloud))
 	{
 		LOG(INFO) << "transform opt failed.";
 		return false;

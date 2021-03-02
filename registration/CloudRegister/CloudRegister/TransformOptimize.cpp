@@ -26,8 +26,9 @@ namespace CloudReg
 bool TransformOptimize::run(
                 const std::map<ModelItemType, std::vector<PointCloud::Ptr>> &mapCloudItem,
                 const CADModel &cadModel, const Eigen::Vector3d &center,
-				const bool bNeedOptimize)
+				const bool bNeedOptimize, const bool bOriginCloud)
 {
+	bOriginCloud_ = bOriginCloud;
 	for (auto &it : mapCloudItem)
 	{
 		if (ITEM_HOLE_E == it.first) continue;
@@ -160,6 +161,25 @@ bool TransformOptimize::getModelPlaneCoeff(const CADModel &cadModel,
 bool TransformOptimize::getCloudPlaneCoeff(const Eigen::Vector3d &center)
 {
     LOG(INFO) << "********getCloudPlaneCoeff*******";
+	pcl::PointCloud<pcl::PointXYZ>::Ptr cloudAll(new pcl::PointCloud<pcl::PointXYZ>());
+	for (auto &it : type2CloudItems_)
+	{
+		
+		auto &vecCloudItems = it.second;
+		for (auto &item : vecCloudItems)
+		{
+			cloudAll->points.insert(cloudAll->points.end(), item.cloudPtr_->points.begin(), 
+				item.cloudPtr_->points.end());
+		}
+	}
+
+	pcl::PointXYZ pointmax, pointmin;
+	pcl::getMinMax3D(*cloudAll, pointmin, pointmax);
+
+	sx_ = (pointmax.x - pointmin.x)*0.008f / 6.71416;
+	sy_ = (pointmax.y - pointmin.y)*0.008f / 5.72985;
+	sz_ = (pointmax.z - pointmin.z)*0.008f / 3.59943;
+
     for (auto &it : type2CloudItems_)
     {
         LOG(INFO) << "for " << toModelItemName(it.first);
@@ -183,34 +203,45 @@ bool TransformOptimize::calcPlaneCoeff(PointCloud::Ptr inputCloud,
 {
     Eigen::VectorXf coeff;
     std::vector<int> inlierIdxs;
-	//planeFittingBySac(0.01, inputCloud, coeff, inlierIdxs);
 
-	pcl::PointXYZ pointmax, pointmin;
-	pcl::getMinMax3D(*inputCloud, pointmin, pointmax);
+	if (!bOriginCloud_)
+	{
+		pcl::PointCloud<pcl::PointXYZ>::Ptr cloudFiltered(new pcl::PointCloud<pcl::PointXYZ>());
+		pcl::VoxelGrid<pcl::PointXYZ> avg;
+		avg.setInputCloud(inputCloud);
+		avg.setLeafSize(sx_, sy_, sz_);
+		avg.filter(*cloudFiltered);
 
-	float sx = (pointmax.x - pointmin.x)*0.008f / 6.71416;
-	float sy = (pointmax.y - pointmin.y)*0.008f / 5.72985;
-	float sz = (pointmax.z - pointmin.z)*0.008f / 3.59943;
+		planeFitting(0.003, cloudFiltered, coeff, inlierIdxs);
 
-	pcl::PointCloud<pcl::PointXYZ>::Ptr cloudFiltered(new pcl::PointCloud<pcl::PointXYZ>());
-	pcl::VoxelGrid<pcl::PointXYZ> avg;
-	avg.setInputCloud(inputCloud);
-	avg.setLeafSize(sx, sy, sz);
-	avg.filter(*cloudFiltered);
-
-	planeFitting(0.003, cloudFiltered, coeff, inlierIdxs);
+		Eigen::Vector4d plane(coeff(0), coeff(1), coeff(2), coeff(3));
+		Eigen::Vector3d n = plane.block<3, 1>(0, 0);
+		double d = plane(3);
+		double flag = ((n.dot(center) + d) > 0) ? 1.0 : -1.0;
+		plane = flag * plane;
+		LOG(INFO) << "cloudFiltered plane coeff " << plane[0] << " " << plane[1]
+			<< " " << plane[2] << " " << plane[3]
+			<< ", inlierRate:" << 100.0 * double(inlierIdxs.size()) / double(cloudFiltered->size()) << "%";
+		planeCoeff = plane;
+	}
+	else
+	{
+		planeFitting(0.003, inputCloud, coeff, inlierIdxs);
+		Eigen::Vector4d plane(coeff(0), coeff(1), coeff(2), coeff(3));
+		Eigen::Vector3d n = plane.block<3, 1>(0, 0);
+		double d = plane(3);
+		double flag = ((n.dot(center) + d) > 0) ? 1.0 : -1.0;
+		plane = flag * plane;
+		LOG(INFO) << "plane coeff " << plane[0] << " " << plane[1]
+			<< " " << plane[2] << " " << plane[3]
+			<< ", inlierRate:" << 100.0 * double(inlierIdxs.size()) / double(inputCloud->size()) << "%";
+		planeCoeff = plane;
+	}
+	
     // auto inliers = geo::getSubSet(inputCloud, inlierIdxs, false);
     // Eigen::Vector4d plane = calcPlaneParam(inliers);
 
-    Eigen::Vector4d plane(coeff(0), coeff(1), coeff(2), coeff(3));
-    Eigen::Vector3d n = plane.block<3,1>(0,0);
-    double d = plane(3);
-    double flag = ((n.dot(center) + d) > 0) ? 1.0 : -1.0;  
-    plane = flag * plane;     
-    LOG(INFO) << "plane coeff " << plane[0] << " " << plane[1] 
-        << " " << plane[2] << " " << plane[3] 
-        << ", inlierRate:" << 100.0 * double(inlierIdxs.size()) / double(inputCloud->size()) << "%";
-    planeCoeff = plane;
+   
 
 	return true;
 }

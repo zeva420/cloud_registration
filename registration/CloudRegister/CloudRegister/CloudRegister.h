@@ -19,7 +19,7 @@ namespace CloudReg
 
 		//bNeedOptimize = false not run optimize
 		bool run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecCloudPtr,
-			const std::string& CAD_File, const bool bNeedOptimize = true);
+			const std::string& CAD_File, const bool bNeedOptimize = true, const bool bOriginCloud = false);
 
 		const std::map<CloudItemType, vecItems_t>&
 			getAllCloudPlane() const;

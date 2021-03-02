@@ -69,7 +69,8 @@ public:
     }
 
     bool run(const std::map<ModelItemType, std::vector<PointCloud::Ptr>> &mapCloudItem,
-			const CADModel &cadModel, const Eigen::Vector3d &center, const bool bNeedOptimize);
+			const CADModel &cadModel, const Eigen::Vector3d &center, 
+		const bool bNeedOptimize, const bool bOriginCloud);
 
 	optCloudRets getRet() { return optRets_; }
 
@@ -266,7 +267,10 @@ private:
 
 private:
 	optCloudRets optRets_;
-
+	float sx_ = 0.01;
+	float sy_ = 0.01;
+	float sz_ = 0.01;
+	bool bOriginCloud_ = false;
 };
 
 } //namespace CloudReg
