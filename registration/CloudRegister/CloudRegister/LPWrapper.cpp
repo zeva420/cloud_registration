@@ -6,7 +6,7 @@
 namespace CloudReg {
 
 std::string LPWrapper::OptResult::to_string() const {
-	if (!isOptimal_) return "{\nfailed\n}";
+	if (!isOptimal()) return ll::unsafe_format("{\nfailed, check code: %d\n}", ret_);
 	std::stringstream ss;
 	ss << "{\noptimal with objective: " << obj_ << "\nx: " << x_.transpose() << "\n}";
 	return ss.str();
@@ -42,9 +42,11 @@ LPWrapper::OptResult LPWrapper::Solve(const Eigen::VectorXd& c, const Eigen::Mat
 	set_obj_fnex(lp, DIM, row, colno);
 	set_minim(lp);
 
+	set_verbose(lp, IMPORTANT);
+
 	OptResult result;
-	result.isOptimal_ = solve(lp) == OPTIMAL;
-	if (result.isOptimal_) {
+	result.ret_ = solve(lp);
+	if (result.isOptimal()) {
 		result.x_.resize(DIM);
 		get_variables(lp, result.x_.data());
 		result.obj_ = get_objective(lp);

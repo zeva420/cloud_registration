@@ -1148,16 +1148,8 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 		}
 
 		//todo: we can optimize the normal calculation in the below process
-		auto planes = detectRegionPlanes(slice, slicenormals, GROWTH_ANGLE, 1., slice->size() / 4);
+		auto planes = detectRegionPlanes(slice, slicenormals, GROWTH_ANGLE, 1., slice->size() * 4 / 100);
 		if (planes.empty()) return PlaneCloud();
-
-		if (0) {
-			SimpleViewer viewer;
-			viewer.addCloud(slice);
-			for (const auto& p : planes) viewer.addCloud(p.cloud_);
-
-			viewer.show();
-		}
 
 		if (planes.size() == 1)  return planes.front();
 
@@ -1166,7 +1158,7 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 			ss << pr.index << "] " << pr.iter->cloud_->size() << ", \t" << pr.iter->abcd_.transpose() << "\n";
 		LOG(INFO) << "more than one planes were detected: \n" << ss.str();
 
-		if (0) {
+		if (1) {
 			SimpleViewer viewer;
 			auto add_outline = [&viewer](const Eigen::vector<Eigen::Vector3d>& outline) {
 				for (std::size_t i = 0; i < outline.size(); ++i) {
@@ -1176,6 +1168,7 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 				}
 			};
 
+			viewer.addCloud(slice, 128., 128., 128.);
 			for (const auto& plane : planes) viewer.addCloud(plane.cloud_);
 			add_outline(points);
 			for (const auto& hole : holes) add_outline(hole);
@@ -1192,7 +1185,10 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 		for (std::size_t i = 1; i < planes.size(); ++i) {
 			const auto& plane = planes[i];
 			double p = plane.abcd_.block<3, 1>(0, 0).cross(base.abcd_.block<3, 1>(0, 0)).norm();
-			if (p > 0.02) continue;
+			if (p > 0.05) {
+				LOG(INFO) << "skip a plane by normal check, parallel diff: " << p;
+				continue;
+			}
 
 			// parallel, then we check each points
 			std::size_t inners = std::count_if(plane.cloud_->points.begin(), plane.cloud_->points.end(),
@@ -1202,7 +1198,7 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 			});
 
 			float ratio = static_cast<float>(inners) / plane.cloud_->size();
-			LOG(INFO) << ll::unsafe_format("inner ratio: %d / %d = %.2f %%", inners, plane.cloud_->size(), ratio*100.f);
+			LOG(INFO) << ll::unsafe_format("inner ratio: %d / %d = %.2f %%", inners, plane.cloud_->size(), ratio * 100.f);
 			if (ratio > 0.7f) {
 				base.cloud_->points.insert(base.cloud_->points.end(), plane.cloud_->points.begin(), plane.cloud_->points.end());
 				LOG(INFO) << "a piece joined: " << plane.cloud_->size();
@@ -1513,7 +1509,7 @@ void CloudSegment::_show_result(const SegmentResult& sr) const {
 #if VISUALIZATION_ENABLED	
 	SimpleViewer viewer;
 
-	// viewer.addCloud(sparsedCloud_, 128., 128., 128.);
+	viewer.addCloud(sparsedCloud_, 128., 128., 128.);
 	for (const auto& pr : sr.clouds_)
 		for (const auto& pc : pr.second)
 			if (pc.cloud_)

@@ -15,7 +15,9 @@ public:
 
 		Eigen::VectorXd x_;
 		double obj_;
-		bool isOptimal_{ false };
+		int ret_;
+
+		bool isOptimal() const { return ret_ == 0; }
 
 		std::string to_string() const;
 	};
