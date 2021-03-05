@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BaseType.h"
+#include "CalcMeasureHelper.h"
 
 namespace CloudReg {
 
@@ -27,6 +28,8 @@ public:
 		double wallChipping_{ 0. };
 	};
 
+	void getWallConstraintPair(const std::vector<seg_pair_t>& rootBorder, 
+		const std::vector<seg_pair_t>& rootCADBorder);
 
 	void setupWalls(std::vector<Wall>&& walls);
 	void addConstraint(const WallConstraint& wc);

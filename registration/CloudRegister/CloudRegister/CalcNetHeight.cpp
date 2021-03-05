@@ -234,7 +234,7 @@ namespace CloudReg
 		Eigen::Vector3d interSectionPt;
 		if (!interSectionOfLineToLine(line1, line2, interSectionPt))
 		{
-			LOG(ERROR) << "calc interSectionOfLineToLine failed";
+			LOG(WARNING) << "calc interSectionOfLineToLine failed";
 			return vecCalcPt;
 		}
 		vecCalcPt.emplace_back(interSectionPt);

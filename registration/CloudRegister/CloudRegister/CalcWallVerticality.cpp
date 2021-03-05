@@ -36,7 +36,7 @@ namespace CloudReg
                 return;
             }
         }
-        LOG(ERROR) << "adjust ruler height filed";
+        LOG(WARNING) << "adjust ruler height filed";
     }
 
     PointCloud::Ptr getSingleWallCloud(const std::vector<seg_pair_t>& vecWallHorizen, const PointCloud::Ptr pCloud,
@@ -128,7 +128,7 @@ namespace CloudReg
             auto rangeCloud = filerCloudByConvexHull(inliers1, corners);
             if (rangeCloud->points.empty()) 
             {
-                // LOG(ERROR) << "filerCloudByRange failed";
+                // LOG(WARNING) << "filerCloudByRange failed";
                 continue;
             }
             double sum = 0;
@@ -147,7 +147,7 @@ namespace CloudReg
             auto rangeCloud = filerCloudByConvexHull(inliers1, corners);
             if (rangeCloud->points.empty()) 
             {
-                // LOG(ERROR) << "filerCloudByRange failed";
+                // LOG(WARNING) << "filerCloudByRange failed";
                 continue;
             }
             double sum = 0;
@@ -162,7 +162,7 @@ namespace CloudReg
         item.value = -1;
         if (sumAll.size() < 2 || (valid1 - valid2).norm() < 0.01)
         {
-            LOG(ERROR) << "ruler has less than 2 endpoints";
+            LOG(WARNING) << "ruler has less than 2 endpoints";
             LOG(INFO) << "verticality avg is " << item.value;
             std::vector<Eigen::Vector3d> rPoints = createRulerBox(std::make_pair(pt1, pt2), minIndex, 0.025, 0.025);
             std::vector<seg_pair_t> pair =  calcBoxSegPair(rPoints);
@@ -243,7 +243,7 @@ namespace CloudReg
         groupDirection(horizenSeg, wallBorder, vecWallVertical, vecWallHorizen);
         if (vecWallHorizen.size() < 2 || vecWallVertical.size() < 2)
 		{
-			LOG(ERROR) << "group Wall Direction Failed: " << vecWallHorizen.size() << " -- " << vecWallVertical.size();
+			LOG(WARNING) << "group Wall Direction Failed: " << vecWallHorizen.size() << " -- " << vecWallVertical.size();
 			return std::make_tuple(returnMeasure, returnSeg);
 		}
         LOG(INFO) << "plane " << plane[0] << " " << plane[1] << " " << plane[2] << " " << plane[3];

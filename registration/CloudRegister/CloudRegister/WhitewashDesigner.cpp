@@ -101,5 +101,79 @@ bool WhitewashDesigner::solve() {
 	return true;
 }
 
+void WhitewashDesigner::getWallConstraintPair(const std::vector<seg_pair_t>& rootCloudBorder,
+	const std::vector<seg_pair_t>& rootCADBorder)
+{
+	const double calcLengthTh = 0.01;
+	const Eigen::Vector3d& horizenSeg = rootCADBorder.front().first - rootCADBorder.front().second;
+	std::vector<std::size_t> vecVerticalIndex;
+	std::vector<std::size_t> vecHorizenIndex;
+	groupDirectionIndex(horizenSeg, rootCADBorder, vecVerticalIndex, vecHorizenIndex);
+
+
+	std::map<std::pair<std::size_t, std::size_t>,double> mapWallPair;
+	auto getWallPair = [&](const std::vector<std::size_t>& calcIndex) {
+		
+		for (std::size_t i = 0; i < calcIndex.size(); i++)
+		{
+			seg_pair_t toSeg = rootCADBorder[calcIndex[i]];
+			if ((toSeg.first - toSeg.second).norm() < calcLengthTh)
+				continue;
+
+
+			for (int j = calcIndex.size() - 1; j >= i + 1; j--)
+			{
+				seg_pair_t calcSeg = rootCADBorder[calcIndex[j]];
+				if ((calcSeg.first - calcSeg.second).norm() < calcLengthTh)
+					continue;
+
+				bool hasOverlap;
+				Eigen::Vector3d s1Pt, e1Pt, s2Pt, e2Pt;
+				std::tie(hasOverlap, s1Pt, e1Pt, s2Pt, e2Pt) = calcOverlap(toSeg, calcSeg);
+
+				
+				if (!hasOverlap || (s1Pt - e1Pt).norm() < calcLengthTh 
+					|| (s2Pt - e2Pt).norm() < calcLengthTh)
+					continue;
+
+				std::size_t optIndex, indexOther;
+				int dir;
+				std::tie(optIndex, indexOther, dir) = getWallGrowAxisAndDir(s1Pt, e1Pt);
+
+				mapWallPair[std::make_pair(calcIndex[i], calcIndex[j])] = s2Pt[indexOther] - s1Pt[indexOther];
+			}
+		}
+	};
+
+	getWallPair(vecVerticalIndex);
+	getWallPair(vecHorizenIndex);
+
+	std::vector<double> vecWallLength(rootCADBorder.size(),0.0);
+	std::vector<WallConstraint> vecConstraint;
+	for (auto& pairIdx : mapWallPair)
+	{
+		WallConstraint tmp;
+		tmp.i_ = pairIdx.first.first;
+		tmp.j_ = pairIdx.first.second;
+		tmp.expectedDistance_ = pairIdx.second;
+
+		auto& segI = rootCloudBorder[tmp.i_];
+		auto& segJ = rootCloudBorder[tmp.j_];
+
+		std::size_t optIndex, indexOther;
+		int dir;
+		std::tie(optIndex, indexOther, dir) = getWallGrowAxisAndDir(segI.first, segJ.second);
+		tmp.lowBound_ = segI.first[indexOther];
+		tmp.lowBound_ = segJ.second[indexOther];
+		vecConstraint.emplace_back(tmp);
+
+		vecWallLength[tmp.i_] = (segI.first - segI.second).norm();
+		vecWallLength[tmp.j_] = (segJ.first - segJ.second).norm();
+	}
+	
+	
+}
+
+
 }
 

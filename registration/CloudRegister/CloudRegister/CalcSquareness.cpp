@@ -94,7 +94,7 @@ namespace CloudReg
         calcMeassurment_t measure;
         if (rangeCloud->points.empty()) 
         {
-            LOG(ERROR) << "filerCloudByRange failed";
+            LOG(WARNING) << "filerCloudByRange failed";
             return measure;
         }
 
@@ -218,7 +218,7 @@ namespace CloudReg
         std::vector<double> sumAll;
         if (!adjustMeasurePt(shortMeasureP, sHoleBorder, svecWallVertical, shAxis, sbaseHeight))
         {
-            LOG(ERROR) << "can not find measure point in short wall";
+            LOG(WARNING) << "can not find measure point in short wall";
             return allMeasure;
         }
         double d = -(shortMeasureP.dot(measurenV));
@@ -293,7 +293,7 @@ namespace CloudReg
         std::map<std::pair<int, int>,std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>> returnMeasure;
         if (vecWall.size() < 2)
         {
-            LOG(ERROR) << "wall num is small " << vecWall.size();
+            LOG(WARNING) << "wall num is small " << vecWall.size();
             return returnMeasure;
         }
         LOG(INFO) << "input wall num is " << vecWall.size();
@@ -349,7 +349,7 @@ namespace CloudReg
             }
             else
             {
-                LOG(ERROR) << "wall can not find valid measure point";
+                LOG(WARNING) << "wall can not find valid measure point";
             }
         }
         return returnMeasure;

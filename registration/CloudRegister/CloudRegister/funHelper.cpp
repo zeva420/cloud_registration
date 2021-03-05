@@ -431,7 +431,7 @@ namespace CloudReg
 		{
 			if (currSet.size() != 3)
 			{
-				LOG(ERROR) << "neighbour currSet size:" << currSet.size() << " is not 3";
+				LOG(WARNING) << "neighbour currSet size:" << currSet.size() << " is not 3";
 				return false;
 			}
 			std::vector<int> vecIds(currSet.begin(), currSet.end());

@@ -35,7 +35,7 @@ bool CADModel::initCAD(const std::string& fileName) {
 	std::ifstream in(fileName);
 	if (!in)
 	{
-		LOG(ERROR) << "no such file" << fileName;
+		LOG(WARNING) << "no such file" << fileName;
 		return false;
 	}
 	
@@ -44,7 +44,7 @@ bool CADModel::initCAD(const std::string& fileName) {
 	while (getline(in, line)) {
 		std::vector<std::string> vecSubStr = splitByCharacter(line, ',');
 		if (vecSubStr.empty()) {
-			LOG(ERROR) << "splite string error";
+			LOG(WARNING) << "splite string error";
 			return false;
 		}
 
@@ -262,7 +262,7 @@ std::tuple<bool, ModelItem> CADModel::genTop()
 		std::size_t parent = beam.parentIndex_;
 		if (parent > vecWall.size() - 1)
 		{
-			LOG(ERROR) << "parent out of range";
+			LOG(WARNING) << "parent out of range";
 			return std::tuple<bool, ModelItem>(false, ModelItem(ITEM_MAX_E));
 		}
 
@@ -318,7 +318,7 @@ std::tuple<bool, ModelItem, ModelItem> CADModel::genBeam(const std::vector<std::
 	
 
 	if (mapModelItem_[ITEM_BOTTOM_E].empty() || mapModelItem_[ITEM_WALL_E].empty()) {
-		LOG(ERROR) << "not found ITEM_BOTTOM_E";
+		LOG(WARNING) << "not found ITEM_BOTTOM_E";
 		return std::tuple<bool, ModelItem, ModelItem>(false, ModelItem(ITEM_MAX_E), ModelItem(ITEM_MAX_E));
 	}
 
@@ -332,7 +332,7 @@ std::tuple<bool, ModelItem, ModelItem> CADModel::genBeam(const std::vector<std::
 
 	std::size_t number = atol(vecSubStr[3].c_str());
 	if (number < 1) {
-		LOG(ERROR) << "invaild number in ITEM_BEAM_E";
+		LOG(WARNING) << "invaild number in ITEM_BEAM_E";
 		return std::tuple<bool, ModelItem, ModelItem>(false, ModelItem(ITEM_MAX_E), ModelItem(ITEM_MAX_E));
 	}
 
@@ -411,7 +411,7 @@ std::tuple<bool, ModelItem, ModelItem> CADModel::genBeam(const std::vector<std::
 std::tuple<bool, ModelItem> CADModel::genHole(const std::vector<std::string>& vecSubStr)
 {
 	if (mapModelItem_[ITEM_BOTTOM_E].empty() || mapModelItem_[ITEM_WALL_E].empty()) {
-		LOG(ERROR) << "not found ITEM_BOTTOM_E";
+		LOG(WARNING) << "not found ITEM_BOTTOM_E";
 		return std::tuple<bool, ModelItem>(false, ModelItem(ITEM_MAX_E));
 	}
 
@@ -421,7 +421,7 @@ std::tuple<bool, ModelItem> CADModel::genHole(const std::vector<std::string>& ve
 	ModelItem item(ITEM_HOLE_E);
 	std::size_t number = atol(vecSubStr[1].c_str());
 	if (number < 1) {
-		LOG(ERROR) << "invaild number in ITEM_HOLE_E";
+		LOG(WARNING) << "invaild number in ITEM_HOLE_E";
 		return std::tuple<bool, ModelItem>(false, ModelItem(ITEM_MAX_E));
 	}
 
@@ -471,7 +471,7 @@ std::tuple<bool, ModelItem> CADModel::genHole(const std::vector<std::string>& ve
 std::tuple<bool, ModelItem> CADModel::genWall(const std::vector<std::string>& vecSubStr)
 {	
 	if (mapModelItem_[ITEM_BOTTOM_E].empty()) {
-		LOG(ERROR) << "not found ITEM_BOTTOM_E";
+		LOG(WARNING) << "not found ITEM_BOTTOM_E";
 		return std::tuple<bool, ModelItem>(false, ModelItem(ITEM_MAX_E));
 	}
 	
@@ -508,7 +508,7 @@ std::tuple<bool, ModelItem> CADModel::genBottom(const std::vector<std::string>& 
 	ModelItem item(ITEM_BOTTOM_E);
 	std::size_t number = atol(vecSubStr[1].c_str());
 	if (number < 1) {
-		LOG(ERROR) << "invaild number in ITEM_BOTTOM_E";
+		LOG(WARNING) << "invaild number in ITEM_BOTTOM_E";
 		return std::tuple<bool, ModelItem>(false, ModelItem(ITEM_MAX_E));
 	}
 

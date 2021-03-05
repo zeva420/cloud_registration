@@ -135,7 +135,7 @@ namespace CloudReg
         // step2: Sort the data of the zone division and calculate
         if (vecCutSeg.empty() || (vecCutSeg.size() % 2) != 0)
         {
-            LOG(ERROR) << "root bay size is wrong " << vecCutSeg.size();
+            LOG(WARNING) << "root bay size is wrong " << vecCutSeg.size();
             return returnValue;
         }
         LOG(INFO) << "The root is divided into areas num: " << vecCutSeg.size() / 2;

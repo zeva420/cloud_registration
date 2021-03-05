@@ -91,7 +91,7 @@ namespace CloudReg
 
 			if (vecHorizen.size() < 2 || vecVertical.size() < 2)
 			{
-				LOG(ERROR) << "groupDirection failed: " << vecHorizen.size() << " -- " << vecVertical.size();
+				LOG(WARNING) << "groupDirection failed: " << vecHorizen.size() << " -- " << vecVertical.size();
 				continue;
 			}
 			seg_pair_t toSeg = std::make_pair(ptA, ptB);
@@ -218,7 +218,7 @@ namespace CloudReg
 
 		if (rootBorder.size() != allWallBorder.size())
 		{
-			LOG(ERROR) << "the root and wall size not match: " << rootBorder.size() << "-" << allWallBorder.size();
+			LOG(WARNING) << "the root and wall size not match: " << rootBorder.size() << "-" << allWallBorder.size();
 			return std::make_tuple(mapCalcRet, vecCutSeg);
 		}
 	

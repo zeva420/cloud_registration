@@ -153,7 +153,7 @@ namespace CloudReg
         }
         if (std::fabs(1000000.0 - rulerLength) < 1)
 		{
-			LOG(ERROR) << "can not adjust hole ruler";
+			LOG(WARNING) << "can not adjust hole ruler";
 			return resDis;
 		}
 
@@ -171,7 +171,7 @@ namespace CloudReg
         double length = (ruler.first - ruler.second).norm();
         if (length + 1e-4 > 2)
         {
-            LOG(ERROR) << "ruler length " << length << " can not transf";
+            LOG(WARNING) << "ruler length " << length << " can not transf";
             return rulersOut;
         }
 
@@ -204,7 +204,7 @@ namespace CloudReg
         groupDirection(hSeg, holeBorder, vecHoleVertical, vecHoleHorizen);
         if (vecHoleHorizen.size() < 2 || vecHoleVertical.size() < 2)
 		{
-			LOG(ERROR) << "group hole Direction Failed: " << vecHoleHorizen.size() << " -- " << vecHoleVertical.size();
+			LOG(WARNING) << "group hole Direction Failed: " << vecHoleHorizen.size() << " -- " << vecHoleVertical.size();
 			return rulers;
 		}
         std::sort(vecHoleVertical.begin(), vecHoleVertical.end(), [&](const seg_pair_t& left, const seg_pair_t& right){
@@ -267,7 +267,7 @@ namespace CloudReg
         groupDirection(hSeg, wallBorder, vecWallVertical, vecWallHorizen);
         if (vecWallHorizen.size() < 2 || vecWallVertical.size() < 2)
 		{
-			LOG(ERROR) << "group Wall Direction Failed: " << vecWallHorizen.size() << " -- " << vecWallVertical.size();
+			LOG(WARNING) << "group Wall Direction Failed: " << vecWallHorizen.size() << " -- " << vecWallVertical.size();
 			return std::make_tuple(allMeasure, returnSeg);
 		}
         std::sort(vecWallVertical.begin(), vecWallVertical.end(), [&](const seg_pair_t& left, const seg_pair_t& right){

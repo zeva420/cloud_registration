@@ -168,9 +168,11 @@
     <ClCompile Include="EdgeConstraint.cpp" />
     <ClCompile Include="funHelper.cpp" />
     <ClCompile Include="GeometryUtils.cpp" />
+    <ClCompile Include="LPWrapper.cpp" />
     <ClCompile Include="SimpleViewer.cpp" />
     <ClCompile Include="Threshold.cpp" />
     <ClCompile Include="TransformOptimize.cpp" />
+    <ClCompile Include="WhitewashDesigner.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BaseType.h" />
@@ -192,10 +194,12 @@
     <ClInclude Include="funHelper.h" />
     <ClInclude Include="GeometryUtils.h" />
     <ClInclude Include="ll.hpp" />
+    <ClInclude Include="LPWrapper.h" />
     <ClInclude Include="SimpleViewer.h" />
     <ClInclude Include="SingletonTemplate.h" />
     <ClInclude Include="Threshold.h" />
     <ClInclude Include="TransformOptimize.h" />
+    <ClInclude Include="WhitewashDesigner.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

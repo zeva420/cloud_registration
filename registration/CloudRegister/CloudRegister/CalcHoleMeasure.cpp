@@ -104,7 +104,7 @@ namespace CloudReg
 		double length = (vecPts.back() - vecPts.front()).norm();
 		if (length < 0.5f)
 		{
-			LOG(ERROR) << "too short length: " << length;
+			LOG(WARNING) << "too short length: " << length;
 			return vecRet;
 		}
 
@@ -149,7 +149,7 @@ namespace CloudReg
 
 		if (vecHorizen.size() < 2 || vecVertical.size() < 2)
 		{
-			LOG(ERROR) << "groupDirection failed: " << vecHorizen.size() << " -- " << vecVertical.size();
+			LOG(WARNING) << "groupDirection failed: " << vecHorizen.size() << " -- " << vecVertical.size();
 			return vecRet;
 		}
 
@@ -158,7 +158,7 @@ namespace CloudReg
 		auto rangeCloud = filerCloudByConvexHull(pCloud,vecFilerPt);
 		if (rangeCloud->points.empty()) 
 		{
-			LOG(ERROR) << "filerCloudByRange failed";
+			LOG(WARNING) << "filerCloudByRange failed";
 			return vecRet;
 		}
 

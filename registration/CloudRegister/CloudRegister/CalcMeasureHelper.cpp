@@ -350,7 +350,7 @@ namespace CloudReg
 	{
 		if ((ruler.first - ruler.second).norm() < 1e-8)
 		{
-			LOG(ERROR) << "ruler length is 0";
+			LOG(WARNING) << "ruler length is 0";
 			std::vector<Eigen::Vector3d> rulerPoints;
 			return rulerPoints;
 		}
@@ -388,7 +388,7 @@ namespace CloudReg
 		std::vector<Eigen::Vector3d> corners;
 		if (rPoints.empty())
 		{
-			LOG(ERROR) << "empty ruler points";
+			LOG(WARNING) << "empty ruler points";
 			return corners;
 		}
 		corners = {rPoints[0], rPoints[2], rPoints[4], rPoints[6]};
@@ -426,13 +426,13 @@ namespace CloudReg
 	{
 		if (wallBorder.empty())
 		{
-			LOG(ERROR) << "empty input for ruler";
+			LOG(WARNING) << "empty input for ruler";
 			return false;
 		}
 		
 		if (P0 != rotateLine.first && P0 != rotateLine.second)
 		{
-			LOG(ERROR) << "P0 is not on the rotateLine for ruler";
+			LOG(WARNING) << "P0 is not on the rotateLine for ruler";
 			return false;
 		}
 		
@@ -501,7 +501,7 @@ namespace CloudReg
 
 		if (std::fabs(1000000.0 - rulerLength)< 1)
 		{
-			LOG(ERROR) << "can not find ruler, please check theta";
+			LOG(WARNING) << "can not find ruler, please check theta";
 			return false;
 		}
 		LOG(INFO) <<"find the ruler end point is " << new3d[0] << " " <<new3d[1] << " " << new3d[2];
@@ -523,7 +523,7 @@ namespace CloudReg
             groupDirection(horizenSeg, holeBorder, vecHoleVertical, vecHoleHorizen);
             if (vecHoleHorizen.size() < 2 || vecHoleVertical.size() < 2)
             {
-                LOG(ERROR) << "group Hole Direction Failed: " << vecHoleHorizen.size() << " -- " << vecHoleVertical.size();
+                LOG(WARNING) << "group Hole Direction Failed: " << vecHoleHorizen.size() << " -- " << vecHoleVertical.size();
 			    continue;
             }
             std::sort(vecHoleVertical.begin(), vecHoleVertical.end(), [&](const seg_pair_t& left, const seg_pair_t& right){
@@ -606,7 +606,7 @@ namespace CloudReg
 		}
         if (allBoxes.empty())
         {
-            LOG(ERROR) << "empty boxes";
+            LOG(WARNING) << "empty boxes";
             return measure;
         }
         LOG(INFO) << "ruler get boxes num: " << allBoxes.size();
@@ -628,7 +628,7 @@ namespace CloudReg
 
             if (rangeCloud->points.empty()) 
             {
-                // LOG(ERROR) << "filerCloudByRange failed";
+                // LOG(WARNING) << "filerCloudByRange failed";
                 continue;
             }
 			
@@ -644,7 +644,7 @@ namespace CloudReg
 
         if (sumAll.empty())
         {
-            LOG(ERROR) << "empty sumAll, please check!";
+            LOG(WARNING) << "empty sumAll, please check!";
             return measure;
         }
             

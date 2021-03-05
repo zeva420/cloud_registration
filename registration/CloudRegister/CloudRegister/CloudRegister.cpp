@@ -37,14 +37,14 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 
 	if (vecCloudPtr.empty())
 	{
-		LOG(ERROR) << "empty cloud input";
+		LOG(WARNING) << "empty cloud input";
 		return false;
 	}
 
 	CADModel model;
 	if(!model.initCAD(CAD_File))
 	{
-		LOG(ERROR) << "failed to initCAD";
+		LOG(WARNING) << "failed to initCAD";
 		return false;
 	}
 
@@ -152,7 +152,7 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 	std::set<std::set<int>> planeIdxGroup;
 	if (false == groupPlanesBySamePt(cadSegPtsOfPlanes, planeIdxGroup))
 	{
-		LOG(ERROR) << "groupPlanesBySamePt Failed.";
+		LOG(WARNING) << "groupPlanesBySamePt Failed.";
 		return;
 	}
 	LOG(INFO) << "planeIdxGroup:" << planeIdxGroup.size();
@@ -161,7 +161,7 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 	std::vector<Eigen::Vector3d> focalPointVec;
 	if (false == interSectionOf3Planes(cloudPlaneVec, planeIdxGroup, focalPointVec))
 	{
-		LOG(ERROR) << "interSectionOf3Planes Failed.";
+		LOG(WARNING) << "interSectionOf3Planes Failed.";
 		return;
 	}
 
@@ -259,7 +259,7 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 			}
 			if (item.cadBorder_.size() != item.cloudBorder_.size())
 			{
-				LOG(ERROR) << "current item cadBorder_.size:" << item.cadBorder_.size()
+				LOG(WARNING) << "current item cadBorder_.size:" << item.cadBorder_.size()
 					 << " != cloudBorder_.size:" << item.cloudBorder_.size();
 			}
 #ifdef VISUALIZATION_ENABLED
@@ -494,7 +494,7 @@ CloudRegister::calcDepth(const double calcLengthTh)
 		for (std::size_t j = 1; j < item.cloudBorder_.size(); j++)
 		{
 			if (item.cloudBorder_[j].size() != item.cadBorder_[j].size())
-				LOG(ERROR) << "cloudBorder error, need check";
+				LOG(WARNING) << "cloudBorder WARNING, need check";
 
 			holeBorder[i].emplace_back(item.cloudBorder_[j]);
 		}
@@ -527,7 +527,7 @@ std::tuple<std::vector<calcIdx2Meassurment_t>, std::vector<seg_pair_t>>
 		for (std::size_t j = 1; j < item.cloudBorder_.size(); j++)
 		{
 			if (item.cloudBorder_[j].size() != item.cadBorder_[j].size())
-				LOG(ERROR) << "cloudBorder error, need check";
+				LOG(WARNING) << "cloudBorder WARNING, need check";
 
 			holeBorder[i].emplace_back(item.cloudBorder_[j]);
 
@@ -555,7 +555,7 @@ CloudRegister::calcAllHole()
 			//if (j != 3) continue;
 
 			if (item.cloudBorder_[j].size() != item.cadBorder_[j].size())
-				LOG(ERROR) << "cloudBorder error, need check";
+				LOG(WARNING) << "cloudBorder WARNING, need check";
 
 			LOG(INFO) << "calc hole:" << j << " in wall " << i;
 			std::string name = "hole_" + std::to_string(i) + "_" + std::to_string(j) + ".pcd";
@@ -706,7 +706,7 @@ CloudRegister::calcAllCorner(const double calcLengthTh)
 		for (std::size_t j = 1; j < item.cloudBorder_.size(); j++)
 		{
 			if (item.cloudBorder_[j].size() != item.cadBorder_[j].size())
-				LOG(ERROR) << "cloudBorder error, need check";
+				LOG(WARNING) << "cloudBorder WARNING, need check";
 
 			holeBorder[i].emplace_back(item.cloudBorder_[j]);
 		}

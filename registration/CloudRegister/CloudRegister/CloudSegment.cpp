@@ -54,7 +54,7 @@ std::string CloudSegment::SegmentResult::to_string() const {
 
 CloudSegment::SegmentResult CloudSegment::run() {
 	if (!calibrateDirectionToAxisZ()) {
-		LOG(ERROR) << "failed to calibrate direction to axis-Z.";
+		LOG(WARNING) << "failed to calibrate direction to axis-Z.";
 	}
 
 #ifdef VISUALIZATION_ENABLED
@@ -68,7 +68,7 @@ CloudSegment::SegmentResult CloudSegment::run() {
 	recordModelBoundingBox();
 
 	if (!alignCloudToCADModel()) {
-		LOG(ERROR) << "failed to align cloud to cadModel.";
+		LOG(WARNING) << "failed to align cloud to cadModel.";
 	}
 
 	auto sr = segmentByCADModel();
@@ -281,7 +281,7 @@ bool CloudSegment::alignCloudToCADModel() {
 	constexpr double MATCH_THRESH = 0.15;
 	Eigen::vector<trans2d::Matrix2x3f> Ts = computeSegmentAlignCandidates(allSegments, blueprint, MATCH_THRESH);
 	if (Ts.empty()) {
-		LOG(ERROR) << " no candidate transform found.";
+		LOG(WARNING) << " no candidate transform found.";
 		return false;
 	}
 
@@ -1148,7 +1148,7 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 		}
 
 		//todo: we can optimize the normal calculation in the below process
-		auto planes = detectRegionPlanes(slice, slicenormals, GROWTH_ANGLE, 1., slice->size() * 4 / 100);
+		auto planes = detectRegionPlanes(slice, slicenormals, GROWTH_ANGLE, 1., slice->size() / 4);
 		if (planes.empty()) return PlaneCloud();
 
 		if (planes.size() == 1)  return planes.front();
