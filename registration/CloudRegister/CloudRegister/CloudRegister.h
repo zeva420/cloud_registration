@@ -71,6 +71,8 @@ namespace CloudReg
 		std::vector<std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>> 
     		calcRootFlatness(const std::string& planeType = "local", const double calcLengthTh = 1.5); // "cloud" "cad" "local"
 
+	
+		void whitewashPaint();
 	private:
 		
 		void fillRet(CADModel& cad, TransformOptimize& optimitor);

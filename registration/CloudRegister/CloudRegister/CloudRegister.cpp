@@ -16,6 +16,7 @@
 #include "CalcSquareness.h"
 #include "CalcRootFlatness.h"
 #include "CloudRefine.h"
+#include "WhitewashDesigner.h"
 
 namespace CloudReg {
 CloudRegister::CloudRegister() {
@@ -718,4 +719,19 @@ CloudRegister::calcAllCorner(const double calcLengthTh)
 	return result;
 }
 
+void CloudRegister::whitewashPaint()
+{
+	const auto& itemRoot = mapCloudItem_[CLOUD_BOTTOM_E].front();
+	const auto& itemWall = mapCloudItem_[CLOUD_WALL_E];
+
+	
+	std::vector<PointCloud::Ptr> vecWallCloud;
+	for (std::size_t i = 0; i < itemWall.size(); i++)
+		vecWallCloud.emplace_back(itemWall[i].pCloud_);
+
+	WhitewashDesigner designer;
+	designer.getWallConstraintPair(itemRoot.cloudBorder_.front(), itemRoot.cadBorder_.front());
+
+	
+}
 }

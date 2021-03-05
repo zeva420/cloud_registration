@@ -287,7 +287,7 @@ int main()
 #endif
 
 	using namespace CloudReg;
-#if 1
+#if 0
 	
 	{
 		std::vector<seg_pair_t> vecSeg;
@@ -416,6 +416,7 @@ int main()
 		
 	
 #endif
+	obj.whitewashPaint();
 	 //obj.calcWallVerticality();
 	//obj.calcWallFlatness();
 	 //obj.calcAllSquareness();

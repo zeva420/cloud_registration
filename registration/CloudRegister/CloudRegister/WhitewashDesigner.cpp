@@ -162,13 +162,19 @@ void WhitewashDesigner::getWallConstraintPair(const std::vector<seg_pair_t>& roo
 
 		std::size_t optIndex, indexOther;
 		int dir;
-		std::tie(optIndex, indexOther, dir) = getWallGrowAxisAndDir(segI.first, segJ.second);
+		std::tie(optIndex, indexOther, dir) = getWallGrowAxisAndDir(segI.first, segI.second);
 		tmp.lowBound_ = segI.first[indexOther];
-		tmp.lowBound_ = segJ.second[indexOther];
+		tmp.highBound_ = segJ.second[indexOther];
 		vecConstraint.emplace_back(tmp);
 
+		
 		vecWallLength[tmp.i_] = (segI.first - segI.second).norm();
 		vecWallLength[tmp.j_] = (segJ.first - segJ.second).norm();
+
+		LOG(INFO) << "WallIdx: "<< tmp.i_ << " - " << tmp.j_ << " expect_dis:"<<tmp.expectedDistance_
+			<< " posI: "<< tmp.lowBound_ << " posJ: " << tmp.highBound_ << " dis:"<< (tmp.highBound_ - tmp.lowBound_);
+		
+		LOG(INFO) << vecWallLength[tmp.i_] << " " << vecWallLength[tmp.j_];
 	}
 	
 	
