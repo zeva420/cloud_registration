@@ -58,7 +58,7 @@ CloudSegment::SegmentResult CloudSegment::run() {
 	}
 
 #ifdef VISUALIZATION_ENABLED
-	if (1) {
+	if (0) {
 		SimpleViewer viewer;
 		viewer.addCloud(sparsedCloud());
 		viewer.show();
@@ -1158,7 +1158,7 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 			ss << pr.index << "] " << pr.iter->cloud_->size() << ", \t" << pr.iter->abcd_.transpose() << "\n";
 		LOG(INFO) << "more than one planes were detected: \n" << ss.str();
 
-		if (1) {
+		if (0) {
 			SimpleViewer viewer;
 			auto add_outline = [&viewer](const Eigen::vector<Eigen::Vector3d>& outline) {
 				for (std::size_t i = 0; i < outline.size(); ++i) {
@@ -1428,9 +1428,7 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 	LOG(INFO) << "segmented: " << sr.to_string();
 
 	//refineSegmentResult(sr);
-#ifdef VISUALIZATION_ENABLED
 	_show_result(sr);
-#endif
 
 	return sr;
 }
@@ -1506,6 +1504,8 @@ CloudSegment::NormalCloud::Ptr CloudSegment::computeNormals(PointCloud::Ptr clou
 }
 
 void CloudSegment::_show_result(const SegmentResult& sr) const {
+	return;
+
 #if VISUALIZATION_ENABLED	
 	SimpleViewer viewer;
 

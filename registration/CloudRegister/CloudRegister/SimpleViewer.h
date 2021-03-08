@@ -23,6 +23,8 @@ public:
 
 	void addLine(const Point& s, const Point& e, double r, double g, double b);
 
+	void addBox(const Point& min, const Point& max, double r, double g, double b);
+
 #ifdef VISUALIZATION_ENABLED
 	pcl::visualization::PCLVisualizer& viewer() { return viewer_; }
 #endif
