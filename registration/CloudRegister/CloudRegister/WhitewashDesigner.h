@@ -29,7 +29,7 @@ public:
 
 	struct WallGuide {
 		double paintThickness_;
-		double salientChipping{ 0. };
+		double salientChipping_{ 0. };
 		double wallChipping_{ 0. };
 	};
 

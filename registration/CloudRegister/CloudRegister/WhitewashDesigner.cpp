@@ -50,11 +50,12 @@ bool WhitewashDesigner::solve() {
 		b(r + 1) = -wall.minWallPaintThickness_;
 
 		d1[ii + 1] = 0.;
+		d2[ii + 1] = wall.maxSalientHeight_;
 		d1[ii + 2] = 0.;
 
 		c[ii] = wall.length_;
-		c[ii + 1] = wall.length_ * 2.;
-		c[ii + 2] = wall.length_ * 4.;
+		c[ii + 1] = wall.length_ * 4.;
+		c[ii + 2] = wall.length_ * 8.;
 	}
 
 	// each wall pair
@@ -73,10 +74,11 @@ bool WhitewashDesigner::solve() {
 		b(r + 1) = -(pij - wc.expectedDistance_ - wc.highBound_);
 	}
 
-#define P(a) #a<< ":\n"<< a <<"\n"
-	LOG(INFO) << "problem constructed: \n"
-		<< P(A) << P(b) << P(c) << P(d1) << P(d2);
-#undef P
+	//	Eigen::IOFormat fmt(4, 0, ", ", "\n", "[", "]");
+	//#define P(a) #a<< ": "<< a.transpose().format(fmt) <<"\n"
+	//	LOG(INFO) << "problem constructed: \na:\n" << A << "\n"
+	//		<< P(b) << P(c) << P(d1) << P(d2);
+	//#undef P
 
 
 	auto result = LPWrapper::Solve(c, A, b, d1, d2);
@@ -88,6 +90,41 @@ bool WhitewashDesigner::solve() {
 	}
 
 	// fill result.
+	guidelines_.reserve(N);
+	for (std::size_t i = 0; i < N; ++i) {
+		float x = result.x_(i * 3);
+		float y = result.x_(i * 3 + 1);
+		float z = result.x_(i * 3 + 2);
+
+		if (z > 0.f) y = walls_[i].maxSalientHeight_;
+
+		WallGuide wg;
+		wg.paintThickness_ = x + z;
+		wg.salientChipping_ = y;
+		wg.wallChipping_ = z;
+		guidelines_.emplace_back(wg);
+	}
+
+	// log result.
+	{
+		std::stringstream ss;
+		for (auto pr : ll::enumerate(guidelines_))
+			ss << ll::unsafe_format("[wall %d] chip wall %.3f, chip salient %.3f, paint wall %.3f.\n",
+			pr.index, pr.iter->wallChipping_, pr.iter->salientChipping_, pr.iter->paintThickness_);
+
+		ss << "\n";
+
+		auto fnl_pos = [&](std::size_t i, bool left) {
+			return walls_[i].pos_ + (-guidelines_[i].wallChipping_ + guidelines_[i].paintThickness_) * (left ? 1 : -1);
+		};
+		for (const auto& wc : constraints_) {
+			float pij = (fnl_pos(wc.j_, false) - fnl_pos(wc.i_, true));
+			ss << ll::unsafe_format("[pair %d, %d] expect %.3f, final %.3f. diff %.3f in [%.3f, %.3f].\n",
+				wc.i_, wc.j_, wc.expectedDistance_, pij, (pij - wc.expectedDistance_), wc.lowBound_, wc.highBound_);
+		}
+
+		LOG(INFO) << "so the whitewash paint: \n" << ss.str();
+	}
 
 	return true;
 }
@@ -140,11 +177,12 @@ void WhitewashDesigner::inputData(const CloudItem& floor, const vecItems_t& wall
 		std::stringstream ss;
 		ss << ll::unsafe_format("%d walls, %d constrains: \n", walls_.size(), constraints_.size());
 		for (auto pr : ll::enumerate(walls_))
-			ss << ll::unsafe_format("[wall %d] pos: %.3f, salient: %.3f, length: %.3f.\n",
-					pr.index, pr.iter->pos_, pr.iter->maxSalientHeight_, pr.iter->length_);
-		ss << "\n";
+			ss << ll::unsafe_format("[wall %d] pos: %.6f, salient: %.6f, length: %.6f.\n",
+			pr.index, pr.iter->pos_, pr.iter->maxSalientHeight_, pr.iter->length_);
+		ss << "-----------------------------------------------\n";
 		for (const auto& wc : constraints_)
-			ss << ll::unsafe_format("[pair %d, %d] distance: %.3f, [%.3f, %.3f].\n", wc.i_, wc.j_, wc.expectedDistance_, wc.lowBound_, wc.highBound_);
+			ss << ll::unsafe_format("[pair %d, %d] distance: %.6f, [%.6f, %.6f].\n", wc.i_, wc.j_, wc.expectedDistance_, wc.lowBound_, wc.highBound_);
+		ss << "===============================================\n";
 
 		LOG(INFO) << "WhitewashDesigner input state: \n" << ss.str();
 	}
@@ -156,6 +194,7 @@ std::vector<WhitewashDesigner::Salient> WhitewashDesigner::detectSalients(const 
 	constexpr float CUSTER_DISTANCE = 0.03f;
 	constexpr int MIN_HUMPED_POINTS = 100;
 
+	//todo: this may need to return with sign.
 	auto dis_to_plane = [&](const Point& p) {
 		Eigen::Vector4d vp(p.x, p.y, p.z, 1.);
 		float dis = std::fabs(vp.dot(wall.cloudPlane_));
@@ -163,9 +202,10 @@ std::vector<WhitewashDesigner::Salient> WhitewashDesigner::detectSalients(const 
 	};
 
 	auto sparsed = geo::downsampleUniformly(wall.pCloud_, DOWNSAMPLE);
-	auto hump = geo::filterPoints(sparsed, [&](const Point& p) { return dis_to_plane(p)> HUMPED_THRESH; });
+	auto hump = geo::filterPoints(sparsed, [&](const Point& p) { return dis_to_plane(p) > HUMPED_THRESH; });
 
 	std::vector<WhitewashDesigner::Salient> salients;
+	std::vector<PointCloud::Ptr> salientClouds;
 	{
 		pcl::search::KdTree<Point>::Ptr tree(new pcl::search::KdTree<Point>);
 		tree->setInputCloud(hump);
@@ -179,19 +219,26 @@ std::vector<WhitewashDesigner::Salient> WhitewashDesigner::detectSalients(const 
 
 		if (!clusters.empty()) {
 			for (const auto& indices : clusters) {
-				if (indices.indices.size() < MIN_HUMPED_POINTS) continue;
-
-				LOG(INFO) << "points: " << indices.indices.size();
+				const std::size_t CNT = indices.indices.size();
+				if (CNT < MIN_HUMPED_POINTS) continue;
 
 				Eigen::Vector4f v1, v2;
 				pcl::getMinMax3D(*hump, indices, v1, v2);
-				Eigen::Vector4f dv = v2 - v1;
 
+				float h = v2(2) - v1(2);
+				float w = std::fabs(wall.cloudPlane_(0, 0)) < 0.1 ? (v2(0) - v1(0)) : (v2(1) - v1(1));
+				float hwr = h / w;
+				if (hwr < 1.f) hwr = 1.f / hwr;
+				float szr = CNT / (w * h);
+				LOG(INFO) << ll::unsafe_format("%d points in %.3f x %.3f area: (%.3f, %.3f)", CNT, w, h, hwr, szr);
+
+				if (szr < 300.f || hwr>9.f) continue;
+				salientClouds.push_back(geo::getSubSet(hump, indices.indices));
 
 				Salient s;
 				s.bbp1_ = geo::P_(v1.block<3, 1>(0, 0));
 				s.bbp2_ = geo::P_(v2.block<3, 1>(0, 0));
-				s.height_ = ll::max_by([&](int i){
+				s.height_ = ll::max_by([&](int i) {
 					const auto& p = hump->points[i];
 					return dis_to_plane(p);
 				}, indices.indices).second;
@@ -206,12 +253,14 @@ std::vector<WhitewashDesigner::Salient> WhitewashDesigner::detectSalients(const 
 #if VISUALIZATION_ENABLED
 	SimpleViewer viewer;
 	// viewer.addCloud(sparsed, 100., 100., 100.);
-	viewer.addCloud(hump);
+	viewer.addCloud(hump, 100., 100., 100.);
 
 	for (const auto& s : salients) {
 		double r{ geo::random() }, g{ geo::random() }, b{ geo::random() };
 		viewer.addBox(s.bbp1_, s.bbp2_, r, g, b);
 	}
+
+	for (const auto& sc : salientClouds) viewer.addCloud(sc);
 
 	viewer.show();
 #endif
