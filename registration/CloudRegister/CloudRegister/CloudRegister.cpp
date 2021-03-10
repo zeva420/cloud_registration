@@ -721,6 +721,7 @@ CloudRegister::calcAllCorner(const double calcLengthTh)
 
 void CloudRegister::whitewashPaint()
 {
+	LOG(INFO)<< "now WhitewashPaint.";
 	const auto& itemRoot = mapCloudItem_[CLOUD_BOTTOM_E].front();
 	const auto& itemWall = mapCloudItem_[CLOUD_WALL_E];
 
@@ -730,8 +731,12 @@ void CloudRegister::whitewashPaint()
 		vecWallCloud.emplace_back(itemWall[i].pCloud_);
 
 	WhitewashDesigner designer;
-	designer.getWallConstraintPair(itemRoot.cloudBorder_.front(), itemRoot.cadBorder_.front());
+	designer.inputData(itemRoot, itemWall);
+	// designer.getWallConstraintPair(itemRoot.cloudBorder_.front(), itemRoot.cadBorder_.front());
+	if(!designer.solve()){
+		LOG(WARNING)<< "designer failed.";
+		return;
+	}
 
-	
 }
 }

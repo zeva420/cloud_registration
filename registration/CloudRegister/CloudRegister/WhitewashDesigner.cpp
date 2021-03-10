@@ -7,27 +7,18 @@ namespace CloudReg {
 
 void WhitewashDesigner::setupWalls(std::vector<Wall>&& walls) {
 	walls_.swap(walls);
-
-	LL_ASSERT(std::all_of(walls_.begin(), walls_.end(), [](const Wall& w) { 
-		return w.salientAreas_.size() == w.salientHeights_.size();
-	}));
 }
 
 void WhitewashDesigner::addConstraint(const WallConstraint& wc) {
 	LL_ASSERT(wc.i_ >= 0 && wc.i_ < walls_.size() && wc.j_ >= 0 && wc.j_ < walls_.size());
-	LL_ASSERT(walls_[wc.i_].pos_ < walls_[wc.j_].pos_ && "wrong order.");
-
-	constraints_.emplace_back(wc);
+	// LL_ASSERT(&& "wrong order.");
+	if (walls_[wc.i_].pos_ > walls_[wc.j_].pos_) {
+		LOG(INFO) << " WallConstraint should be reversed.";
+	} else constraints_.emplace_back(wc);
 }
 
 bool WhitewashDesigner::solve() {
 	LL_ASSERT(!walls_.empty() && !constraints_.empty());
-
-	// prepare
-	for (auto& wall : walls_) {
-		wall.maxSalientHeight_ = wall.salientHeights_.empty() ? 0. :
-			*std::max_element(wall.salientHeights_.begin(), wall.salientHeights_.end());
-	}
 
 	// 
 	const int N = walls_.size();
@@ -59,11 +50,12 @@ bool WhitewashDesigner::solve() {
 		b(r + 1) = -wall.minWallPaintThickness_;
 
 		d1[ii + 1] = 0.;
+		d2[ii + 1] = wall.maxSalientHeight_;
 		d1[ii + 2] = 0.;
 
 		c[ii] = wall.length_;
-		c[ii + 1] = wall.length_ * 2.;
-		c[ii + 2] = wall.length_ * 4.;
+		c[ii + 1] = wall.length_ * 4.;
+		c[ii + 2] = wall.length_ * 8.;
 	}
 
 	// each wall pair
@@ -82,47 +74,222 @@ bool WhitewashDesigner::solve() {
 		b(r + 1) = -(pij - wc.expectedDistance_ - wc.highBound_);
 	}
 
-#define P(a) #a<< ":\n"<< a <<"\n"
-	LOG(INFO) << "problem constructed: \n"
-		<< P(A) << P(b) << P(c) << P(d1) << P(d2);
-#undef P
+	//	Eigen::IOFormat fmt(4, 0, ", ", "\n", "[", "]");
+	//#define P(a) #a<< ": "<< a.transpose().format(fmt) <<"\n"
+	//	LOG(INFO) << "problem constructed: \na:\n" << A << "\n"
+	//		<< P(b) << P(c) << P(d1) << P(d2);
+	//#undef P
 
 
 	auto result = LPWrapper::Solve(c, A, b, d1, d2);
 	LOG(INFO) << result.to_string();
 
 	if (!result.isOptimal()) {
-		LOG(WARNING) << "failed find optimal.";
+		LOG(WARNING) << "failed to find optimal.";
 		return false;
 	}
 
 	// fill result.
+	guidelines_.reserve(N);
+	for (std::size_t i = 0; i < N; ++i) {
+		float x = result.x_(i * 3);
+		float y = result.x_(i * 3 + 1);
+		float z = result.x_(i * 3 + 2);
+
+		if (z > 0.f) y = walls_[i].maxSalientHeight_;
+
+		WallGuide wg;
+		wg.paintThickness_ = x + z;
+		wg.salientChipping_ = y;
+		wg.wallChipping_ = z;
+		guidelines_.emplace_back(wg);
+	}
+
+	// log result.
+	{
+		std::stringstream ss;
+		for (auto pr : ll::enumerate(guidelines_))
+			ss << ll::unsafe_format("[wall %d] chip wall %.3f, chip salient %.3f, paint wall %.3f.\n",
+			pr.index, pr.iter->wallChipping_, pr.iter->salientChipping_, pr.iter->paintThickness_);
+
+		ss << "\n";
+
+		auto fnl_pos = [&](std::size_t i, bool left) {
+			return walls_[i].pos_ + (-guidelines_[i].wallChipping_ + guidelines_[i].paintThickness_) * (left ? 1 : -1);
+		};
+		for (const auto& wc : constraints_) {
+			float pij = (fnl_pos(wc.j_, false) - fnl_pos(wc.i_, true));
+			ss << ll::unsafe_format("[pair %d, %d] expect %.3f, final %.3f. diff %.3f in [%.3f, %.3f].\n",
+				wc.i_, wc.j_, wc.expectedDistance_, pij, (pij - wc.expectedDistance_), wc.lowBound_, wc.highBound_);
+		}
+
+		LOG(INFO) << "so the whitewash paint: \n" << ss.str();
+	}
 
 	return true;
 }
+}
+
+#include "GeometryUtils.h"
+#include "SimpleViewer.h"
+#include <pcl/kdtree/kdtree.h>
+#include <pcl/segmentation/extract_clusters.h>
+
+namespace CloudReg {
+void WhitewashDesigner::inputData(const CloudItem& floor, const vecItems_t& walls) {
+	LL_ASSERT(walls.size() == floor.cadBorder_.front().size() && "wall size mismatch.");
+
+	walls_.resize(walls.size());
+	for (std::size_t i = 0; i < walls.size(); ++i) {
+		const auto& wall = walls[i];
+		auto& w = walls_[i];
+
+		w.salients_ = detectSalients(wall);
+		if (!w.salients_.empty())
+			w.maxSalientHeight_ = ll::max_by([](const Salient& s) { return s.height_; }, w.salients_).second;
+
+		double err = { 0. };
+		const Eigen::Vector4d& params = wall.cloudPlane_;
+		const double a{ params(0) }, b{ params(1) }, c{ params(2) }, d{ params(3) };
+		if (std::fabs(a) < 0.1f) {
+			w.pos_ = -d / b; // y
+			err = std::sqrt(a * a + c * c);
+		} else if (std::fabs(b) < 0.1f) {
+			w.pos_ = -d / a;
+			err = std::sqrt(b * b + c * c);
+		} else LOG(ERROR) << "?";
+
+		LOG(INFO) << ll::unsafe_format("direction error of wall %d: %.3f", i, err);
+	}
+
+	// length set refer to CAD
+	const auto& segs = floor.cadBorder_.front();
+	for (std::size_t i = 0; i < segs.size(); ++i) {
+		walls_[i].length_ = (segs[i].second - segs[i].first).norm();
+	}
+	LOG(INFO) << ll::unsafe_format("%d walls setup.", walls_.size());
+
+	// now detect constraints and set estimate position
+	getWallConstraintPair(floor.cloudBorder_.front(), floor.cadBorder_.front());
+
+	// debug
+	{
+		std::stringstream ss;
+		ss << ll::unsafe_format("%d walls, %d constrains: \n", walls_.size(), constraints_.size());
+		for (auto pr : ll::enumerate(walls_))
+			ss << ll::unsafe_format("[wall %d] pos: %.6f, salient: %.6f, length: %.6f.\n",
+			pr.index, pr.iter->pos_, pr.iter->maxSalientHeight_, pr.iter->length_);
+		ss << "-----------------------------------------------\n";
+		for (const auto& wc : constraints_)
+			ss << ll::unsafe_format("[pair %d, %d] distance: %.6f, [%.6f, %.6f].\n", wc.i_, wc.j_, wc.expectedDistance_, wc.lowBound_, wc.highBound_);
+		ss << "===============================================\n";
+
+		LOG(INFO) << "WhitewashDesigner input state: \n" << ss.str();
+	}
+}
+
+std::vector<WhitewashDesigner::Salient> WhitewashDesigner::detectSalients(const CloudItem& wall) const {
+	constexpr float HUMPED_THRESH = 0.002f;
+	constexpr float DOWNSAMPLE = 0.02f;
+	constexpr float CUSTER_DISTANCE = 0.03f;
+	constexpr int MIN_HUMPED_POINTS = 100;
+
+	//todo: this may need to return with sign.
+	auto dis_to_plane = [&](const Point& p) {
+		Eigen::Vector4d vp(p.x, p.y, p.z, 1.);
+		float dis = std::fabs(vp.dot(wall.cloudPlane_));
+		return dis;
+	};
+
+	auto sparsed = geo::downsampleUniformly(wall.pCloud_, DOWNSAMPLE);
+	auto hump = geo::filterPoints(sparsed, [&](const Point& p) { return dis_to_plane(p) > HUMPED_THRESH; });
+
+	std::vector<WhitewashDesigner::Salient> salients;
+	std::vector<PointCloud::Ptr> salientClouds;
+	{
+		pcl::search::KdTree<Point>::Ptr tree(new pcl::search::KdTree<Point>);
+		tree->setInputCloud(hump);
+
+		std::vector<pcl::PointIndices> clusters;
+		pcl::EuclideanClusterExtraction<Point> ece;
+		ece.setClusterTolerance(0.1f);
+		ece.setSearchMethod(tree);
+		ece.setInputCloud(hump);
+		ece.extract(clusters);
+
+		if (!clusters.empty()) {
+			for (const auto& indices : clusters) {
+				const std::size_t CNT = indices.indices.size();
+				if (CNT < MIN_HUMPED_POINTS) continue;
+
+				Eigen::Vector4f v1, v2;
+				pcl::getMinMax3D(*hump, indices, v1, v2);
+
+				float h = v2(2) - v1(2);
+				float w = std::fabs(wall.cloudPlane_(0, 0)) < 0.1 ? (v2(0) - v1(0)) : (v2(1) - v1(1));
+				float hwr = h / w;
+				if (hwr < 1.f) hwr = 1.f / hwr;
+				float szr = CNT / (w * h);
+				LOG(INFO) << ll::unsafe_format("%d points in %.3f x %.3f area: (%.3f, %.3f)", CNT, w, h, hwr, szr);
+
+				if (szr < 300.f || hwr>9.f) continue;
+				salientClouds.push_back(geo::getSubSet(hump, indices.indices));
+
+				Salient s;
+				s.bbp1_ = geo::P_(v1.block<3, 1>(0, 0));
+				s.bbp2_ = geo::P_(v2.block<3, 1>(0, 0));
+				s.height_ = ll::max_by([&](int i) {
+					const auto& p = hump->points[i];
+					return dis_to_plane(p);
+				}, indices.indices).second;
+
+				salients.emplace_back(s);
+			}
+		}
+	}
+
+	LOG(INFO) << salients.size() << " salients detected.";
+
+#if VISUALIZATION_ENABLED
+	SimpleViewer viewer;
+	// viewer.addCloud(sparsed, 100., 100., 100.);
+	viewer.addCloud(hump, 100., 100., 100.);
+
+	for (const auto& s : salients) {
+		double r{ geo::random() }, g{ geo::random() }, b{ geo::random() };
+		viewer.addBox(s.bbp1_, s.bbp2_, r, g, b);
+	}
+
+	for (const auto& sc : salientClouds) viewer.addCloud(sc);
+
+	viewer.show();
+#endif
+
+	return salients;
+}
 
 void WhitewashDesigner::getWallConstraintPair(const std::vector<seg_pair_t>& rootCloudBorder,
-	const std::vector<seg_pair_t>& rootCADBorder)
-{
+	const std::vector<seg_pair_t>& rootCADBorder) {
+	LL_ASSERT(walls_.size() == rootCADBorder.size() && "should setup walls first.");
+
+	LOG(INFO) << "getWallConstraintPair";
+
 	const double calcLengthTh = 0.01;
 	const Eigen::Vector3d& horizenSeg = rootCADBorder.front().first - rootCADBorder.front().second;
 	std::vector<std::size_t> vecVerticalIndex;
 	std::vector<std::size_t> vecHorizenIndex;
 	groupDirectionIndex(horizenSeg, rootCADBorder, vecVerticalIndex, vecHorizenIndex);
 
-
-	std::map<std::pair<std::size_t, std::size_t>,double> mapWallPair;
+	std::map<std::pair<std::size_t, std::size_t>, double> mapWallPair;
 	auto getWallPair = [&](const std::vector<std::size_t>& calcIndex) {
-		
-		for (std::size_t i = 0; i < calcIndex.size(); i++)
-		{
+
+		for (std::size_t i = 0; i < calcIndex.size(); i++) {
 			seg_pair_t toSeg = rootCADBorder[calcIndex[i]];
 			if ((toSeg.first - toSeg.second).norm() < calcLengthTh)
 				continue;
 
 
-			for (int j = calcIndex.size() - 1; j >= i + 1; j--)
-			{
+			for (int j = calcIndex.size() - 1; j >= i + 1; j--) {
 				seg_pair_t calcSeg = rootCADBorder[calcIndex[j]];
 				if ((calcSeg.first - calcSeg.second).norm() < calcLengthTh)
 					continue;
@@ -131,8 +298,8 @@ void WhitewashDesigner::getWallConstraintPair(const std::vector<seg_pair_t>& roo
 				Eigen::Vector3d s1Pt, e1Pt, s2Pt, e2Pt;
 				std::tie(hasOverlap, s1Pt, e1Pt, s2Pt, e2Pt) = calcOverlap(toSeg, calcSeg);
 
-				
-				if (!hasOverlap || (s1Pt - e1Pt).norm() < calcLengthTh 
+
+				if (!hasOverlap || (s1Pt - e1Pt).norm() < calcLengthTh
 					|| (s2Pt - e2Pt).norm() < calcLengthTh)
 					continue;
 
@@ -148,36 +315,42 @@ void WhitewashDesigner::getWallConstraintPair(const std::vector<seg_pair_t>& roo
 	getWallPair(vecVerticalIndex);
 	getWallPair(vecHorizenIndex);
 
-	std::vector<double> vecWallLength(rootCADBorder.size(),0.0);
+	std::vector<double> vecWallLength(rootCADBorder.size(), 0.0);
 	std::vector<WallConstraint> vecConstraint;
-	for (auto& pairIdx : mapWallPair)
-	{
+	for (auto& pairIdx : mapWallPair) {
+		LOG(INFO) << pairIdx.first.first << ", " << pairIdx.first.second << ": " << pairIdx.second;
+
 		WallConstraint tmp;
 		tmp.i_ = pairIdx.first.first;
 		tmp.j_ = pairIdx.first.second;
 		tmp.expectedDistance_ = pairIdx.second;
 
-		auto& segI = rootCloudBorder[tmp.i_];
-		auto& segJ = rootCloudBorder[tmp.j_];
+		// auto& segI = rootCloudBorder[tmp.i_];
+		// auto& segJ = rootCloudBorder[tmp.j_];
 
-		std::size_t optIndex, indexOther;
-		int dir;
-		std::tie(optIndex, indexOther, dir) = getWallGrowAxisAndDir(segI.first, segI.second);
-		tmp.lowBound_ = segI.first[indexOther];
-		tmp.highBound_ = segJ.second[indexOther];
-		vecConstraint.emplace_back(tmp);
+		// std::size_t optIndex, indexOther;
+		// int dir;
+		// std::tie(optIndex, indexOther, dir) = getWallGrowAxisAndDir(segI.first, segI.second);
 
-		
-		vecWallLength[tmp.i_] = (segI.first - segI.second).norm();
-		vecWallLength[tmp.j_] = (segJ.first - segJ.second).norm();
+		// tmp.lowBound_ = segI.first[indexOther];
+		// tmp.highBound_ = segJ.second[indexOther];
+		// vecConstraint.emplace_back(tmp);
+		if (tmp.expectedDistance_ < 0.) {
+			std::swap(tmp.i_, tmp.j_);
+			tmp.expectedDistance_ = -tmp.expectedDistance_;
+		}
 
-		LOG(INFO) << "WallIdx: "<< tmp.i_ << " - " << tmp.j_ << " expect_dis:"<<tmp.expectedDistance_
-			<< " posI: "<< tmp.lowBound_ << " posJ: " << tmp.highBound_ << " dis:"<< (tmp.highBound_ - tmp.lowBound_);
-		
-		LOG(INFO) << vecWallLength[tmp.i_] << " " << vecWallLength[tmp.j_];
+		addConstraint(tmp);
+
+		// vecWallLength[tmp.i_] = (segI.first - segI.second).norm();
+		// vecWallLength[tmp.j_] = (segJ.first - segJ.second).norm();
+
+		// LOG(INFO) << "WallIdx: " << tmp.i_ << " - " << tmp.j_ << " expect_dis:" << tmp.expectedDistance_
+		//	<< " posI: " << tmp.lowBound_ << " posJ: " << tmp.highBound_ << " dis:" << (tmp.highBound_ - tmp.lowBound_);
+
+		// LOG(INFO) << vecWallLength[tmp.i_] << " " << vecWallLength[tmp.j_];
 	}
-	
-	
+
 }
 
 
