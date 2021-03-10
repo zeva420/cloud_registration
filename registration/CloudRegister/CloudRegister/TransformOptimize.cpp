@@ -238,9 +238,9 @@ bool TransformOptimize::calcPlaneCoeff(PointCloud::Ptr inputCloud,
 		planeCoeff = plane;
 	}
 	
-    // auto inliers = geo::getSubSet(inputCloud, inlierIdxs, false);
-    // Eigen::Vector4d plane = calcPlaneParam(inliers);
-
+    auto inliers = geo::getSubSet(inputCloud, inlierIdxs, false);
+    Eigen::Vector4d plane = calcPlaneParam(inliers);
+	planeCoeff = plane;
    
 
 	return true;
