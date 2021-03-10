@@ -214,7 +214,8 @@ bool TransformOptimize::calcPlaneCoeff(PointCloud::Ptr inputCloud,
 
 		planeFitting(0.003, cloudFiltered, coeff, inlierIdxs);
 
-		Eigen::Vector4d plane(coeff(0), coeff(1), coeff(2), coeff(3));
+		auto inliers = geo::getSubSet(inputCloud, inlierIdxs, false);
+		Eigen::Vector4d plane = calcPlaneParam(inliers);
 		Eigen::Vector3d n = plane.block<3, 1>(0, 0);
 		double d = plane(3);
 		double flag = ((n.dot(center) + d) > 0) ? 1.0 : -1.0;
@@ -227,7 +228,10 @@ bool TransformOptimize::calcPlaneCoeff(PointCloud::Ptr inputCloud,
 	else
 	{
 		planeFitting(0.003, inputCloud, coeff, inlierIdxs);
-		Eigen::Vector4d plane(coeff(0), coeff(1), coeff(2), coeff(3));
+
+		auto inliers = geo::getSubSet(inputCloud, inlierIdxs, false);
+		Eigen::Vector4d plane = calcPlaneParam(inliers);
+		
 		Eigen::Vector3d n = plane.block<3, 1>(0, 0);
 		double d = plane(3);
 		double flag = ((n.dot(center) + d) > 0) ? 1.0 : -1.0;
@@ -238,9 +242,7 @@ bool TransformOptimize::calcPlaneCoeff(PointCloud::Ptr inputCloud,
 		planeCoeff = plane;
 	}
 	
-    auto inliers = geo::getSubSet(inputCloud, inlierIdxs, false);
-    Eigen::Vector4d plane = calcPlaneParam(inliers);
-	planeCoeff = plane;
+  
    
 
 	return true;
