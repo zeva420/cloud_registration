@@ -262,6 +262,8 @@ namespace CloudReg
 
         //step3: Calculate verticality
         std::map<int, std::vector<calcMeassurment_t>> allMeasure;
+        std::vector<int> outOrder = {1, 2, 3};
+        std::vector<seg_pair_t> vecRange;
         for (std::size_t i = 0; i < validVertical.size() - 1; ++i)
         {
             auto &Vertical1 = validVertical[i];
@@ -271,25 +273,20 @@ namespace CloudReg
             
             auto measure = calWallVerticality(vecWallHorizen, std::make_pair(Vertical1, Vertical2), 
                                                 pCloud, plane, hAxis);
-            for (auto &map : measure)
-                allMeasure[map.first].insert(allMeasure[map.first].end(), map.second.begin(), map.second.end());
-        }
-
-        LOG(INFO) << "Final output of wall verticality: ";
-        std::vector<int> outOrder = {1, 2, 3};
-        std::vector<seg_pair_t> vecRange;
-        for(auto& type : outOrder)
-        {
-            if (!allMeasure.count(type))
-                continue;
-            auto measures = allMeasure[type];
-            returnMeasure.insert(returnMeasure.end(), measures.begin(), measures.end());
-            for(auto& item : measures)
+            for(auto& type : outOrder)
             {
-                vecRange.insert(vecRange.end(), item.rangeSeg.begin(), item.rangeSeg.end());
-                LOG(INFO) << "Wall "<<wallIndex<<" verticality: " << item.value;
+                if (!measure.count(type))
+                    continue;
+                auto measures = measure[type];
+                returnMeasure.insert(returnMeasure.end(), measures.begin(), measures.end());
+                for(auto& item : measures)
+                {
+                    vecRange.insert(vecRange.end(), item.rangeSeg.begin(), item.rangeSeg.end());
+                    LOG(INFO) << "Wall "<<wallIndex<<" verticality: " << item.value;
+                }
             }
         }
+        
 #ifdef VISUALIZATION_ENABLED
         pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_filtered(new pcl::PointCloud<pcl::PointXYZ>());
         uniformSampling(0.01, pCloud, pCloud_filtered);
