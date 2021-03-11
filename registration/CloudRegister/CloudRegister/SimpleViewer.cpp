@@ -19,7 +19,7 @@ void SimpleViewer::addSegment(const Point& s, const Point& e, double r, double g
 #ifdef VISUALIZATION_ENABLED
 	viewer_.addSphere(s, 0.02f, r, g, b, genName());
 	viewer_.addSphere(e, 0.02f, r, g, b, genName());
-	viewer_.addLine(s, e, r, g, b, genName());
+	viewer_.addLine(s, e, r / 255., g / 255., b / 255., genName());
 #endif
 }
 void SimpleViewer::addSegment(const Point& s, const Point& e) {

@@ -71,6 +71,15 @@ CloudSegment::SegmentResult CloudSegment::run() {
 		LOG(WARNING) << "failed to align cloud to cadModel.";
 	}
 
+#ifdef VISUALIZATION_ENABLED
+	if (0) {
+		SimpleViewer viewer;
+		viewer.addCloud(sparsedCloud());
+		viewer.addCloud(cadModel_.genTestFrameCloud(), 255., 0., 0.);
+		viewer.show();
+	}
+#endif
+
 	auto sr = segmentByCADModel();
 	return sr;
 }
@@ -171,7 +180,7 @@ bool CloudSegment::alignCloudToCADModel() {
 		std::stringstream ss;
 		for (const auto& pc : wallCandidates)
 			ss << pc.n().transpose() << "\n";
-		LOG(INFO) << "candidates normals: " << ss.str();
+		LOG(INFO) << "candidates normals: \n" << ss.str();
 	}
 
 	//2. map to segment 
@@ -976,11 +985,12 @@ Eigen::vector<trans2d::Matrix2x3f> CloudSegment::computeSegmentAlignCandidates(c
 	};
 
 	Eigen::vector<Eigen::Vector2f> blueprintpoints;
-	blueprintpoints.reserve(blueprint.size() * 2);
-	for (const auto& s : blueprint) {
-		blueprintpoints.emplace_back(s.s_.block<2, 1>(0, 0));
-		blueprintpoints.emplace_back(s.e_.block<2, 1>(0, 0));
-	}
+	//blueprintpoints.reserve(blueprint.size() * 2);
+	//for (const auto& s : blueprint) {
+	//	blueprintpoints.emplace_back(s.s_.block<2, 1>(0, 0));
+	//	blueprintpoints.emplace_back(s.e_.block<2, 1>(0, 0));
+	//}
+	for (const auto& s : blueprint) blueprintpoints.emplace_back(s.s_.block<2, 1>(0, 0));
 
 	auto minimum_distance_to_wall_segments = [&segments](const Eigen::Vector2f& p)-> float {
 		auto pr = ll::min_by([&p](const Segment& seg) {
@@ -1000,6 +1010,76 @@ Eigen::vector<trans2d::Matrix2x3f> CloudSegment::computeSegmentAlignCandidates(c
 		return *std::max_element(mindis.begin(), mindis.end());
 	};
 
+	auto calc_min_distance = [&segments](const Eigen::Vector2f& p, const Eigen::Vector2f& dir) {
+		float mindis = 100.;
+		// LOG(INFO) << "dir: " << dir.transpose();
+		for (const auto& seg : segments) {
+			Eigen::Vector2f s(seg.s_(0), seg.s_(1));
+			Eigen::Vector2f e(seg.e_(0), seg.e_(1));
+			Eigen::Vector2f segdir = (e - s).normalized();
+			float pra = std::fabs(segdir(1) * dir(0) - segdir(0) * dir(1));
+
+			// LOG(INFO) << "pra: " << pra;
+
+			if (pra < 0.1f) //todo: what if all of this failed?
+				mindis = std::min(mindis, geo::distance_to_line(p, s, e));
+		}
+		// LOG(INFO) << "mindis: " << mindis;
+		return mindis;
+	};
+
+	auto match_error_beta = [&](const trans2d::Matrix2x3f& T) {
+		const std::size_t N = blueprintpoints.size();
+		Eigen::vector<Eigen::Vector2f> transpoints(N);
+		std::transform(blueprintpoints.begin(), blueprintpoints.end(), transpoints.begin(),
+			[&T](const Eigen::Vector2f& bp) { return trans2d::transform(bp, T); });
+
+		float maxdis = -1.;
+		for (int i = 0; i < N; ++i) {
+			const Eigen::Vector2f& cur = transpoints[i];
+			const Eigen::Vector2f& pre = transpoints[i - 1 < 0 ? (N - 1) : i - 1];
+			const Eigen::Vector2f& nxt = transpoints[(i + 1) % N];
+
+			float dis1 = calc_min_distance(cur, (cur - pre).normalized());
+			float dis2 = calc_min_distance(cur, (nxt - cur).normalized());
+			LOG(INFO) << ll::unsafe_format("p %d: %.3f, %.3f", i, dis1, dis2);
+
+			maxdis = std::max(std::max(dis1, dis2), maxdis);
+		}
+		return maxdis;
+	};
+
+	auto show_T = [&](const trans2d::Matrix2x3f& T) {
+		SimpleViewer viewer;
+		for (const auto& seg : segments) {
+			Eigen::Vector3f s = seg.s_;
+			Eigen::Vector3f e = seg.e_;
+			s(2, 0) = 0.02f;
+			e(2, 0) = 0.02f;
+			viewer.addSegment(geo::P_(s), geo::P_(e), 255., 0., 0.);
+		}
+
+		for (const auto& seg : blueprint) {
+			Eigen::Vector3f s, e;
+			s.block<2, 1>(0, 0) = trans2d::transform(seg.s_.block<2, 1>(0, 0), T);
+			e.block<2, 1>(0, 0) = trans2d::transform(seg.e_.block<2, 1>(0, 0), T);
+			s(2, 0) = 0.f;
+			e(2, 0) = 0.f;
+			viewer.addSegment(geo::P_(s), geo::P_(e), 0., 255., 0.);
+		}
+
+		int i = 0;
+		for (const auto& bp : blueprintpoints) {
+			Eigen::Vector2f tp = trans2d::transform(bp.block<2, 1>(0, 0), T);
+			Point p(tp(0), tp(1), -0.05);
+
+			viewer.viewer().addText3D(std::to_string(i), p, 0.25, 1., 1., 1., "txt" + std::to_string(i));
+			i++;
+		}
+
+		viewer.show();
+	};
+
 	std::vector<can> cans;
 	for (const auto& seg : segments) {
 		Eigen::Vector2f s1 = seg.s_.block<2, 1>(0, 0);
@@ -1014,7 +1094,11 @@ Eigen::vector<trans2d::Matrix2x3f> CloudSegment::computeSegmentAlignCandidates(c
 			if (std::fabs((e2 - s2).norm() - len) > 2. * disthresh) continue;
 
 			trans2d::Matrix2x3f T = trans2d::estimateTransform(s1, e1, s2, e2);
-			float err = match_error(T);
+			// float err = match_error(T);
+			float err = match_error_beta(T);
+			// LOG(INFO) << "err: " << err;
+
+			// show_T(T);
 
 			if (err > disthresh) continue;
 
@@ -1028,6 +1112,14 @@ Eigen::vector<trans2d::Matrix2x3f> CloudSegment::computeSegmentAlignCandidates(c
 
 	// sort and output.
 	std::sort(cans.begin(), cans.end(), [](const auto& c1, const auto& c2) { return c1.error_ < c2.error_; });
+
+	if (0) {
+		std::stringstream ss;
+		for (auto pr : ll::enumerate(cans)) ss << pr.index << ":\t" << pr.iter->to_string() << "\n";
+		LOG(INFO) << "candidates: \n" << ss.str();
+
+		for (const auto& c : cans) show_T(c.T_);
+	}
 
 	// filter & unique.
 	{
@@ -1504,7 +1596,7 @@ CloudSegment::NormalCloud::Ptr CloudSegment::computeNormals(PointCloud::Ptr clou
 }
 
 void CloudSegment::_show_result(const SegmentResult& sr) const {
-	return;
+	// return;
 
 #if VISUALIZATION_ENABLED	
 	SimpleViewer viewer;

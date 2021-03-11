@@ -58,6 +58,8 @@ inline float length2d(const Point& p) { return std::sqrt(length2d_squared(p)); }
 
 inline float cross2d(const Point& p, const Point& q) { return p.x * q.y - p.y * q.x; }
 
+extern float distance_to_line(const Eigen::Vector2f& p, const Eigen::Vector2f& s, const Eigen::Vector2f& e);
+
 extern float distance_to_segment_2d(const Eigen::Vector2f& p, const Eigen::Vector2f& s, const Eigen::Vector2f& e);
 
 extern std::vector<std::size_t> sort_points_counter_clockwise(const Eigen::vector<Eigen::Vector2f>& points);

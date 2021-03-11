@@ -86,6 +86,15 @@ Eigen::Matrix4f asTransform3d(const Matrix2x3f& T2d) {
 
 namespace geo {
 
+float distance_to_line(const Eigen::Vector2f& p, const Eigen::Vector2f& s, const Eigen::Vector2f& e) {
+	Eigen::Vector2f sp = p - s;
+	Eigen::Vector2f se = e - s;
+	float se2 = se.squaredNorm();
+	LL_ASSERT(se2 > 1e-8);
+
+	return std::fabs(sp(0) * se(1) - sp(1) * se(0)) / std::sqrt(se2);
+}
+
 float distance_to_segment_2d(const Eigen::Vector2f& p, const Eigen::Vector2f& s, const Eigen::Vector2f& e) {
 	Eigen::Vector2f sp = p - s;
 	Eigen::Vector2f se = e - s;
@@ -162,7 +171,7 @@ bool isInShape2D(const Eigen::Vector3d& point, const Eigen::vector<Eigen::Vector
 
 	//todo: should use margin check instead.
 	for (int i = 0; i < 3; ++i)
-		if (i != dimfix) 
+		if (i != dimfix)
 			if (point[i] > maxp[i] || point[i] < minp[i]) return false;
 
 	// we check dim1 & dim2
