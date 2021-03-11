@@ -317,7 +317,11 @@ bool CloudSegment::alignCloudToCADModel() {
 	orgCloud_ = geo::transfromPointCloud(orgCloud_, T);
 	// and we assign T_ here, 
 	T_ = T;
-
+#if 0
+	pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_filtered(new pcl::PointCloud<pcl::PointXYZ>());
+	uniformSampling(0.01, orgCloud_, pCloud_filtered);
+	pcl::io::savePCDFile("origin_align.pcd", *pCloud_filtered);
+#endif
 #if VISUALIZATION_ENABLED	
 	// debug show
 	if (0) {

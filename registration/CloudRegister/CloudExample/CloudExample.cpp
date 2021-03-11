@@ -221,6 +221,13 @@ int main()
 			std::cout << "Couldn't read file " << file << std::endl;
 			return -1;
 		}
+
+#if 0
+		for (auto& pt : pCloud->points)
+		{
+			pt.z += 1;
+		}
+#endif
 		vecCloudPtr.emplace_back(pCloud);
 	}
 
@@ -287,7 +294,7 @@ int main()
 #endif
 
 	using namespace CloudReg;
-#if 0
+#if 1
 	
 	{
 		std::vector<seg_pair_t> vecSeg;
@@ -413,14 +420,31 @@ int main()
 		}
 		writePCDFile("room_corner.pcd", nullptr, vecSeg);
 	}
-		
+
+	{
+		auto mapValue = obj.calcWallVerticality("local");
+		for (auto& vecValue : mapValue)
+		{
+			for (auto& value : std::get<0>(vecValue.second))
+				std::cout << "WallVerticality Wall: " << vecValue.first << "  " << value.value * 1000 << std::endl;
+		}
+	}
+
+	{
+		auto mapValue = obj.calcWallFlatness("local");
+		for (auto& vecValue : mapValue)
+		{
+			for (auto& value : std::get<0>(vecValue.second))
+				std::cout << "WallFlatness Wall: " << vecValue.first << "  " << value.value * 1000 << std::endl;
+		}
+
+	}
+	//obj.calcAllSquareness();
+	//obj.calcRootFlatness();	
 	
 #endif
-	obj.whitewashPaint();
-	 //obj.calcWallVerticality();
-	//obj.calcWallFlatness();
-	 //obj.calcAllSquareness();
-	//obj.calcRootFlatness();
+	//obj.whitewashPaint();
+	
 	
 	return 0;
 }
