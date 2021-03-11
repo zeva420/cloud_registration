@@ -92,7 +92,7 @@ bool CloudSegment::calibrateDirectionToAxisZ() {
 	pcl::PassThrough<pcl::PointXYZ> pass;
 	pass.setInputCloud(orgCloud_);
 	pass.setFilterFieldName("z");
-	pass.setFilterLimits(0.5, 1.5);
+	pass.setFilterLimits(0.5, 2.6);
 	pass.filter(*filteredCloud);
 
 	PointCloud::Ptr samplingCloud(new PointCloud());
@@ -1048,7 +1048,7 @@ Eigen::vector<trans2d::Matrix2x3f> CloudSegment::computeSegmentAlignCandidates(c
 		}
 		return maxdis;
 	};
-
+#ifdef VISUALIZATION_ENABLED
 	auto show_T = [&](const trans2d::Matrix2x3f& T) {
 		SimpleViewer viewer;
 		for (const auto& seg : segments) {
@@ -1079,7 +1079,7 @@ Eigen::vector<trans2d::Matrix2x3f> CloudSegment::computeSegmentAlignCandidates(c
 
 		viewer.show();
 	};
-
+#endif
 	std::vector<can> cans;
 	for (const auto& seg : segments) {
 		Eigen::Vector2f s1 = seg.s_.block<2, 1>(0, 0);
@@ -1112,7 +1112,7 @@ Eigen::vector<trans2d::Matrix2x3f> CloudSegment::computeSegmentAlignCandidates(c
 
 	// sort and output.
 	std::sort(cans.begin(), cans.end(), [](const auto& c1, const auto& c2) { return c1.error_ < c2.error_; });
-
+#ifdef VISUALIZATION_ENABLED
 	if (0) {
 		std::stringstream ss;
 		for (auto pr : ll::enumerate(cans)) ss << pr.index << ":\t" << pr.iter->to_string() << "\n";
@@ -1120,7 +1120,7 @@ Eigen::vector<trans2d::Matrix2x3f> CloudSegment::computeSegmentAlignCandidates(c
 
 		for (const auto& c : cans) show_T(c.T_);
 	}
-
+#endif
 	// filter & unique.
 	{
 		constexpr float ANGLE_THRESH = 5.f / geo::PI;

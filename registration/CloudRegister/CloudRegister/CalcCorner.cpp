@@ -7,28 +7,31 @@
 namespace CloudReg
 {
 	std::tuple<PointCloud::Ptr, std::vector<seg_pair_t>> 
-		calcCornerArea(const seg_pair_t& seg, const PointCloud::Ptr pWall, double height, bool bLeft,
+		calcCornerArea(const seg_pair_t& seg, const seg_pair_t& highSeg, const PointCloud::Ptr pWall, double height, bool bLeft,
 			double calcWidth, double calcLength)
 	{
 		std::size_t optIndex,indexOther; 
 		int dir;
 		std::tie(optIndex,indexOther,dir) = getWallGrowAxisAndDir(seg.first, seg.second);
+		auto allPt = ininterpolateSeg(seg.first, seg.second, 0.001);
+		auto allHighPt = ininterpolateSeg(highSeg.first, highSeg.second, 0.001);
+		std::size_t moveStep = (calcLength * 1000);
+		std::size_t moveHighStep = (height * 1000);
 
 		Eigen::Vector3d pt1,pt2;
 		if(bLeft)
 		{
 			pt2 = pt1 = seg.first;
-			pt1[optIndex] += dir * calcLength;
+			pt1 = allPt[moveStep];
+			pt1[2] = allHighPt[moveHighStep][2];
+			pt2[2] = allHighPt[moveHighStep][2];
 
-			pt1[2] = height;
-			pt2[2] = height;
 
 		}else{
-			pt2 = pt1 = seg.second;
-			pt2[optIndex] -= dir * calcLength;
-		
-			pt1[2] = height;
-			pt2[2] = height;
+			pt2 = pt1 = seg.second;			
+			pt2 = allPt[allPt.size() - moveStep - 1];
+			pt1[2] = allHighPt[moveHighStep][2];
+			pt2[2] = allHighPt[moveHighStep][2];
 		}
 
 
@@ -76,7 +79,7 @@ namespace CloudReg
 				const std::pair<std::size_t, std::size_t> &idxPair,
 				const std::pair<seg_pair_t, seg_pair_t>& segPair, 
 				const std::pair<const PointCloud::Ptr, const PointCloud::Ptr> &cloudPair, 
-				double height)
+				double height, const seg_pair_t& highSeg)
 	{
 		const auto &leftSeg = segPair.first;
 		const auto &rightSeg = segPair.second;
@@ -96,9 +99,9 @@ namespace CloudReg
 		const double planeFitDistTh = 0.003;
 		
 		//get large-scale area
-		auto roughLeft = calcCornerArea(leftSeg, pLeftCloud, height, true, 
+		auto roughLeft = calcCornerArea(leftSeg, highSeg,pLeftCloud, height, true,
 											calcWidth_first, calcLength_first);
-		auto roughRight = calcCornerArea(rightSeg, pRightCloud, height, false, 
+		auto roughRight = calcCornerArea(rightSeg, highSeg,pRightCloud, height, false,
 											calcWidth_first, calcLength_first);
 		if (std::get<0>(roughLeft)->size() < cloudSize_first 
 					|| std::get<0>(roughRight)->size() < cloudSize_first)
@@ -107,8 +110,8 @@ namespace CloudReg
 				<< " or roughRight:" << std::get<0>(roughRight)->size() << " < " << cloudSize_first
 				<< " height:" << height;
 			
-			auto left = calcCornerArea(leftSeg, pLeftCloud, height, true, calcWidth_second, calcLength_second);
-			auto right = calcCornerArea(rightSeg, pRightCloud, height, false, calcWidth_second, calcLength_second);
+			auto left = calcCornerArea(leftSeg, highSeg, pLeftCloud, height, true, calcWidth_second, calcLength_second);
+			auto right = calcCornerArea(rightSeg, highSeg, pRightCloud, height, false, calcWidth_second, calcLength_second);
 			calcMeassurment_t meassurment;
 			meassurment.value = -1;
 			meassurment.rangeSeg = std::get<1>(left);
@@ -151,8 +154,8 @@ namespace CloudReg
 		inliers2->swap(*inliers2_new);
 
 		//get small-scale area
-		auto left = calcCornerArea(leftSeg, inliers1, height, true, calcWidth_second, calcLength_second);
-		auto right = calcCornerArea(rightSeg, inliers2, height, false, calcWidth_second, calcLength_second);
+		auto left = calcCornerArea(leftSeg, highSeg,inliers1, height, true, calcWidth_second, calcLength_second);
+		auto right = calcCornerArea(rightSeg, highSeg, inliers2, height, false, calcWidth_second, calcLength_second);
 		if (std::get<0>(left)->size() < cloudSize_second 
 					|| std::get<0>(right)->size() < cloudSize_second)
 		{
@@ -324,20 +327,21 @@ namespace CloudReg
 				}
 			}
 
+			auto highSeg = leftWall[leftWall.size()-2];
 			// getCornerByPlaneNorm
 			LOG(INFO) << "CalcCorner:calc between: " << std::to_string(idx.first) << " - " << std::to_string(idx.second);
 			//0.3
 			{
 				calcMeassurment_t meassurment 
 					= meassurmentProcess(idx, std::make_pair(leftWall.back(), rightWall.back()), 
-								std::make_pair(vecCloud[idx.first], vecCloud[idx.second]), 0.3);
+								std::make_pair(vecCloud[idx.first], vecCloud[idx.second]), 0.3, highSeg);
 				result[std::make_pair(idx.first, idx.second)].push_back(meassurment);
 			}
 			//1.5
 			{
 				calcMeassurment_t meassurment 
 					= meassurmentProcess(idx, std::make_pair(leftWall.back(), rightWall.back()), 
-								std::make_pair(vecCloud[idx.first], vecCloud[idx.second]), 1.5);
+								std::make_pair(vecCloud[idx.first], vecCloud[idx.second]), 1.5, highSeg);
 				result[std::make_pair(idx.first, idx.second)].push_back(meassurment);		
 			}
 		}
