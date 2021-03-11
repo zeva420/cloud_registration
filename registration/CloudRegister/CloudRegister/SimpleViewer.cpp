@@ -65,6 +65,17 @@ void SimpleViewer::addBox(const Point& min, const Point& max, double r, double g
 #endif
 }
 
+void SimpleViewer::addZPlane(float z, float halfsize) {
+	Point p1(halfsize, halfsize, z);
+	Point p2(-halfsize, halfsize, z);
+	Point p3(-halfsize, -halfsize, z);
+	Point p4(halfsize, -halfsize, z);
+	addLine(p1, p2, 1., 0., 0.);
+	addLine(p2, p3, 1., 0., 0.);
+	addLine(p3, p4, 1., 0., 0.);
+	addLine(p4, p1, 1., 0., 0.);
+}
+
 void SimpleViewer::show() {
 #ifdef VISUALIZATION_ENABLED
 	while (!viewer_.wasStopped()) viewer_.spinOnce(33);

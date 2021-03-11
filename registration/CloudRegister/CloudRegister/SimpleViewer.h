@@ -25,6 +25,8 @@ public:
 
 	void addBox(const Point& min, const Point& max, double r, double g, double b);
 
+	void addZPlane(float z, float halfsize = 2.f);
+
 #ifdef VISUALIZATION_ENABLED
 	pcl::visualization::PCLVisualizer& viewer() { return viewer_; }
 #endif

@@ -88,6 +88,7 @@ bool CloudSegment::calibrateDirectionToAxisZ() {
 	LOG(INFO) << "********calibrateDirectionToAxisZ*******";
 	removeFarPoints(orgCloud_, cadModel_);
 
+#if 0
 	pcl::PointCloud<pcl::PointXYZ>::Ptr filteredCloud(new pcl::PointCloud<pcl::PointXYZ>());
 	pcl::PassThrough<pcl::PointXYZ> pass;
 	pass.setInputCloud(orgCloud_);
@@ -115,6 +116,16 @@ bool CloudSegment::calibrateDirectionToAxisZ() {
 		LOG(INFO) << "z:" << it.first << " num:" << it.second.size();
 		if (3 <= pr.index) break;
 	}
+#else
+	auto sparsed = geo::downsampleUniformly(orgCloud_, 0.02f);
+	auto roofh = detectRoofHeight(sparsed);
+
+	constexpr float SLICE_THICKNESS = 0.2f;
+	auto roofCloud = geo::passThrough(sparsed, "z", roofh - SLICE_THICKNESS, roofh + SLICE_THICKNESS);
+	auto subSet = roofCloud;
+
+	LOG(INFO) << ll::unsafe_format("detect roof height: %.3f, sampled subset: %d", roofh, subSet->size());
+#endif
 
 	Eigen::VectorXf coeff;
 	std::vector<int> inlierIdxs;
@@ -595,14 +606,24 @@ double CloudSegment::detectRoofHeight(PointCloud::Ptr cloud) const {
 	const float THRESH_COSINE = std::cos(5. / 180. * geo::PI);
 
 	auto subRoof = geo::filterPoints(cloud, [THRESH_COSINE](const Point& p) {
-		return p.z > 0. && p.z / geo::length(p) > THRESH_COSINE;
+		return p.z > 0 && p.z / geo::length(p) > THRESH_COSINE;
 	});
 	LL_ASSERT(!subRoof->empty() && "failed to estimate roof height.");
 
 	//todo: may ensure calibrate (0, 0, 1) here
 	//todo: may remove outliers
 
-	double z = ll::sum_by([](const Point& p) { return p.z; }, subRoof->points) / static_cast<double>(subRoof->size());
+
+	auto zs = ll::mapf([](const Point& p) {return p.z; }, subRoof->points);
+	int N = zs.size();
+	int NS{ N * 2 / 10 }, NE{ N * 8 / 10 }; // use 0.2 ~ 0.8
+	std::partial_sort(zs.begin(), zs.begin() + NE, zs.end());
+
+	double sz{ 0. };
+	for (std::size_t i = NS; i < NE; ++i) sz += zs[i];
+	double z = sz / (NE - NS);
+
+	//	double z = ll::sum_by([](const Point& p) { return p.z; }, subRoof->points) / static_cast<double>(subRoof->size());
 	LOG(INFO) << ll::unsafe_format("roof height estimated with %d points: %.3f", subRoof->size(), z);
 
 	return z;
@@ -982,7 +1003,7 @@ Eigen::vector<trans2d::Matrix2x3f> CloudSegment::computeSegmentAlignCandidates(c
 
 	private:
 		Eigen::Vector2f t() const { return -T_.block<2, 2>(0, 0).transpose() * T_.block<2, 1>(0, 2); }
-	};
+};
 
 	Eigen::vector<Eigen::Vector2f> blueprintpoints;
 	//blueprintpoints.reserve(blueprint.size() * 2);
@@ -1042,7 +1063,7 @@ Eigen::vector<trans2d::Matrix2x3f> CloudSegment::computeSegmentAlignCandidates(c
 
 			float dis1 = calc_min_distance(cur, (cur - pre).normalized());
 			float dis2 = calc_min_distance(cur, (nxt - cur).normalized());
-			LOG(INFO) << ll::unsafe_format("p %d: %.3f, %.3f", i, dis1, dis2);
+			// LOG(INFO) << ll::unsafe_format("p %d: %.3f, %.3f", i, dis1, dis2);
 
 			maxdis = std::max(std::max(dis1, dis2), maxdis);
 		}
@@ -1534,27 +1555,24 @@ void CloudSegment::removeFarPoints(PointCloud::Ptr inputCloud, const CADModel& c
 	auto Bottons = cad.getTypedModelItems(ITEM_BOTTOM_E);
 	auto Walls = cad.getTypedModelItems(ITEM_WALL_E);
 
-	double width = 0;
+	double disthresh2 = 0.;
 	Eigen::Vector3d firstPt = Bottons.front().points_.front();
 	for (auto& p : Bottons.front().points_) {
-		double len = (firstPt - p).norm();
-		width = std::max(width, len);
+		double len2 = (firstPt - p).squaredNorm();
+		disthresh2 = std::max(disthresh2, len2);
 	}
-	double height = std::fabs(Walls.front().highRange_.second - Walls.front().highRange_.first);
 
-	double distSquareTh = width * width + height * height;
-	if (distSquareTh < 1.0) distSquareTh = 20. * 20.;
+	int cnt = inputCloud->size();
 
-	PointCloud::Ptr leftCloud(new PointCloud());
-	for (auto& p : inputCloud->points) {
-		double dist = p.x * p.x + p.y * p.y + p.z * p.z;
-		if (dist < distSquareTh) leftCloud->push_back(p);
-	}
-	LOG(INFO) << "removeFarPoints, inputCloud:" << inputCloud->size() << " leftCloud:"
-		<< leftCloud->size() << " distTh:" << std::sqrt(distSquareTh)
-		<< " width:" << width << " height:" << height;
-	inputCloud->swap(*leftCloud);
-	return;
+	auto left = geo::filterPoints(inputCloud, [disthresh2](const Point& p) {
+		float dis2 = p.x * p.x + p.y * p.y; // + p.z * p.z;
+		return dis2 < disthresh2;
+	});
+
+	LOG(INFO) << ll::unsafe_format("removeFarPoints: %d -> %d, (%.2f%%, dis: %.3f).",
+		cnt, left->size(), (left->size() * 100.f) / cnt, std::sqrt(disthresh2));
+
+	inputCloud->swap(*left);
 }
 
 bool CloudSegment::statisticsForPointZ(float binSizeTh, PointCloud::Ptr cloud,
