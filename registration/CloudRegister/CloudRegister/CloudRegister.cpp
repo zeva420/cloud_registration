@@ -303,7 +303,7 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 					pCloud->push_back(p);
 				}			
 				std::string file_name = "cadSegs-plane-" + name + "-" + std::to_string(i) + ".pcd";
-				pcl::io::savePCDFile(file_name, *pCloud);	
+				if (!pCloud->empty()) pcl::io::savePCDFile(file_name, *pCloud);	
 			}
 			//cloud outer border
 			{
@@ -321,7 +321,7 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 					pCloud->push_back(p);
 				}			
 				std::string file_name = "cloudSegs-plane-" + name + "-" + std::to_string(i) + ".pcd";
-				pcl::io::savePCDFile(file_name, *pCloud);	
+				if (!pCloud->empty()) pcl::io::savePCDFile(file_name, *pCloud);	
 			}
 			//hole border
 			if (CLOUD_WALL_E == it.first && item.cadBorder_.size() > 1)
@@ -342,7 +342,7 @@ void CloudRegister::calcAllCloudBorder(CADModel& cad)
 					pCloud->push_back(p);
 				}			
 				std::string file_name = "holeSegs-plane-" + name + "-" + std::to_string(i) + ".pcd";
-				pcl::io::savePCDFile(file_name, *pCloud);	
+				if (!pCloud->empty()) pcl::io::savePCDFile(file_name, *pCloud);	
 			}
 		}
 	}

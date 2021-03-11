@@ -402,7 +402,7 @@ bool CloudBorder::removeOuterSideLines(
 	};
 
 	const float rate_Th = 0.95;
-	const float distTh = 0.4;
+	const float distTh = 0.3;
 	const float dotTh = 0.996;
 	for (size_t i = 0; i < detectLineCoeffs.size(); i++)
 	{
@@ -792,7 +792,7 @@ void CloudBorder::savePcdFileOfLines(const std::string &file_name,
 			pCloud->push_back(p2);
 		}	
 	}
-	pcl::io::savePCDFile(file_name, *pCloud);				
+	if (!pCloud->empty()) pcl::io::savePCDFile(file_name, *pCloud);				
 }
 
 void CloudBorder::savePcdFileOfBoundPoints(const std::string &file_name,
@@ -811,7 +811,7 @@ void CloudBorder::savePcdFileOfBoundPoints(const std::string &file_name,
 		pCloud->push_back(p2);
 	}	
 	
-	pcl::io::savePCDFile(file_name, *pCloud);				
+	if (!pCloud->empty()) pcl::io::savePCDFile(file_name, *pCloud);				
 }
 
 void CloudBorder::savePcdFileOfBelongLines(const std::string &file_name,
@@ -853,7 +853,7 @@ void CloudBorder::savePcdFileOfBelongLines(const std::string &file_name,
 			p2.b = 255;
 			pCloud->push_back(p2);
 	}			
-	pcl::io::savePCDFile(file_name, *pCloud);				
+	if (!pCloud->empty()) pcl::io::savePCDFile(file_name, *pCloud);				
 }
 
 void CloudBorder::savePcdFileOfBothSideAreaOfLines(const std::string &file_name,
@@ -897,7 +897,7 @@ void CloudBorder::savePcdFileOfBothSideAreaOfLines(const std::string &file_name,
 			p2.b = 255;
 			pCloud->push_back(p2);
 	}			
-	pcl::io::savePCDFile(file_name, *pCloud);				
+	if (!pCloud->empty()) pcl::io::savePCDFile(file_name, *pCloud);				
 }
 
 }
