@@ -26,7 +26,35 @@ namespace CloudReg
 
 
 		auto filerPt = getRulerCorners(vecPt);
-		auto pLeft = filerCloudByConvexHull(pCloud, filerPt);
+		//auto pLeft = filerCloudByConvexHull(pCloud, filerPt);
+
+		Eigen::vector<Eigen::Vector2f> points;
+		for (auto& value : filerPt)
+			points.emplace_back(Eigen::Vector2f(value[0], value[1]));
+
+		auto is_in_contour = [&](const Point& p) {
+			float y = p.y;
+			std::vector<float> xs;
+			for (std::size_t i = 0; i < points.size(); ++i) {
+				const Eigen::Vector2f& s = points[i];
+				const Eigen::Vector2f& e = points[(i + 1) % points.size()];
+				if (std::fabs(e(1) - s(1)) < 1e-6) continue;
+
+				float t = (y - s(1)) / (e(1) - s(1));
+				if (t > 0 && t < 1) {
+					float x = (1 - t) * s(0) + t * e(0);
+					xs.push_back(x);
+				}
+			}
+
+			std::sort(xs.begin(), xs.end());
+			for (std::size_t i = 0; i < xs.size(); ++i) {
+				if (xs[i] > p.x) return i % 2 == 1;
+			}
+
+			return false;
+		};
+		auto pLeft = geo::filterPoints(pCloud, is_in_contour);
 
 		if (!pLeft->points.empty())
 		{
@@ -70,7 +98,35 @@ namespace CloudReg
 		
 
 		auto filerPt = getRulerCorners(vecPt);	
-		auto pCloud = filerCloudByConvexHull(pRoof, filerPt);
+		//auto pCloud = filerCloudByConvexHull(pRoof, filerPt);
+		Eigen::vector<Eigen::Vector2f> points;
+		for (auto& value : filerPt)
+			points.emplace_back(Eigen::Vector2f(value[0], value[1]));
+
+		auto is_in_contour = [&](const Point& p) {
+			float y = p.y;
+			std::vector<float> xs;
+			for (std::size_t i = 0; i < points.size(); ++i) {
+				const Eigen::Vector2f& s = points[i];
+				const Eigen::Vector2f& e = points[(i + 1) % points.size()];
+				if (std::fabs(e(1) - s(1)) < 1e-6) continue;
+
+				float t = (y - s(1)) / (e(1) - s(1));
+				if (t > 0 && t < 1) {
+					float x = (1 - t) * s(0) + t * e(0);
+					xs.push_back(x);
+				}
+			}
+
+			std::sort(xs.begin(), xs.end());
+			for (std::size_t i = 0; i < xs.size(); ++i) {
+				if (xs[i] > p.x) return i % 2 == 1;
+			}
+
+			return false;
+		};
+		auto pCloud = geo::filterPoints(pRoof, is_in_contour);
+
 		item.rangeSeg = calcBoxSegPair(vecPt);
 
 		if (hasMoreLine)
