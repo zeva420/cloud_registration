@@ -747,10 +747,12 @@ trans2d::Matrix2x3f CloudSegment::chooseTransformByHoles(const Eigen::vector<tra
 			return checkTs;
 		}
 
+#if 0
 		// slice and detect ends
 		Eigen::vector<Eigen::Vector3f> wallEnds;
 		for (const auto& pc : walls) {
 			auto line = geo::passThrough(pc.cloud_, "z", zfloor_ + z - HALF_SLICE_THICKNESS, zfloor_ + z + HALF_SLICE_THICKNESS);
+
 			// we simply ignore z here.
 			const Eigen::Vector4f& params = pc.abcd_;
 			Eigen::Vector3f n = Eigen::Vector3f(-params(1), params(0), 0.f).normalized();
@@ -781,25 +783,105 @@ trans2d::Matrix2x3f CloudSegment::chooseTransformByHoles(const Eigen::vector<tra
 
 			if (cnt == cadHoleEnds.size()) re.emplace_back(T);
 
-			//SimpleViewer viewer;
-			//for (const Eigen::Vector2f& p : hole2d) {
-			//	Eigen::Vector2f tp = trans2d::transform(p, T);
-			//	auto ps = Point(p(0), p(1), 0.);
-			//	auto pd = Point(tp(0), tp(1), 0.);
+			{
+				SimpleViewer viewer;
 
-			//	viewer.addPoint(ps, 255., 255., 0.);
-			//	viewer.addPoint(pd, 255., 0., 0.);
-			//	viewer.addLine(ps, pd, 255., 255., 255.);
-			//}
-			//for (const Eigen::Vector2f& p : wall2d)
-			//	viewer.addPoint(Point(p(0), p(1), 0.), 0., 255., 0.);
+				viewer.addCloud(cadModel_.genTestFrameCloud());
+				viewer.addZPlane(z);
 
-			//viewer.show();
+				viewer.addCloud(sparsedCloud_, 100., 100., 100.);
+				viewer.addZPlane(zfloor_ + z, 4.f);
+
+				for (const Eigen::Vector2f& p : hole2d) {
+					Eigen::Vector2f tp = trans2d::transform(p, T);
+					auto ps = Point(p(0), p(1), 0.);
+					auto pd = Point(tp(0), tp(1), 0.);
+
+					viewer.addPoint(ps, 255., 255., 0.);
+					viewer.addPoint(pd, 255., 0., 0.);
+					viewer.addLine(ps, pd, 255., 255., 255.);
+				}
+				for (const Eigen::Vector2f& p : wall2d)
+					viewer.addPoint(Point(p(0), p(1), 0.), 0., 255., 0.);
+
+				viewer.show();
+			}
+
 			if (cnt > cancnt) {
 				cancnt = cnt;
 				canT = T;
 			}
 		}
+#else
+		Eigen::vector<trans2d::Matrix2x3f> re;
+		for (const auto& T : checkTs) {
+			// slice and detect ends
+			Eigen::Matrix4f T4 = trans2d::asTransform3d(T);
+
+			Eigen::vector<Eigen::Vector3f> wallEnds;
+			for (const auto& pc : walls) {
+				auto line = geo::passThrough(pc.cloud_, "z", zfloor_ + z - HALF_SLICE_THICKNESS, zfloor_ + z + HALF_SLICE_THICKNESS);
+				line = geo::transfromPointCloud(line, T4.inverse());
+				line = clipCloudByCAD(line);
+				line = geo::transfromPointCloud(line, T4);
+
+				// we simply ignore z here.
+				const Eigen::Vector4f& params = pc.abcd_;
+				Eigen::Vector3f n = Eigen::Vector3f(-params(1), params(0), 0.f).normalized();
+				Eigen::Vector3f p;
+				if (std::fabs(params(0)) < 1e-6) p = Eigen::Vector3f(0.f, -params(3) / params(1), 0.f);
+				else p = Eigen::Vector3f(-params(3) / params(0), 0.f, 0.f);
+
+				auto subsegs = splitSegments(line, p, n, 0.1f, 0.1f);
+				for (const auto& seg : subsegs) {
+					wallEnds.emplace_back(seg.s_);
+					wallEnds.emplace_back(seg.e_);
+				}
+			}
+
+			Eigen::vector<Eigen::Vector2f> hole2d, wall2d;
+			{
+				hole2d.reserve(cadHoleEnds.size());
+				wall2d.reserve(wallEnds.size());
+				for (const auto& v : cadHoleEnds) hole2d.emplace_back(v(0), v(1));
+				for (const auto& v : wallEnds) wall2d.emplace_back(v(0), v(1));
+			}
+
+			// succeed if only each cad hole have candidate
+			std::size_t cnt = get_matched_num(hole2d, wall2d, T);
+
+			if (cnt == cadHoleEnds.size()) re.emplace_back(T);
+
+			if (0) {
+				SimpleViewer viewer;
+
+				viewer.addCloud(cadModel_.genTestFrameCloud());
+				viewer.addZPlane(z);
+
+				viewer.addCloud(sparsedCloud_, 100., 100., 100.);
+				viewer.addZPlane(zfloor_ + z, 4.f);
+
+				for (const Eigen::Vector2f& p : hole2d) {
+					Eigen::Vector2f tp = trans2d::transform(p, T);
+					auto ps = Point(p(0), p(1), 0.);
+					auto pd = Point(tp(0), tp(1), 0.);
+
+					viewer.addPoint(ps, 255., 255., 0.);
+					viewer.addPoint(pd, 255., 0., 0.);
+					viewer.addLine(ps, pd, 255., 255., 255.);
+				}
+				for (const Eigen::Vector2f& p : wall2d)
+					viewer.addPoint(Point(p(0), p(1), 0.), 0., 255., 0.);
+
+				viewer.show();
+			}
+
+			if (cnt > cancnt) {
+				cancnt = cnt;
+				canT = T;
+			}
+		}
+#endif
 
 		return re;
 	};
@@ -1007,7 +1089,7 @@ Eigen::vector<trans2d::Matrix2x3f> CloudSegment::computeSegmentAlignCandidates(c
 
 	private:
 		Eigen::Vector2f t() const { return -T_.block<2, 2>(0, 0).transpose() * T_.block<2, 1>(0, 2); }
-};
+	};
 
 	Eigen::vector<Eigen::Vector2f> blueprintpoints;
 	//blueprintpoints.reserve(blueprint.size() * 2);
@@ -1615,6 +1697,44 @@ CloudSegment::NormalCloud::Ptr CloudSegment::computeNormals(PointCloud::Ptr clou
 	n.compute(*normals);
 
 	return normals;
+}
+
+PointCloud::Ptr CloudSegment::clipCloudByCAD(PointCloud::Ptr cloud, float margin) const {
+	Eigen::vector<Eigen::Vector2f> points;
+	for (const auto& p : cadModel_.getTypedModelItems(ITEM_BOTTOM_E).front().points_)
+		points.emplace_back(p.block<2, 1>(0, 0).cast<float>());
+	Eigen::Vector2f cen(0.f, 0.f);
+	for (const auto& p : points) cen += p;
+	cen /= points.size();
+
+	for (Eigen::Vector2f& p : points) {
+		p = (p - cen) * 1.05f + cen; //todo
+	}
+
+	auto is_in_contour = [&](const Point& p) {
+		float y = p.y;
+		std::vector<float> xs;
+		for (std::size_t i = 0; i < points.size(); ++i) {
+			const Eigen::Vector2f& s = points[i];
+			const Eigen::Vector2f& e = points[(i + 1) % points.size()];
+			if (std::fabs(e(1) - s(1)) < 1e-6) continue;
+
+			float t = (y - s(1)) / (e(1) - s(1));
+			if (t > 0 && t < 1) {
+				float x = (1 - t) * s(0) + t * e(0);
+				xs.push_back(x);
+			}
+		}
+
+		std::sort(xs.begin(), xs.end());
+		for (std::size_t i = 0; i < xs.size(); ++i) {
+			if (xs[i] > p.x) return i % 2 == 1;
+		}
+
+		return false;
+	};
+
+	return geo::filterPoints(cloud, is_in_contour);
 }
 
 void CloudSegment::_show_result(const SegmentResult& sr) const {

@@ -123,6 +123,8 @@ private:
 
 	NormalCloud::Ptr computeNormals(PointCloud::Ptr cloud) const;
 
+	PointCloud::Ptr clipCloudByCAD(PointCloud::Ptr cloud, float margin = 0.1f) const;
+
 	// debug
 	void _show_result(const SegmentResult& sr) const;
 };
