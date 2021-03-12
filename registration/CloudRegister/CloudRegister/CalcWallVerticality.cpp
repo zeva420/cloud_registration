@@ -262,8 +262,8 @@ namespace CloudReg
 
         //step3: Calculate verticality
         std::map<int, std::vector<calcMeassurment_t>> allMeasure;
-        std::vector<int> outOrder = {1, 2, 3};
-        std::vector<seg_pair_t> vecRange;
+        std::vector<std::map<int, std::vector<calcMeassurment_t>>> wallMeasures;
+        
         for (std::size_t i = 0; i < validVertical.size() - 1; ++i)
         {
             auto &Vertical1 = validVertical[i];
@@ -273,6 +273,16 @@ namespace CloudReg
             
             auto measure = calWallVerticality(vecWallHorizen, std::make_pair(Vertical1, Vertical2), 
                                                 pCloud, plane, hAxis);
+            wallMeasures.emplace_back(measure);
+        }
+
+        std::vector<int> outOrder = {1, 2, 3};
+        std::vector<seg_pair_t> vecRange;
+        if (vecWallHorizen.front().first[hAxis] < vecWallHorizen.front().second[hAxis])
+            std::reverse(wallMeasures.begin(), wallMeasures.end());
+        
+        for(auto &measure : wallMeasures)
+        {
             for(auto& type : outOrder)
             {
                 if (!measure.count(type))
@@ -292,6 +302,11 @@ namespace CloudReg
         uniformSampling(0.01, pCloud, pCloud_filtered);
         writePCDFile("WallVerticality-" + std::to_string(wallIndex) + ".pcd", pCloud_filtered, vecRange);
 #endif
+        // for(int i = 0; i < returnMeasure.size(); ++i)
+        // {
+        //     auto mea = returnMeasure[i];
+        //     writePCDFile(std::to_string(wallIndex) + "-VRuler-" + std::to_string(i) + ".pcd", pCloud_filtered, mea.rangeSeg);
+        // }
         return std::make_tuple(returnMeasure, returnSeg);
     }
 

@@ -294,9 +294,29 @@ namespace CloudReg
         //step2: Handle walls
         std::map<int,std::vector<seg_pair_t>> wallRulers;
         wallRulers =  calcWallRuler(wallBorder, holeBorders, hAxis, calValidVertical);
+        std::vector<int> outOrder = {1, 2, 3};
+        std::vector<seg_pair_t> vecRange;
+        for(auto& type : outOrder)
+        {
+            if (!wallRulers.count(type))
+                continue;
+            auto rulers = wallRulers[type];
+            for (auto& ruler : rulers)
+            {
+                std::vector<seg_pair_t> tmp = {ruler};
+                calcMeassurment_t measure = calFlatness(tmp, thicknessDir, cadPlane, pCloud);
+                
+                std::vector<Eigen::Vector3d> rPoints =  createRulerBox(ruler, thicknessDir, 0.025, 0.025);
+                std::vector<seg_pair_t> pair =  calcBoxSegPair(rPoints);
+                vecRange.insert(vecRange.end(), pair.begin(), pair.end());
+                measure.rangeSeg.insert(measure.rangeSeg.end(), pair.begin(), pair.end());
+                LOG(INFO) << "Wall "<<wallIndex<<" flatness: " << measure.value;
+                allMeasure.emplace_back(measure);
+            }
+        }
         
         //step3: Handle holes
-        std::map<int,std::vector<seg_pair_t>> holeRulers;
+        std::vector<int> outOrder1 = {4, 5};
         if (!holeBorders.empty())
         {
             std::vector<double> lengths;
@@ -333,60 +353,39 @@ namespace CloudReg
                 }
                
                 auto rulerMap = calcHoleRuler(horizenSeg, checkBorder, holeBorders[i], hAxis, type);
-                for (auto &map : rulerMap)
-                    holeRulers[map.first].insert(holeRulers[map.first].end(), map.second.begin(), map.second.end());
-            }
-
-        }
-
-        std::vector<int> outOrder = {1, 2, 3};
-        std::vector<seg_pair_t> vecRange;
-        for(auto& type : outOrder)
-        {
-            if (!wallRulers.count(type))
-                continue;
-            auto rulers = wallRulers[type];
-            for (auto& ruler : rulers)
-            {
-                std::vector<seg_pair_t> tmp = {ruler};
-                calcMeassurment_t measure = calFlatness(tmp, thicknessDir, cadPlane, pCloud);
-                
-                std::vector<Eigen::Vector3d> rPoints =  createRulerBox(ruler, thicknessDir, 0.025, 0.025);
-                std::vector<seg_pair_t> pair =  calcBoxSegPair(rPoints);
-                vecRange.insert(vecRange.end(), pair.begin(), pair.end());
-                measure.rangeSeg.insert(measure.rangeSeg.end(), pair.begin(), pair.end());
-                LOG(INFO) << "Wall "<<wallIndex<<" flatness: " << measure.value;
-                allMeasure.emplace_back(measure);
+                for(auto& type : outOrder1)
+                {
+                    if (!rulerMap.count(type))
+                        continue;
+                    auto rulers = rulerMap[type];
+                    for(size_t i = 0; i < rulers.size() / 2; ++i)
+                    {
+                        auto ruler1 = rulers[2*i];
+                        auto ruler2 = rulers[2*i + 1];
+                        std::vector<seg_pair_t> tmp = {ruler1, ruler2};
+                        calcMeassurment_t measure = calFlatness(tmp, thicknessDir, cadPlane, pCloud);
+                        
+                        std::vector<Eigen::Vector3d> rPoints =  createRulerBox(std::make_pair(ruler1.first, ruler2.second), thicknessDir, 0.025, 0.025);
+                        std::vector<seg_pair_t> pair =  calcBoxSegPair(rPoints);
+                        vecRange.insert(vecRange.end(), pair.begin(), pair.end());
+                        measure.rangeSeg.insert(measure.rangeSeg.end(), pair.begin(), pair.end());
+                        LOG(INFO) << "Wall "<<wallIndex<<" flatness: " << measure.value;
+                        allMeasure.emplace_back(measure);
+                    }
+                }
             }
         }
 
-        std::vector<int> outOrder1 = {4, 5};
-        for(auto& type : outOrder1)
-        {
-            if (!holeRulers.count(type))
-                continue;
-            auto rulers = holeRulers[type];
-            for(size_t i = 0; i < rulers.size() / 2; ++i)
-            {
-                auto ruler1 = rulers[2*i];
-                auto ruler2 = rulers[2*i + 1];
-                std::vector<seg_pair_t> tmp = {ruler1, ruler2};
-                calcMeassurment_t measure = calFlatness(tmp, thicknessDir, cadPlane, pCloud);
-                
-                std::vector<Eigen::Vector3d> rPoints =  createRulerBox(std::make_pair(ruler1.first, ruler2.second), thicknessDir, 0.025, 0.025);
-                std::vector<seg_pair_t> pair =  calcBoxSegPair(rPoints);
-                vecRange.insert(vecRange.end(), pair.begin(), pair.end());
-                measure.rangeSeg.insert(measure.rangeSeg.end(), pair.begin(), pair.end());
-                LOG(INFO) << "Wall "<<wallIndex<<" flatness: " << measure.value;
-                allMeasure.emplace_back(measure);
-                
-            }
-        }
 #ifdef VISUALIZATION_ENABLED
         pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud_filtered(new pcl::PointCloud<pcl::PointXYZ>());
         uniformSampling(0.01, pCloud, pCloud_filtered);
         writePCDFile("WallFlatness-" + std::to_string(wallIndex) + ".pcd", pCloud_filtered, vecRange);
 #endif
+        // for(int i = 0; i < allMeasure.size(); ++i)
+        // {
+        //     auto mea = allMeasure[i];
+        //     writePCDFile(std::to_string(wallIndex) + "-flaRuler-" + std::to_string(i) + ".pcd", pCloud_filtered, mea.rangeSeg);
+        // }
         return std::make_tuple(allMeasure, returnSeg);
     }
 }
