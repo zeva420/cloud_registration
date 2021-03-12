@@ -8,7 +8,7 @@ namespace CloudReg
 {
 	std::tuple<PointCloud::Ptr, std::vector<seg_pair_t>> 
 		calcCornerArea(const seg_pair_t& seg, const seg_pair_t& highSeg, const PointCloud::Ptr pWall, double height, bool bLeft,
-			double calcWidth, double calcLength)
+			double calcWidth, double calcLength, double dropLength)
 	{
 		std::size_t optIndex,indexOther; 
 		int dir;
@@ -17,18 +17,21 @@ namespace CloudReg
 		auto allHighPt = ininterpolateSeg(highSeg.first, highSeg.second, 0.001);
 		std::size_t moveStep = (calcLength * 1000);
 		std::size_t moveHighStep = (height * 1000);
+		std::size_t dropStep = (dropLength * 1000);
 
 		Eigen::Vector3d pt1,pt2;
 		if(bLeft)
 		{
-			pt2 = pt1 = seg.first;
+			//pt2 = pt1 = seg.first;
+			pt2 = allPt[dropStep];
 			pt1 = allPt[moveStep];
 			pt1[2] = allHighPt[moveHighStep][2];
 			pt2[2] = allHighPt[moveHighStep][2];
 
 
 		}else{
-			pt2 = pt1 = seg.second;			
+			//pt2 = pt1 = seg.second;
+			pt1 = allPt[allPt.size() - dropStep -1];
 			pt2 = allPt[allPt.size() - moveStep - 1];
 			pt1[2] = allHighPt[moveHighStep][2];
 			pt2[2] = allHighPt[moveHighStep][2];
@@ -97,12 +100,12 @@ namespace CloudReg
 		const double cloudSize_first = 20;
 		const double cloudSize_second = 10;
 		const double planeFitDistTh = 0.003;
-		
+		const double dropLength = 0.01;
 		//get large-scale area
 		auto roughLeft = calcCornerArea(leftSeg, highSeg,pLeftCloud, height, true,
-											calcWidth_first, calcLength_first);
+											calcWidth_first, calcLength_first,0);
 		auto roughRight = calcCornerArea(rightSeg, highSeg,pRightCloud, height, false,
-											calcWidth_first, calcLength_first);
+											calcWidth_first, calcLength_first,0);
 		if (std::get<0>(roughLeft)->size() < cloudSize_first 
 					|| std::get<0>(roughRight)->size() < cloudSize_first)
 		{
@@ -110,8 +113,8 @@ namespace CloudReg
 				<< " or roughRight:" << std::get<0>(roughRight)->size() << " < " << cloudSize_first
 				<< " height:" << height;
 			
-			auto left = calcCornerArea(leftSeg, highSeg, pLeftCloud, height, true, calcWidth_second, calcLength_second);
-			auto right = calcCornerArea(rightSeg, highSeg, pRightCloud, height, false, calcWidth_second, calcLength_second);
+			auto left = calcCornerArea(leftSeg, highSeg, pLeftCloud, height, true, calcWidth_second, calcLength_second, dropLength);
+			auto right = calcCornerArea(rightSeg, highSeg, pRightCloud, height, false, calcWidth_second, calcLength_second, dropLength);
 			calcMeassurment_t meassurment;
 			meassurment.value = -1;
 			meassurment.rangeSeg = std::get<1>(left);
@@ -154,8 +157,8 @@ namespace CloudReg
 		inliers2->swap(*inliers2_new);
 
 		//get small-scale area
-		auto left = calcCornerArea(leftSeg, highSeg,inliers1, height, true, calcWidth_second, calcLength_second);
-		auto right = calcCornerArea(rightSeg, highSeg, inliers2, height, false, calcWidth_second, calcLength_second);
+		auto left = calcCornerArea(leftSeg, highSeg,inliers1, height, true, calcWidth_second, calcLength_second, dropLength);
+		auto right = calcCornerArea(rightSeg, highSeg, inliers2, height, false, calcWidth_second, calcLength_second, dropLength);
 		if (std::get<0>(left)->size() < cloudSize_second 
 					|| std::get<0>(right)->size() < cloudSize_second)
 		{
