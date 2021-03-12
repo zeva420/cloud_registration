@@ -20,7 +20,7 @@
 
 #include "GeometryUtils.h"
 #include "funHelper.h"
-
+#include "Threshold.h"
 #include "SimpleViewer.h"
 
 namespace CloudReg {
@@ -1277,6 +1277,8 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 	constexpr double SLICE_HALF_THICKNESS = 0.1f;
 	constexpr double NORMAL_CHECK = 0.866; // 30
 	constexpr double GROWTH_ANGLE = 10. / 180. * geo::PI;
+	
+	
 
 	// simple boxcrop
 	auto cloud = geo::filterPoints(thecloud, [&](const Point& p) {
@@ -1347,7 +1349,8 @@ CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr
 		}
 
 		//todo: we can optimize the normal calculation in the below process
-		auto planes = detectRegionPlanes(slice, slicenormals, GROWTH_ANGLE, 1., slice->size() / 4);
+		double CLOUD_SIZE_RATIO = TheThreshold::instance()->get_segment_cloud_size_ratio();
+		auto planes = detectRegionPlanes(slice, slicenormals, GROWTH_ANGLE, 1., slice->size() * CLOUD_SIZE_RATIO);
 		if (planes.empty()) return PlaneCloud();
 
 		if (planes.size() == 1)  return planes.front();

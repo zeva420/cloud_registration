@@ -1,6 +1,7 @@
 #include "CalcCorner.h"
 
 #include "funHelper.h"
+#include "Threshold.h"
 
 //#define VISUALIZATION_ENABLED
 
@@ -94,13 +95,14 @@ namespace CloudReg
 		// LOG(INFO) << "center:" << center;
 		const double calcWidth_first = 0.02;
 		const double calcLength_first = 0.25; 
-		const double calcWidth_second = 0.005;
-		const double calcLength_second = 0.13; 
+		const double calcWidth_second = TheThreshold::instance()->get_corner_rulerWidth();
+		const double calcLength_second = TheThreshold::instance()->get_corner_rulerLength();
 
 		const double cloudSize_first = 20;
 		const double cloudSize_second = 10;
 		const double planeFitDistTh = 0.003;
-		const double dropLength = 0.01;
+		const double dropLength = TheThreshold::instance()->get_corner_dropLength();
+
 		//get large-scale area
 		auto roughLeft = calcCornerArea(leftSeg, highSeg,pLeftCloud, height, true,
 											calcWidth_first, calcLength_first,0);
@@ -202,7 +204,7 @@ namespace CloudReg
 		meassurment.rangeSeg.insert(meassurment.rangeSeg.end(), 
 					std::get<1>(right).begin(), std::get<1>(right).end());
 
-#ifdef VISUALIZATION_ENABLED
+//#ifdef VISUALIZATION_ENABLED
 		{
 			std::string file_name = "corner-" + std::to_string(idxPair.first) 
 					+ "-" + std::to_string(idxPair.second) + "-" + std::to_string(height) + ".pcd";
@@ -213,7 +215,7 @@ namespace CloudReg
 					+ "-" + std::to_string(idxPair.second) + "-" + std::to_string(height) + ".pcd";
 			saveTwoPieceCloud(file_name, std::get<1>(ret), std::get<2>(ret));
 		}			
-#endif
+//#endif
 
 		return meassurment;
 	}

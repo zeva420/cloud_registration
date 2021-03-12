@@ -1,14 +1,15 @@
 #include "CalcBayAndDepthMeasure.h"
 
 #include "funHelper.h"
+#include "Threshold.h"
 
 namespace CloudReg
 {
 	calcMeassurment_t calcArea(PointCloud::Ptr pWall, const Eigen::Vector4d& plane,
 		const Eigen::Vector3d& pt, const std::size_t index)
 	{
-		const double calcParaZ = 0.5;
-		const double calcHalfPara = 0.005;
+		const double calcParaZ = TheThreshold::instance()->get_bay_depth_calcParaZ();
+		const double calcHalfPara = TheThreshold::instance()->get_bay_depth_calcHalfPara();
 		pcl::PointXYZ min;
 		pcl::PointXYZ max;
 		pcl::getMinMax3D(*pWall, min, max);

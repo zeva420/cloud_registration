@@ -1,5 +1,6 @@
 #include "CalcNetHeight.h"
 #include "funHelper.h"
+#include "Threshold.h"
 
 namespace CloudReg
 {
@@ -77,7 +78,7 @@ namespace CloudReg
 			const Eigen::Vector3d& sPt, const Eigen::Vector3d& ePt, const Eigen::Vector3d& pt,
 			bool hasMoreLine)
 	{
-		const double calcHalfPara = 0.005;
+		const double calcHalfPara = TheThreshold::instance()->get_height_calcHalfPara();
 		
 		pcl::PointXYZ min;
 		pcl::PointXYZ max;		

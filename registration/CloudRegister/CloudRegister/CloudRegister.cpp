@@ -1,6 +1,7 @@
 #include "CloudRegister.h"
 
 #include "BaseType.h"
+#include "Threshold.h"
 #include "funHelper.h"
 #include "CalcMeasureHelper.h"
 #include "CADModel.h"
@@ -22,6 +23,7 @@ namespace CloudReg {
 CloudRegister::CloudRegister() {
 	google::InitGoogleLogging("Cloud");
 	FLAGS_log_dir = "./";
+	TheThreshold::instance()->initAndEcho("./");
 
 // #define VISUALIZATION_ENABLED
 #ifdef VISUALIZATION_ENABLED

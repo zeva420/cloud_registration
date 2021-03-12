@@ -48,7 +48,15 @@ bool threshold::init(const std::string &config_path)
         ptree pt;
         ini_parser::read_ini(ini_file_name.c_str(), pt);
 
-        //GpsDeviatedTh_ = pt.get<int>("threshold.GpsDeviatedTh", GpsDeviatedTh_);
+        corner_dropLength_ = pt.get<double>("threshold.corner_dropLength", corner_dropLength_);
+		corner_calcWidth_ = pt.get<double>("threshold.corner_calcWidth", corner_calcWidth_);
+		corner_calcLength_ = pt.get<double>("threshold.corner_calcLength", corner_calcLength_);
+
+		height_calcHalfPara_ = pt.get<double>("threshold.height_calcHalfPara", height_calcHalfPara_);
+		bay_depth_calcParaZ_ = pt.get<double>("threshold.bay_depth_calcParaZ", bay_depth_calcParaZ_);
+		bay_depth_calcHalfPara_ = pt.get<double>("threshold.bay_depth_calcHalfPara", bay_depth_calcHalfPara_);
+
+		segment_cloud_size_ratio_ = pt.get<double>("threshold.segment_cloud_size_ratio", segment_cloud_size_ratio_);
     }
     catch (const ini_parser_error &e)
     {
@@ -79,8 +87,10 @@ void threshold::echo_config_options() const
 {
     LOG(INFO) <<"****************************************************************" ;
     LOG(INFO) <<"*******************echo_config_options begin********************" ;
-
-    LOG(INFO) << "*******************echo_config_options end********************";
+	LOG(INFO) << "corner_dropLength: " << corner_dropLength_ << " corner_calcWidth: " << corner_calcWidth_
+	<< " corner_calcLength: " << corner_calcLength_;
+    
+	LOG(INFO) << "*******************echo_config_options end********************";
     LOG(INFO) << "**************************************************************";
 }
 
