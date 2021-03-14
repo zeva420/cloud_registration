@@ -179,7 +179,7 @@ bool CloudSegment::alignCloudToCADModel() {
 
 	//note: 10000 may relate to downsample in sliceMainBody
 	// auto planes = detectPlanes(cloud, 0.02, 10000); 
-	auto planes = detectRegionPlanes(cloud, 3. / 180. * geo::PI, 1., 500);
+	auto planes = detectRegionPlanes(cloud, 3. / 180. * geo::PI, 1., TheThreshold::instance()->get_segment_cloud_plane_number());
 
 	//auto nzs = ll::mapf([](const PlaneCloud& pc) { return std::fabs(pc.n()(2)); }, planes);
 	//std::sort(nzs.begin(), nzs.end());
@@ -391,6 +391,7 @@ CloudSegment::SegmentResult CloudSegment::segmentByCADModel() {
 	std::vector<float> searchDis;
 	constexpr double MAX_DIS_SQUARED = DOWNSAMPLE_SIZE * DOWNSAMPLE_SIZE * 2.25;
 	constexpr float ON_PLANE_CHECK_THRESH = 0.05f;
+
 
 
 	for (std::size_t idx = 0; idx < orgCloud_->size(); ++idx) {
@@ -1275,11 +1276,11 @@ Eigen::vector<trans2d::Matrix2x3f> CloudSegment::computeSegmentAlignCandidates(c
 
 CloudSegment::SegmentResult CloudSegment::segmentCloudByCADModel(PointCloud::Ptr thecloud) const {
 	constexpr double SLICE_HALF_THICKNESS = 0.1f;
-	constexpr double NORMAL_CHECK = 0.866; // 30
-	constexpr double GROWTH_ANGLE = 10. / 180. * geo::PI;
-	
-	
+	constexpr double NORMAL_CHECK = 0.866; // 40
 
+	double GROWTH_ANGLE = TheThreshold::instance()->get_segment_cloud_growth_angle()/ 180. * geo::PI;
+	//double GROWTH_ANGLE = 30./ 180. * geo::PI;
+	
 	// simple boxcrop
 	auto cloud = geo::filterPoints(thecloud, [&](const Point& p) {
 		return (p.x > cadx1_ - SLICE_HALF_THICKNESS && p.x < cadx2_ + SLICE_HALF_THICKNESS) &&

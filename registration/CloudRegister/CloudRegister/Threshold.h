@@ -27,6 +27,8 @@ public:
 	double get_bay_depth_calcHalfPara() const { return bay_depth_calcHalfPara_; }
 
 	double get_segment_cloud_size_ratio() const { return segment_cloud_size_ratio_; }
+	double get_segment_cloud_growth_angle() const { return segment_cloud_growth_angle_; }
+	std::size_t get_segment_cloud_plane_number() const { return segment_cloud_plane_number_; }
 
 private:
 	void echo_config_options() const;
@@ -41,6 +43,8 @@ private:
 	double bay_depth_calcHalfPara_ = 0.005;
 
 	double segment_cloud_size_ratio_ = 0.25;
+	double segment_cloud_growth_angle_ = 10.0;
+	std::size_t segment_cloud_plane_number_ = 500;
 };
 
 typedef CloudReg::rdSingleton<threshold> TheThreshold;

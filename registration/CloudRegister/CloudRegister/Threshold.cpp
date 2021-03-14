@@ -57,6 +57,8 @@ bool threshold::init(const std::string &config_path)
 		bay_depth_calcHalfPara_ = pt.get<double>("threshold.bay_depth_calcHalfPara", bay_depth_calcHalfPara_);
 
 		segment_cloud_size_ratio_ = pt.get<double>("threshold.segment_cloud_size_ratio", segment_cloud_size_ratio_);
+		segment_cloud_growth_angle_ = pt.get<double>("threshold.segment_cloud_growth_angle", segment_cloud_growth_angle_);
+		segment_cloud_plane_number_ = pt.get<std::size_t>("threshold.segment_cloud_plane_number", segment_cloud_plane_number_);
     }
     catch (const ini_parser_error &e)
     {
