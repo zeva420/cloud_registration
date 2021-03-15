@@ -333,6 +333,7 @@ namespace CloudReg
 			}
 
 			auto highSeg = leftWall[leftWall.size()-2];
+			std::swap(highSeg.first,highSeg.second);
 			// getCornerByPlaneNorm
 			LOG(INFO) << "CalcCorner:calc between: " << std::to_string(idx.first) << " - " << std::to_string(idx.second);
 			//0.3
