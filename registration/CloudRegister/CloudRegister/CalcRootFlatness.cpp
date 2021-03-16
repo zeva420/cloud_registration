@@ -85,6 +85,24 @@ namespace CloudReg
         return ruler;
     }
 
+    std::vector<seg_pair_t> getBoxValidSeg(seg_pair_t baseSeg, seg_pair_t seg1, seg_pair_t seg2, int hAxis, int vAxis)
+    {
+        seg_pair_t validSeg1, validSeg2;
+        seg_pair_t firstSeg = (std::fabs(seg1.first[hAxis] - baseSeg.first[hAxis]) < 
+                                std::fabs(seg2.first[hAxis] - baseSeg.first[hAxis])) ? seg1 : seg2;
+        seg_pair_t secondSeg = (firstSeg == seg1) ? seg2 : seg1;
+
+        validSeg1.first = ((firstSeg.first - baseSeg.first).norm() < 
+                                (firstSeg.second - baseSeg.first).norm()) ? firstSeg.first : firstSeg.second;
+        validSeg1.second = (validSeg1.first == firstSeg.first) ? firstSeg.second : firstSeg.first;
+
+        validSeg2.first = ((secondSeg.first - baseSeg.first).norm() < 
+                                (secondSeg.second - baseSeg.first).norm()) ? secondSeg.first : secondSeg.second;
+        validSeg2.second = (validSeg2.first == secondSeg.first) ? secondSeg.second : secondSeg.first;
+        std::vector<seg_pair_t> segs = {validSeg1, validSeg2};
+        return segs;
+    }
+
     std::vector<std::tuple<std::vector<calcMeassurment_t>, std::vector<seg_pair_t>>>
     calRootFlatness(const std::vector<seg_pair_t>& rootBorder,
                           Eigen::Vector4d plane, pcl::PointCloud<pcl::PointXYZ>::Ptr pCloud,
@@ -148,16 +166,10 @@ namespace CloudReg
             auto HorizenSeg2 = vecCutSeg[2*i + 1];
             std::vector<seg_pair_t> tmpSegs = {HorizenSeg1, HorizenSeg2};
 
-            seg_pair_t firstSeg = (HorizenSeg1.first[hAxis] < HorizenSeg2.first[hAxis]) ?
-                                    HorizenSeg1 : HorizenSeg2;
-            seg_pair_t secondSeg = (firstSeg == HorizenSeg1) ? HorizenSeg2 : HorizenSeg1;
-
+            std::vector<seg_pair_t> vSegs = getBoxValidSeg(rootBorder.front(), HorizenSeg1, HorizenSeg2, hAxis, vAxis);
             seg_pair_t validSeg1, validSeg2;
-            validSeg1.first = (firstSeg.first[vAxis] < firstSeg.second[vAxis]) ? firstSeg.first : firstSeg.second;
-            validSeg1.second = (validSeg1.first == firstSeg.first) ? firstSeg.second : firstSeg.first;
-
-            validSeg2.first = (secondSeg.first[vAxis] < secondSeg.second[vAxis]) ? secondSeg.first : secondSeg.second;
-            validSeg2.second = (validSeg2.first == secondSeg.first) ? secondSeg.second : secondSeg.first;
+            validSeg1 = vSegs.front();
+            validSeg2 = vSegs.back();
 
             std::vector<seg_pair_t> rulers = getDiagonalRuler(std::make_pair(validSeg1, validSeg2));
             std::vector<seg_pair_t> middleRuler = getMiddleRuler(std::make_pair(validSeg1, validSeg2), vAxis, hAxis);

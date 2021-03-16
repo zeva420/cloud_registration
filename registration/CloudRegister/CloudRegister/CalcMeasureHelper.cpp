@@ -587,11 +587,10 @@ namespace CloudReg
 		{
 			if ((ruler.first - ruler.second).norm() < 0.01)
 				continue;
-			
 			std::vector<Eigen::Vector3d> rulerFilter = createRulerBox(ruler, thicknessDir, 0., 0.04); // > 0.025
 			std::vector<Eigen::Vector3d> corners = getRulerCorners(rulerFilter);
 			auto rangeCloud = filerCloudByConvexHull(pCloud, corners);
-			if (!rangeCloud->points.empty()) 
+			if (rangeCloud->size() != 0) 
 			{
 				Eigen::VectorXf coeff;
 				std::vector<int> inlierIdxs;
@@ -604,9 +603,9 @@ namespace CloudReg
 			auto boxes = getAllRulerBox(ruler, thicknessDir, 0., 0.005, 0.01, 0.025); //step 5mm  len 10mm width 25mm
 			allBoxes.insert(allBoxes.end(), boxes.begin(), boxes.end());
 		}
-        if (allBoxes.empty())
+        if (allBoxes.empty() || filterClouds.empty())
         {
-            LOG(WARNING) << "empty boxes";
+            LOG(WARNING) << "empty boxes or empty clouds";
             return measure;
         }
         LOG(INFO) << "ruler get boxes num: " << allBoxes.size();
@@ -626,19 +625,17 @@ namespace CloudReg
 					break;
 			}
 
-            if (rangeCloud->points.empty()) 
+            if (rangeCloud->size() == 0) 
             {
                 // LOG(WARNING) << "filerCloudByRange failed";
                 continue;
             }
-			
 			if(plane != Eigen::Vector4d(0, 0, 0, 0))
 				plane1 = plane;
-				
             double sum = 0;
             for (auto &p : rangeCloud->points)
                 sum += pointToPLaneDist(plane1, p); //sum += std::fabs(pointToPLaneDist(plane, p));
-            double avg = sum / rangeCloud->points.size();
+			double avg = sum / rangeCloud->points.size();
             sumAll.emplace_back(avg);
         }
 
