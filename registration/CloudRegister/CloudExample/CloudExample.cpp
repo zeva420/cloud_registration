@@ -443,7 +443,7 @@ int main()
 	//obj.calcRootFlatness();	
 	
 #endif
-	//obj.whitewashPaint();
+	obj.whitewashPaint();
 	
 	
 	return 0;

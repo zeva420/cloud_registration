@@ -164,4 +164,28 @@ namespace CloudReg
 			return std::hash<std::size_t>()(pair_.first) ^ std::hash<std::size_t>()(pair_.second);
 		}
 	};
+
+	// whitewash wall.
+	struct Salient {
+		float height_;
+		float area_;
+		Point bbp1_, bbp2_; // bounding box
+	};
+
+	struct Wall {
+		// in & threshold
+		double length_;
+		double pos_;
+
+		double minWallPaintThickness_{ 0.05f };
+		double minSalientPaintThickness_{ 0.02f };
+
+		// out & temp
+		std::vector<Salient> salients_;
+		double maxSalientHeight_{ 0. };
+
+		double paintThickness_;
+		double salientChipping_{ 0. };
+		double wallChipping_{ 0. };
+	};
 }

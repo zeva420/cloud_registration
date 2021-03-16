@@ -5,6 +5,11 @@
 
 namespace CloudReg {
 
+std::string to_string(const Salient& s) {
+	return ll::unsafe_format("Salient: {height: %.3f, area: %.3f, [%.3f, %.3f, %.3f] -> [%.3f, %.3f, %.3f]}",
+		s.height_, s.area_, s.bbp1_.x, s.bbp1_.y, s.bbp1_.z, s.bbp2_.x, s.bbp2_.y, s.bbp2_.z);
+}
+
 void WhitewashDesigner::setupWalls(std::vector<Wall>&& walls) {
 	walls_.swap(walls);
 }
@@ -90,7 +95,7 @@ bool WhitewashDesigner::solve() {
 	}
 
 	// fill result.
-	guidelines_.reserve(N);
+	// guidelines_.reserve(N);
 	for (std::size_t i = 0; i < N; ++i) {
 		float x = result.x_(i * 3);
 		float y = result.x_(i * 3 + 1);
@@ -98,24 +103,23 @@ bool WhitewashDesigner::solve() {
 
 		if (z > 0.f) y = walls_[i].maxSalientHeight_;
 
-		WallGuide wg;
-		wg.paintThickness_ = x + z;
-		wg.salientChipping_ = y;
-		wg.wallChipping_ = z;
-		guidelines_.emplace_back(wg);
+		auto& wall = walls_[i];
+		wall.paintThickness_ = x + z;
+		wall.salientChipping_ = y;
+		wall.wallChipping_ = z;
 	}
 
 	// log result.
 	{
 		std::stringstream ss;
-		for (auto pr : ll::enumerate(guidelines_))
+		for (auto pr : ll::enumerate(walls_))
 			ss << ll::unsafe_format("[wall %d] chip wall %.3f, chip salient %.3f, paint wall %.3f.\n",
 			pr.index, pr.iter->wallChipping_, pr.iter->salientChipping_, pr.iter->paintThickness_);
 
 		ss << "\n";
 
 		auto fnl_pos = [&](std::size_t i, bool left) {
-			return walls_[i].pos_ + (-guidelines_[i].wallChipping_ + guidelines_[i].paintThickness_) * (left ? 1 : -1);
+			return walls_[i].pos_ + (-walls_[i].wallChipping_ + walls_[i].paintThickness_) * (left ? 1 : -1);
 		};
 		for (const auto& wc : constraints_) {
 			float pij = (fnl_pos(wc.j_, false) - fnl_pos(wc.i_, true));
@@ -145,8 +149,13 @@ void WhitewashDesigner::inputData(const CloudItem& floor, const vecItems_t& wall
 		auto& w = walls_[i];
 
 		w.salients_ = detectSalients(wall);
-		if (!w.salients_.empty())
-			w.maxSalientHeight_ = ll::max_by([](const Salient& s) { return s.height_; }, w.salients_).second;
+		if (!w.salients_.empty()) {
+			for (const auto& s : w.salients_) {
+				if (s.area_ > params_.minSalientArea_)
+					w.maxSalientHeight_ = std::max<double>(w.maxSalientHeight_, s.height_);
+			}
+			w.maxSalientHeight_ = std::min(w.maxSalientHeight_, params_.maxSalientHeight_); // just ignore
+		}
 
 		double err = { 0. };
 		const Eigen::Vector4d& params = wall.cloudPlane_;
@@ -188,9 +197,9 @@ void WhitewashDesigner::inputData(const CloudItem& floor, const vecItems_t& wall
 	}
 }
 
-std::vector<WhitewashDesigner::Salient> WhitewashDesigner::detectSalients(const CloudItem& wall) const {
+std::vector<Salient> WhitewashDesigner::detectSalients(const CloudItem& wall) const {
 	constexpr float HUMPED_THRESH = 0.002f;
-	constexpr float DOWNSAMPLE = 0.02f;
+	constexpr float DOWNSAMPLE = 0.01f;
 	constexpr float CUSTER_DISTANCE = 0.03f;
 	constexpr int MIN_HUMPED_POINTS = 100;
 
@@ -202,9 +211,13 @@ std::vector<WhitewashDesigner::Salient> WhitewashDesigner::detectSalients(const 
 	};
 
 	auto sparsed = geo::downsampleUniformly(wall.pCloud_, DOWNSAMPLE);
+
+	const float den = sparsed->size() / getSolidArea(wall);
+	LOG(INFO) << ll::unsafe_format("wall density: %.3f (count in each m^2), num thresh: %d.", den, MIN_HUMPED_POINTS);
+
 	auto hump = geo::filterPoints(sparsed, [&](const Point& p) { return dis_to_plane(p) > HUMPED_THRESH; });
 
-	std::vector<WhitewashDesigner::Salient> salients;
+	std::vector<Salient> salients;
 	std::vector<PointCloud::Ptr> salientClouds;
 	{
 		pcl::search::KdTree<Point>::Ptr tree(new pcl::search::KdTree<Point>);
@@ -242,18 +255,23 @@ std::vector<WhitewashDesigner::Salient> WhitewashDesigner::detectSalients(const 
 					const auto& p = hump->points[i];
 					return dis_to_plane(p);
 				}, indices.indices).second;
+				s.area_ = indices.indices.size() / den;
 
 				salients.emplace_back(s);
 			}
 		}
 	}
 
-	LOG(INFO) << salients.size() << " salients detected.";
+	{
+		std::stringstream ss;
+		for (const auto& s : salients) ss << to_string(s) << "\n";
+		LOG(INFO) << salients.size() << " salients detected:\n" << ss.str();
+	}
 
 #if VISUALIZATION_ENABLED
 	SimpleViewer viewer;
-	// viewer.addCloud(sparsed, 100., 100., 100.);
-	viewer.addCloud(hump, 100., 100., 100.);
+	viewer.addCloud(sparsed, 100., 100., 100.);
+	// viewer.addCloud(hump, 100., 100., 100.);
 
 	for (const auto& s : salients) {
 		double r{ geo::random() }, g{ geo::random() }, b{ geo::random() };
@@ -266,6 +284,25 @@ std::vector<WhitewashDesigner::Salient> WhitewashDesigner::detectSalients(const 
 #endif
 
 	return salients;
+}
+
+float WhitewashDesigner::getSolidArea(const CloudItem& wall) const {
+	LL_ASSERT(wall.type_ == CLOUD_WALL_E);
+
+	const auto& border = wall.cadBorder_;
+
+	auto calc_area = [](const std::vector<seg_pair_t>& segs)->float {
+		if (segs.size() == 4)
+			return (segs[0].second - segs[0].first).norm() * (segs[1].second - segs[1].first).norm();
+		LOG(INFO) << "seg size!=4, need to calc polygon.";
+		return 0.f;
+	};
+
+	float area = calc_area(wall.cadBorder_.front());
+	for (std::size_t i = 1; i < wall.cadBorder_.size(); ++i)
+		area -= calc_area(wall.cadBorder_[i]);
+
+	return area;
 }
 
 void WhitewashDesigner::getWallConstraintPair(const std::vector<seg_pair_t>& rootCloudBorder,
