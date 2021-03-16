@@ -2,6 +2,7 @@
 #include "ll.hpp"
 #include "LPWrapper.h"
 #include "glog/logging.h"
+#include "funHelper.h"
 
 namespace CloudReg {
 
@@ -288,13 +289,37 @@ std::vector<Salient> WhitewashDesigner::detectSalients(const CloudItem& wall) co
 
 float WhitewashDesigner::getSolidArea(const CloudItem& wall) const {
 	LL_ASSERT(wall.type_ == CLOUD_WALL_E);
+	//todo:
 
-	const auto& border = wall.cadBorder_;
+	// proj to 2d
+	const auto& border = wall.cadBorder_.front();
+	Eigen::Vector3d n = (border[1].second - border[1].first).cross(border[0].second - border[0].first);
+	int udim = -1;
+	double uvalue = std::numeric_limits<double>::min();
+	for (int i = 0; i < 3; ++i) {
+		double v = std::fabs(n[i]);
+		if (v > uvalue) {
+			uvalue = v;
+			udim = i;
+		}
+	}
 
-	auto calc_area = [](const std::vector<seg_pair_t>& segs)->float {
+	auto as_2d = [udim](const Eigen::Vector3d& v) -> Eigen::Vector2d {
+		Eigen::Vector2d v2;
+		int j = 0;
+		for (int i = 0; i < 3; ++i) {
+			if (i == udim) continue;
+			v2[j++] = v[i];
+		}
+		return v2;
+	};
+
+	auto calc_area = [&](const std::vector<seg_pair_t>& segs)->float {
 		if (segs.size() == 4)
 			return (segs[0].second - segs[0].first).norm() * (segs[1].second - segs[1].first).norm();
-		LOG(INFO) << "seg size!=4, need to calc polygon.";
+
+		Eigen::vector<Eigen::Vector2d> pts2d(segs.size());
+		for (std::size_t i = 0; i < segs.size(); ++i) pts2d[i] = as_2d(segs[i].first);
 		return 0.f;
 	};
 
