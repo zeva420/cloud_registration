@@ -721,7 +721,8 @@ CloudRegister::calcAllCorner(const double calcLengthTh)
 	return result;
 }
 
-const std::vector<Wall>& CloudRegister::whitewashPaint(double minSalientArea, double maxSalientHeight)
+const std::vector<Wall>& CloudRegister::whitewashPaint(double minSalientArea, double maxSalientHeight,
+	double minWallPaintThickness, double minSalientPaintThickness)
 {
 	LOG(INFO)<< "now WhitewashPaint.";
 	const auto& itemRoot = mapCloudItem_[CLOUD_BOTTOM_E].front();
@@ -737,6 +738,8 @@ const std::vector<Wall>& CloudRegister::whitewashPaint(double minSalientArea, do
 	WhitewashDesigner::ConfigParams value;
 	value.minSalientArea_ = minSalientArea;
 	value.maxSalientHeight_ = maxSalientHeight;
+	value.minWallPaintThickness_ = minWallPaintThickness;
+	value.minSalientPaintThickness_ = minSalientPaintThickness;
 	designer.config(value);
 	// designer.getWallConstraintPair(itemRoot.cloudBorder_.front(), itemRoot.cadBorder_.front());
 	if(!designer.solve()){

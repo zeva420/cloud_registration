@@ -49,11 +49,11 @@ bool WhitewashDesigner::solve() {
 		A(r, ii) = -1.;
 		A(r, ii + 1) = -1.;
 		A(r, ii + 2) = -1.;
-		b(r) = -(wall.minSalientPaintThickness_ + wall.maxSalientHeight_);
+		b(r) = -(params_.minSalientPaintThickness_ + wall.maxSalientHeight_);
 
 		A(r + 1, ii) = -1.;
 		A(r + 1, ii + 2) = -1.;
-		b(r + 1) = -wall.minWallPaintThickness_;
+		b(r + 1) = -params_.minWallPaintThickness_;
 
 		d1[ii + 1] = 0.;
 		d2[ii + 1] = wall.maxSalientHeight_;

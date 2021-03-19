@@ -16,6 +16,9 @@ public:
 	struct ConfigParams {
 		double minSalientArea_{ 0. }; // low than this would not be considered
 		double maxSalientHeight_{ 1. }; // salient higher than this must be clipped
+
+		double minWallPaintThickness_{ 0.05f };
+		double minSalientPaintThickness_{ 0.02f };
 	};
 
 	void inputData(const CloudItem& floor, const vecItems_t& walls);

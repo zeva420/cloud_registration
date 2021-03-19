@@ -72,7 +72,8 @@ namespace CloudReg
     		calcRootFlatness(const std::string& planeType = "local", const double calcLengthTh = 1.5); // "cloud" "cad" "local"
 
 	
-		const std::vector<Wall>& whitewashPaint(double minSalientArea, double maxSalientHeight);
+		const std::vector<Wall>& whitewashPaint(double minSalientArea = 0., double maxSalientHeight = 1.,
+			double minWallPaintThickness = 0.05, double minSalientPaintThickness = 0.02);
 	private:
 		
 		void fillRet(CADModel& cad, TransformOptimize& optimitor);

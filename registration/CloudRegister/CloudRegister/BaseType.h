@@ -177,9 +177,6 @@ namespace CloudReg
 		double length_;
 		double pos_;
 
-		double minWallPaintThickness_{ 0.05f };
-		double minSalientPaintThickness_{ 0.02f };
-
 		// out & temp
 		std::vector<Salient> salients_;
 		double maxSalientHeight_{ 0. };
