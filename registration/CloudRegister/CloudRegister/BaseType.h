@@ -169,7 +169,11 @@ namespace CloudReg
 	struct Salient {
 		float height_;
 		float area_;
-		Point bbp1_, bbp2_; // bounding box
+		Point bbp1_, bbp2_; 
+
+		// bounding box
+		Eigen::Vector3f getBoxMin() const;
+		Eigen::Vector3f getBoxMax() const;
 	};
 
 	struct Wall {
@@ -178,11 +182,14 @@ namespace CloudReg
 		double pos_;
 
 		// out & temp
+		double maxSalientHeight_{ 0. }; // the max height considered, not the actually height, 
 		std::vector<Salient> salients_;
-		double maxSalientHeight_{ 0. };
 
 		double paintThickness_;
-		double salientChipping_{ 0. };
+		double salientChipping_{ 0. }; // refer to maxSalientHeight.
 		double wallChipping_{ 0. };
+
+		// return each chip for salients, 0 if no need to chip
+		std::vector<float> getSalientChipingHeight() const;
 	};
 }
