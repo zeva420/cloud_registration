@@ -8,7 +8,8 @@ namespace CloudReg {
 
 std::string to_string(const Salient& s) {
 	return ll::unsafe_format("Salient: {height: %.3f, area: %.3f, [%.3f, %.3f, %.3f] -> [%.3f, %.3f, %.3f]}",
-		s.height_, s.area_, s.bbp1_.x, s.bbp1_.y, s.bbp1_.z, s.bbp2_.x, s.bbp2_.y, s.bbp2_.z);
+		s.height_, s.area_, s.boundingBoxMin_(0), s.boundingBoxMin_(1), s.boundingBoxMin_(2), 
+		s.boundingBoxMax_(0), s.boundingBoxMax_(1), s.boundingBoxMax_(2));
 }
 
 void WhitewashDesigner::setupWalls(std::vector<Wall>&& walls) {
@@ -108,6 +109,23 @@ bool WhitewashDesigner::solve() {
 		wall.paintThickness_ = x + z;
 		wall.salientChipping_ = y;
 		wall.wallChipping_ = z;
+
+		if (!wall.salients_.empty()) {
+			wall.saliensChippingHeight_.reserve(wall.salients_.size());
+			if (wall.wallChipping_ > 0.f) {
+				// wall chipped, then all salients need to be chipped.
+				for (const auto& s : wall.salients_)
+					wall.saliensChippingHeight_.emplace_back(s.height_ + wall.wallChipping_);
+			} else if (wall.salientChipping_ > 0.f) {
+				// check if any salient chipped
+				float fh = wall.maxSalientHeight_ - wall.salientChipping_;
+				for (const auto& s : wall.salients_)
+					wall.saliensChippingHeight_.emplace_back(std::max(0.f, s.height_ - fh));
+			} else {
+				// just paint
+				wall.saliensChippingHeight_.resize(wall.salients_.size(), 0.f);
+			}
+		}
 	}
 
 	// log result.
@@ -250,8 +268,8 @@ std::vector<Salient> WhitewashDesigner::detectSalients(const CloudItem& wall) co
 				salientClouds.push_back(geo::getSubSet(hump, indices.indices));
 
 				Salient s;
-				s.bbp1_ = geo::P_(v1.block<3, 1>(0, 0));
-				s.bbp2_ = geo::P_(v2.block<3, 1>(0, 0));
+				s.boundingBoxMin_ = v1.block<3, 1>(0, 0);
+				s.boundingBoxMax_ = v2.block<3, 1>(0, 0);
 				s.height_ = ll::max_by([&](int i) {
 					const auto& p = hump->points[i];
 					return dis_to_plane(p);
@@ -276,7 +294,7 @@ std::vector<Salient> WhitewashDesigner::detectSalients(const CloudItem& wall) co
 
 	for (const auto& s : salients) {
 		double r{ geo::random() }, g{ geo::random() }, b{ geo::random() };
-		viewer.addBox(s.bbp1_, s.bbp2_, r, g, b);
+		viewer.addBox(geo::P_(s.boundingBoxMin_), geo::P_(s.boundingBoxMax_), r, g, b);
 	}
 
 	for (const auto& sc : salientClouds) viewer.addCloud(sc);
