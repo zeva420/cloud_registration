@@ -721,7 +721,7 @@ CloudRegister::calcAllCorner(const double calcLengthTh)
 	return result;
 }
 
-const std::vector<Wall>& CloudRegister::whitewashPaint(double minSalientArea, double maxSalientHeight,
+std::vector<Wall> CloudRegister::whitewashPaint(double minSalientArea, double maxSalientHeight,
 	double minWallPaintThickness, double minSalientPaintThickness)
 {
 	LOG(INFO)<< "now WhitewashPaint.";

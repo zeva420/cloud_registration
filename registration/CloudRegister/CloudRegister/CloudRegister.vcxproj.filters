@@ -15,111 +15,19 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="CloudRegister.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="CADModel.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="funHelper.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="EdgeConstraint.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="GeometryUtils.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="TransformOptimize.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="CloudSegment.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="SimpleViewer.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="Threshold.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="CalcMeasureHelper.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="CalcBayAndDepthMeasure.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="CalcHoleMeasure.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="CalcNetHeight.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="CalcRootFlatness.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="CalcSquareness.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="CalcWallFlatness.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="CalcWallVerticality.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="CalcCorner.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="CloudRefine.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="CloudBorder.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="WhitewashDesigner.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="LPWrapper.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="CloudRegister.h">
+    <ClInclude Include="DebugTest.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="CADModel.h">
+    <ClInclude Include="LPWrapper.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="WhitewashDesigner.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="BaseType.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="funHelper.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="EdgeConstraint.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="GeometryUtils.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="ll.hpp">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="TransformOptimize.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="CloudSegment.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="SimpleViewer.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="SingletonTemplate.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="Threshold.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="CalcMeasureHelper.h">
+    <ClInclude Include="CADModel.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="CalcBayAndDepthMeasure.h">
@@ -129,6 +37,9 @@
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="CalcHoleMeasure.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="CalcMeasureHelper.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="CalcNetHeight.h">
@@ -146,17 +57,115 @@
     <ClInclude Include="CalcWallVerticality.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="CloudRefine.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
     <ClInclude Include="CloudBorder.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="WhitewashDesigner.h">
+    <ClInclude Include="CloudRefine.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="LPWrapper.h">
+    <ClInclude Include="CloudRegister.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="CloudSegment.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="EdgeConstraint.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="funHelper.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="GeometryUtils.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="ll.hpp">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="SimpleViewer.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="SingletonTemplate.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="Threshold.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="TransformOptimize.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="DebugTest.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="LPWrapper.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="WhitewashDesigner.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CADModel.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CalcBayAndDepthMeasure.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CalcCorner.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CalcHoleMeasure.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CalcMeasureHelper.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CalcNetHeight.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CalcRootFlatness.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CalcSquareness.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CalcWallFlatness.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CalcWallVerticality.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CloudBorder.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CloudRefine.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CloudRegister.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="CloudSegment.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="EdgeConstraint.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="funHelper.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="GeometryUtils.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="SimpleViewer.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Threshold.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="TransformOptimize.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="BaseType.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
