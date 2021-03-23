@@ -73,7 +73,8 @@ namespace CloudReg
 
 	
 		std::vector<Wall> whitewashPaint(double minSalientArea = 0., double maxSalientHeight = 1.,
-			double minWallPaintThickness = 0.05, double minSalientPaintThickness = 0.02);
+			double minWallPaintThickness = 0.005, double minSalientPaintThickness = 0.002, 
+			double designedPaintThickness = 0.01, double lowDeviation = -0.01, double highDeviation = 0.01, double deviationCompensation = 0.002);
 	private:
 		
 		void fillRet(CADModel& cad, TransformOptimize& optimitor);

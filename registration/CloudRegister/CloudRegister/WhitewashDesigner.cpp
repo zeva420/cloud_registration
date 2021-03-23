@@ -8,7 +8,7 @@ namespace CloudReg {
 
 std::string to_string(const Salient& s) {
 	return ll::unsafe_format("Salient: {height: %.3f, area: %.3f, [%.3f, %.3f, %.3f] -> [%.3f, %.3f, %.3f]}",
-		s.height_, s.area_, s.boundingBoxMin_(0), s.boundingBoxMin_(1), s.boundingBoxMin_(2), 
+		s.height_, s.area_, s.boundingBoxMin_(0), s.boundingBoxMin_(1), s.boundingBoxMin_(2),
 		s.boundingBoxMax_(0), s.boundingBoxMax_(1), s.boundingBoxMax_(2));
 }
 
@@ -400,25 +400,20 @@ void WhitewashDesigner::getWallConstraintPair(const std::vector<seg_pair_t>& roo
 	for (auto& pairIdx : mapWallPair) {
 		LOG(INFO) << pairIdx.first.first << ", " << pairIdx.first.second << ": " << pairIdx.second;
 
-		WallConstraint tmp;
-		tmp.i_ = pairIdx.first.first;
-		tmp.j_ = pairIdx.first.second;
-		tmp.expectedDistance_ = pairIdx.second;
-
-		// auto& segI = rootCloudBorder[tmp.i_];
-		// auto& segJ = rootCloudBorder[tmp.j_];
-
-		// std::size_t optIndex, indexOther;
-		// int dir;
-		// std::tie(optIndex, indexOther, dir) = getWallGrowAxisAndDir(segI.first, segI.second);
-
-		// tmp.lowBound_ = segI.first[indexOther];
-		// tmp.highBound_ = segJ.second[indexOther];
-		// vecConstraint.emplace_back(tmp);
-		if (tmp.expectedDistance_ < 0.) {
-			std::swap(tmp.i_, tmp.j_);
-			tmp.expectedDistance_ = -tmp.expectedDistance_;
+		std::size_t i = pairIdx.first.first;
+		std::size_t j = pairIdx.first.second;
+		double dis = pairIdx.second;
+		if (dis < 0.) {
+			std::swap(i, j);
+			dis = -dis;
 		}
+
+		WallConstraint tmp;
+		tmp.i_ = i;
+		tmp.j_ = j;
+		tmp.expectedDistance_ = dis - params_.designedPaintThickness_ * 2.;
+		tmp.lowBound_ = params_.lowDeviation_ + params_.deviationCompensation_;
+		tmp.highBound_ = params_.highDeviation_ - params_.deviationCompensation_;
 
 		addConstraint(tmp);
 
