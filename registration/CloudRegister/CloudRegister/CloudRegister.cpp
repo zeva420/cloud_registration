@@ -36,7 +36,7 @@ CloudRegister::~CloudRegister() {
 }
 
 bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecCloudPtr,
-	const std::string& CAD_File, const bool bNeedOptimize, const bool bOriginCloud) {
+	const std::string& CAD_File, const bool bNeedOptimize, const bool bOriginCloud, const bool changeCADOrder) {
 
 	if (vecCloudPtr.empty())
 	{
@@ -45,7 +45,7 @@ bool CloudRegister::run(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>& vecClo
 	}
 
 	CADModel model;
-	if(!model.initCAD(CAD_File))
+	if(!model.initCAD(CAD_File, changeCADOrder))
 	{
 		LOG(WARNING) << "failed to initCAD";
 		return false;

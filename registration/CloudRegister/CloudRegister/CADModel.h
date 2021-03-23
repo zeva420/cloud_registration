@@ -65,7 +65,7 @@ public:
 	CADModel();
 	~CADModel();
 
-	bool initCAD(const std::string& fileName);
+	bool initCAD(const std::string& fileName, const bool changeCADOrder);
 
 	// getters
 	bool containModels(ModelItemType type) const{ return mapModelItem_.find(type) != mapModelItem_.end(); }
@@ -99,6 +99,7 @@ private:
 	void reSortWall();
 	void cutWallByBeam();
 
+	bool changeCADOrder_ = false;
 	std::map<ModelItemType, vecItems_t> mapModelItem_;
 	Eigen::Vector3d centerPt_ = Eigen::Vector3d(0, 0, 0);
 

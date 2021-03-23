@@ -22,8 +22,10 @@ CADModel::~CADModel() {
 }
 
 
-bool CADModel::initCAD(const std::string& fileName) {
+bool CADModel::initCAD(const std::string& fileName, const bool changeCADOrder) {
 	mapModelItem_.clear();
+
+	changeCADOrder_ = changeCADOrder;
 
 	mapModelItem_[ITEM_BOTTOM_E] = std::move(std::vector<ModelItem>());
 	mapModelItem_[ITEM_WALL_E] = std::move(std::vector<ModelItem>());
@@ -491,11 +493,21 @@ std::tuple<bool, ModelItem> CADModel::genWall(const std::vector<std::string>& ve
 	*  |   |
 	*  0---3 */
 
-	item.points_.emplace_back(ptB);
-	item.points_.emplace_back(ptBB);
-	item.points_.emplace_back(ptAA);
-	item.points_.emplace_back(ptA);
-	
+	if (!changeCADOrder_)
+	{
+		item.points_.emplace_back(ptB);
+		item.points_.emplace_back(ptBB);
+		item.points_.emplace_back(ptAA);
+		item.points_.emplace_back(ptA);
+	}
+	else
+	{
+		item.points_.emplace_back(ptA);
+		item.points_.emplace_back(ptAA);
+		item.points_.emplace_back(ptBB);
+		item.points_.emplace_back(ptB);
+
+	}
 	item.highRange_ = std::make_pair(0, high);
 	item.buildSegment();
 	mapModelItem_[ITEM_WALL_E].emplace_back(item);
@@ -706,6 +718,7 @@ void CADModel::reSortWall()
 	}
 
 	//resort by clockwise
+	if(!changeCADOrder_)
 	{
 		auto& wall = mapModelItem_[ITEM_WALL_E];
 		vecItems_t newWall{wall.front()};
