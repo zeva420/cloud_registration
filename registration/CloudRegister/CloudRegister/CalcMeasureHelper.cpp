@@ -510,11 +510,10 @@ namespace CloudReg
 	}
 
 	//
-	std::vector<seg_pair_t> calValidHoleVertical(
+	bool calValidHoleVertical(std::vector<seg_pair_t>& validHoleVertical,
                         const std::vector<std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>>>& holeBorders,
                         const std::pair<Eigen::Vector3d, Eigen::Vector3d>& horizen, int hAixs)
     {
-        std::vector<seg_pair_t> validHoleVertical;
         const auto horizenSeg = horizen.first - horizen.second;
         for (size_t i = 0; i < holeBorders.size(); ++i)
         {
@@ -524,7 +523,7 @@ namespace CloudReg
             if (vecHoleHorizen.size() < 2 || vecHoleVertical.size() < 2)
             {
                 LOG(WARNING) << "group Hole Direction Failed: " << vecHoleHorizen.size() << " -- " << vecHoleVertical.size();
-			    continue;
+			    return false;
             }
             std::sort(vecHoleVertical.begin(), vecHoleVertical.end(), [&](const seg_pair_t& left, const seg_pair_t& right){
 				return left.first[hAixs] < right.first[hAixs];});
@@ -532,7 +531,7 @@ namespace CloudReg
             validHoleVertical.emplace_back(vecHoleVertical.back());
         }
 
-        return validHoleVertical;
+        return true;
     }
 
 	int calWallHorizontalAxis(const seg_pair_t& seg)

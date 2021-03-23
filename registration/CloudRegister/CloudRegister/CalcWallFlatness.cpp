@@ -273,8 +273,9 @@ namespace CloudReg
         std::sort(vecWallVertical.begin(), vecWallVertical.end(), [&](const seg_pair_t& left, const seg_pair_t& right){
 				return left.first[hAxis] < right.first[hAxis];});
 
-        std::vector<seg_pair_t> calValidVertical, allVertical;
-        auto validHoleVertical = calValidHoleVertical(holeBorders, horizenSeg, hAxis);
+        std::vector<seg_pair_t> calValidVertical, allVertical, validHoleVertical;
+        if (!calValidHoleVertical(validHoleVertical, holeBorders, horizenSeg, hAxis))
+            return std::make_tuple(allMeasure, returnSeg);
        
         if (!validHoleVertical.empty())
         {

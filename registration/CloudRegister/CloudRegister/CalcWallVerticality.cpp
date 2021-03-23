@@ -44,7 +44,9 @@ namespace CloudReg
     {
         Eigen::Vector3d rulern = (pt2 - pt1).normalized();
         adjustHeight(vecWallHorizen, 0., pt1, pt2, rulern);
-        std::vector<Eigen::Vector3d> rulerFilter = createRulerBox(std::make_pair(pt1, pt2), minIndex, 0., length); // 
+        Eigen::Vector3d p = pt1;
+        p[2] = vecWallHorizen.front().first[2];
+        std::vector<Eigen::Vector3d> rulerFilter = createRulerBox(std::make_pair(p, pt2), minIndex, 0., length); // 
         std::vector<Eigen::Vector3d> corners = getRulerCorners(rulerFilter);
         auto rangeCloud = filerCloudByConvexHull(pCloud, corners);
         return rangeCloud;
@@ -65,12 +67,6 @@ namespace CloudReg
         Eigen::Vector3d rulern = (pt2 - pt1).normalized();
         Eigen::Vector3d horizenn = (pt3 - pt1).normalized();
         double moveDis = (length < 1) ? 0.2 : 0.3;
-        auto singWallCloud = getSingleWallCloud(vecWallHorizen, pCloud, pt1 + length / 2 * horizenn, pt2 + length / 2 * horizenn, length, minIndex);
-       
-        Eigen::VectorXf coeff;
-        std::vector<int> inlierIdxs;
-        planeFitting(0.005, singWallCloud, coeff, inlierIdxs);
-        auto inliers = geo::getSubSet(singWallCloud, inlierIdxs, false);
         
         if (type == 1)       //left ruler
         {
@@ -109,10 +105,18 @@ namespace CloudReg
         auto vecRulerPts = ininterpolateSeg(pt1, pt2, 0.025);
         LOG(INFO) << "ruler get boxes num: " << vecRulerPts.size();
 
+        auto singWallCloud = getSingleWallCloud(vecWallHorizen, pCloud, pt1, pt2, 0.5, minIndex);
+        if (singWallCloud->size() == 0)
+            LOG(INFO) << "empty singWallCloud";
+        Eigen::VectorXf coeff;
+        std::vector<int> inlierIdxs;
+        planeFitting(0.005, singWallCloud, coeff, inlierIdxs);
+        auto inliers = geo::getSubSet(singWallCloud, inlierIdxs, false);
+
         std::vector<Eigen::Vector3d> rulerFilter = createRulerBox(std::make_pair(pt1, pt2), minIndex, 0., 0.04); // 
         std::vector<Eigen::Vector3d> corners = getRulerCorners(rulerFilter);
         auto inliers1 = filerCloudByConvexHull(inliers, corners);
-
+         
         auto planeX = calcPlaneParam(inliers1);
         Eigen::Vector3d test(planeX[0], planeX[1], 0);
         test = test.normalized();
@@ -162,7 +166,7 @@ namespace CloudReg
         item.value = -1;
         if (sumAll.size() < 2 || (valid1 - valid2).norm() < 0.01)
         {
-            LOG(WARNING) << "ruler has less than 2 endpoints";
+            LOG(WARNING) << "ruler has less than 2 endpoints ";
             LOG(INFO) << "verticality avg is " << item.value;
             std::vector<Eigen::Vector3d> rPoints = createRulerBox(std::make_pair(pt1, pt2), minIndex, 0.025, 0.025);
             std::vector<seg_pair_t> pair =  calcBoxSegPair(rPoints);
@@ -250,7 +254,9 @@ namespace CloudReg
         LOG(INFO) << "group Wall Direction: " << vecWallHorizen.size() << " -- " << vecWallVertical.size();
 
         //step2: Count the number of separated walls
-        auto validVertical = calValidHoleVertical(holeBorders, horizen, hAxis);
+        std::vector<seg_pair_t> validVertical;
+        if (!calValidHoleVertical(validVertical, holeBorders, horizen, hAxis))
+            return std::make_tuple(returnMeasure, returnSeg);
         LOG(INFO) << "valid hole Vertical num is " << validVertical.size();
         std::sort(validVertical.begin(), validVertical.end(), [&](const seg_pair_t& left, const seg_pair_t& right){
 				return left.first[hAxis] < right.first[hAxis];});

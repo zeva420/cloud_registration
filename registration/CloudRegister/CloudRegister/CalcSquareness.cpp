@@ -209,10 +209,10 @@ namespace CloudReg
         groupDirection(shSeg, shortWall, svecWallVertical, svecWallHorizen);
         
         if (!lHoles.empty())
-            lHoleBorder = calValidHoleVertical(lHoles, std::make_pair(seg2.first, seg2.second), lhAxis);
+            calValidHoleVertical(lHoleBorder, lHoles, std::make_pair(seg2.first, seg2.second), lhAxis);
         
         if (!sHoles.empty())
-            sHoleBorder = calValidHoleVertical(sHoles, std::make_pair(seg1.first, seg1.second), shAxis);
+            calValidHoleVertical(sHoleBorder, sHoles, std::make_pair(seg1.first, seg1.second), shAxis);
 
         std::vector<calcMeassurment_t> allMeasure;
         std::vector<double> sumAll;
