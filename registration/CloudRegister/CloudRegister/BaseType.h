@@ -186,4 +186,11 @@ namespace CloudReg
 		double wallChipping_{ 0. };
 		std::vector<double> saliensChippingHeight_; // for each salients, 0 if no need to chip
 	};
+
+	enum TargetItemType {
+		LEFT_TOP_E,
+		LEFT_BOTTON_E,
+		RIGHT_TOP_E,
+		RIGHT_BOTTON_E
+	};
 }

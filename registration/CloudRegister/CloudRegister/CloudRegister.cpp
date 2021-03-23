@@ -753,6 +753,19 @@ std::vector<Wall> CloudRegister::whitewashPaint(double minSalientArea, double ma
 		LOG(WARNING)<< "designer failed.";
 	}
 
-	return designer.getWalls();
+	walls_ = designer.getWalls();
+	return walls_;
+}
+
+calcMeassurment_t CloudRegister::getTargetPoint(const TargetItemType ptType, const std::size_t wallIndex,
+	double hDis, double vDis, double radius)
+{
+	const auto& wall = walls_[wallIndex];
+	const auto& wall_cloud = mapCloudItem_[CLOUD_WALL_E][wallIndex];
+	Eigen::Vector4d plane = wall_cloud.cadPlane_;
+	
+	WhitewashDesigner designer;
+	return designer.getTargetPoint(ptType, wall, wall_cloud, plane, hDis, vDis,radius);
+
 }
 }

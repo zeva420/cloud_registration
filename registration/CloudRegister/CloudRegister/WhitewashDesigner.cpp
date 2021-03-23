@@ -428,6 +428,94 @@ void WhitewashDesigner::getWallConstraintPair(const std::vector<seg_pair_t>& roo
 
 }
 
+calcMeassurment_t WhitewashDesigner::getTargetPoint(const TargetItemType ptType, const Wall& wall, 
+	const CloudItem& wall_cloud, const Eigen::Vector4d& plane, double hDis, double vDis, double radius)
+{
+	calcMeassurment_t item;
+
+	const auto& rootSeg = wall_cloud.cloudBorder_.front().back();
+	auto& sPt = rootSeg.second;
+	auto& ePt = rootSeg.first;
+
+	std::size_t optIndex, indexOther;
+	int dir;
+	std::tie(optIndex, indexOther, dir) = getWallGrowAxisAndDir(sPt, ePt);
+
+	
+
+	
+	double v = .0;//top or botton
+	{
+		seg_pair_t calcSeg_h;
+		if (ptType == LEFT_BOTTON_E || ptType == LEFT_TOP_E)
+		{
+			calcSeg_h = wall_cloud.cloudBorder_.front()[0];
+		}
+		else
+		{
+			calcSeg_h = wall_cloud.cloudBorder_.front()[wall_cloud.cloudBorder_.front().size()-2];
+			std::swap(calcSeg_h.first, calcSeg_h.second);
+		}
+				
+		auto vecPt = ininterpolateSeg(calcSeg_h.first, calcSeg_h.second, 0.001);
+		std::size_t moveStep = vDis * 1000;
+		if (ptType == LEFT_BOTTON_E || ptType == RIGHT_BOTTON_E)
+		{			
+			v = vecPt[moveStep][2];
+		}
+		else
+		{
+			v = vecPt[vecPt.size() - moveStep -1][2];
+		}
+
+		//std::cout <<"height: " <<calcSeg_h.first << " --- " << calcSeg_h.second << " --- " << v << std::endl;
+	}
+
+	double h = .0;//left or right
+	{
+		
+		auto vecPt = ininterpolateSeg(sPt,ePt, 0.001);
+		std::size_t moveStep = hDis * 1000;
+		if (ptType == LEFT_BOTTON_E || ptType == LEFT_TOP_E)
+		{
+			h = vecPt[moveStep][optIndex];
+		}
+		else
+		{
+			h = vecPt[vecPt.size() - moveStep - 1][optIndex];
+		}
+
+	}
+
+	//std::cout << "width: " << sPt << " --- " << ePt << " --- " << h << std::endl;
+
+	Eigen::Vector3d targetPt = sPt;
+	targetPt[optIndex] = h;
+	targetPt[2] = v;
+
+	seg_pair_t seg(targetPt, targetPt);
+	double thickness = 0.01;
+	seg.first[2] = seg.first[2] + radius;
+	seg.second[2] = seg.second[2] - radius;
+
+	auto vecPt = createRulerBox(seg, indexOther, thickness, radius * 2);
+	item.rangeSeg = calcBoxSegPair(vecPt);
+	auto filerPt = getRulerCorners(vecPt);
+	auto pCloud = filerCloudByConvexHull(wall_cloud.pCloud_, filerPt);
+	if (pCloud->points.empty())
+	{
+		LOG(WARNING) << "filerCloudByConvexHull failed";
+		return item;
+	}
+	item.value = 0;
+	for (auto& pt : pCloud->points)
+	{
+		item.value += pointToPLaneDist(plane, pt);
+	}
+	item.value = wall.paintThickness_ - (item.value / pCloud->points.size());
+	
+	return item;
+}
 
 }
 

@@ -294,7 +294,7 @@ int main()
 #endif
 
 	using namespace CloudReg;
-#if 1
+#if 0
 	
 	{
 		std::vector<seg_pair_t> vecSeg;
@@ -443,8 +443,15 @@ int main()
 	//obj.calcRootFlatness();	
 	
 #endif
-	obj.whitewashPaint();
-	
+	{
+		obj.whitewashPaint();
+		
+		auto valueLeft = obj.getTargetPoint(LEFT_BOTTON_E, 1, 0.1, 0.5, 0.01);
+		writePCDFile("room_target_left.pcd", nullptr, valueLeft.rangeSeg);
+
+		auto valueRight = obj.getTargetPoint(RIGHT_BOTTON_E, 1, 0.1, 0.5, 0.01);
+		writePCDFile("room_target_right.pcd", nullptr, valueRight.rangeSeg);
+	}
 	
 	return 0;
 }

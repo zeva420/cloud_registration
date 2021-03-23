@@ -75,12 +75,16 @@ namespace CloudReg
 		std::vector<Wall> whitewashPaint(double minSalientArea = 0., double maxSalientHeight = 1.,
 			double minWallPaintThickness = 0.005, double minSalientPaintThickness = 0.002, 
 			double designedPaintThickness = 0.01, double lowDeviation = -0.01, double highDeviation = 0.01, double deviationCompensation = 0.002);
+		
+		calcMeassurment_t getTargetPoint(const TargetItemType ptType, const std::size_t wallIndex,
+			double hDis, double vDis, double radius);
 	private:
 		
 		void fillRet(CADModel& cad, TransformOptimize& optimitor);
 		void calcAllCloudBorder(CADModel& cad);
 
 		std::map<CloudItemType, vecItems_t> mapCloudItem_;
+		std::vector<Wall> walls_;
 		Eigen::Vector3d centerPt_;
 
 	};

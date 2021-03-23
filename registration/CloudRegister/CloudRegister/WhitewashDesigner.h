@@ -33,6 +33,9 @@ public:
 
 	const std::vector<Wall>& getWalls() const { return walls_; }
 
+	calcMeassurment_t getTargetPoint(const TargetItemType ptType, const Wall& wall, const CloudItem& wall_cloud,
+		const Eigen::Vector4d& plane, double hDis, double vDis, double radius);
+
 private:
 	ConfigParams params_;
 	std::vector<Wall> walls_;
