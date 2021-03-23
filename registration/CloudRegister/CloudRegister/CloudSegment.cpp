@@ -1093,12 +1093,12 @@ Eigen::vector<trans2d::Matrix2x3f> CloudSegment::computeSegmentAlignCandidates(c
 	};
 
 	Eigen::vector<Eigen::Vector2f> blueprintpoints;
-	//blueprintpoints.reserve(blueprint.size() * 2);
-	//for (const auto& s : blueprint) {
-	//	blueprintpoints.emplace_back(s.s_.block<2, 1>(0, 0));
-	//	blueprintpoints.emplace_back(s.e_.block<2, 1>(0, 0));
-	//}
-	for (const auto& s : blueprint) blueprintpoints.emplace_back(s.s_.block<2, 1>(0, 0));
+	blueprintpoints.reserve(blueprint.size() * 2);
+	for (const auto& s : blueprint) {
+		blueprintpoints.emplace_back(s.s_.block<2, 1>(0, 0));
+		blueprintpoints.emplace_back(s.e_.block<2, 1>(0, 0));
+	}
+	// for (const auto& s : blueprint) blueprintpoints.emplace_back(s.s_.block<2, 1>(0, 0));
 
 	auto minimum_distance_to_wall_segments = [&segments](const Eigen::Vector2f& p)-> float {
 		auto pr = ll::min_by([&p](const Segment& seg) {
@@ -1202,8 +1202,8 @@ Eigen::vector<trans2d::Matrix2x3f> CloudSegment::computeSegmentAlignCandidates(c
 			if (std::fabs((e2 - s2).norm() - len) > 2. * disthresh) continue;
 
 			trans2d::Matrix2x3f T = trans2d::estimateTransform(s1, e1, s2, e2);
-			// float err = match_error(T);
-			float err = match_error_beta(T);
+			float err = match_error(T);
+			// float err = match_error_beta(T);
 			// LOG(INFO) << "err: " << err;
 
 			// show_T(T);
