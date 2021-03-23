@@ -204,7 +204,7 @@ namespace CloudReg
 		meassurment.rangeSeg.insert(meassurment.rangeSeg.end(), 
 					std::get<1>(right).begin(), std::get<1>(right).end());
 
-//#ifdef VISUALIZATION_ENABLED
+#ifdef VISUALIZATION_ENABLED
 		{
 			std::string file_name = "corner-" + std::to_string(idxPair.first) 
 					+ "-" + std::to_string(idxPair.second) + "-" + std::to_string(height) + ".pcd";
@@ -215,7 +215,7 @@ namespace CloudReg
 					+ "-" + std::to_string(idxPair.second) + "-" + std::to_string(height) + ".pcd";
 			saveTwoPieceCloud(file_name, std::get<1>(ret), std::get<2>(ret));
 		}			
-//#endif
+#endif
 
 		return meassurment;
 	}
