@@ -94,6 +94,9 @@ public:
 	void getAxis(const std::pair<Eigen::Vector3d, Eigen::Vector3d>& segment, 
 		std::size_t& other_axis_index,double& start_axis, double& other_axis, bool& operate);
 
+	void getAxis_clockwise(const std::pair<Eigen::Vector3d, Eigen::Vector3d>& segment,
+		std::size_t& other_axis_index, double& start_axis, double& other_axis, bool& operate);
+
 private:
 	bool savePCD(const std::string& name, std::vector<ModelItem>& vec_item);
 	void reSortWall();

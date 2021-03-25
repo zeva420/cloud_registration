@@ -79,7 +79,7 @@ bool CADModel::initCAD(const std::string& fileName, const bool changeCADOrder) {
 	// scale model to meters
 	scaleModel(0.001);
 
-#ifdef VISUALIZATION_ENABLED
+//#ifdef VISUALIZATION_ENABLED
 	for (auto& item : mapModelItem_)
 	{
 		//if (item.first != ITEM_BOTTOM_E && item.first != ITEM_TOP_E) continue;
@@ -87,7 +87,7 @@ bool CADModel::initCAD(const std::string& fileName, const bool changeCADOrder) {
 		vec_item.insert(vec_item.end(), item.second.begin(), item.second.end());
 	}
 	savePCD("cad_model.pcd", vec_item);
-#endif
+//#endif
 	return true;
 
 }
@@ -433,8 +433,10 @@ std::tuple<bool, ModelItem> CADModel::genHole(const std::vector<std::string>& ve
 	double other_axis, start_axis = 0.0;
 	bool operate = false;
 
-	getAxis(segment, other_axis_index, start_axis, other_axis, operate);
-	
+	if(!changeCADOrder_)
+		getAxis(segment, other_axis_index, start_axis, other_axis, operate);
+	else
+		getAxis_clockwise(segment, other_axis_index, start_axis, other_axis, operate);
 
 	double minZ = 999999, maxZ = 0;
 	Eigen::vector<Eigen::Vector2d> vecOriPts;
@@ -565,6 +567,23 @@ void  CADModel::getAxis(const std::pair<Eigen::Vector3d, Eigen::Vector3d>& segme
 		other_axis = segment.second[0];
 		start_axis = segment.second[1];
 		operate = segment.second[1] < segment.first[1] ? true : false;
+
+	}
+}
+
+void  CADModel::getAxis_clockwise(const std::pair<Eigen::Vector3d, Eigen::Vector3d>& segment,
+	std::size_t& other_axis_index, double& start_axis, double& other_axis, bool& operate)
+{
+	other_axis_index = 1;
+	other_axis = segment.first[1];
+	start_axis = segment.first[0];
+	operate = segment.first[0] < segment.second[0] ? true : false;
+
+	if (segment.first[0] == segment.second[0]) {
+		other_axis_index = 0;
+		other_axis = segment.first[0];
+		start_axis = segment.first[1];
+		operate = segment.first[1] < segment.second[1] ? true : false;
 
 	}
 }
