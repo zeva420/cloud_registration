@@ -40,8 +40,10 @@ private:
 	ConfigParams params_;
 	std::vector<Wall> walls_;
 	std::vector<WallConstraint> constraints_;
+	const vecItems_t* thewalls_;
 
-	std::vector<Salient> detectSalients(const CloudItem& wall) const;
+	std::vector<Salient> detectSalients(const CloudItem& wall, float humped_thresh, 
+		float downsampe=0.01f, float cluster_distance=0.03f, int min_humped_points=100) const;
 
 
 	void getWallConstraintPair(const std::vector<seg_pair_t>& rootBorder,
@@ -51,6 +53,8 @@ private:
 	void addConstraint(const WallConstraint& wc);
 
 	float getSolidArea(const CloudItem& wall) const;
+
+	void extractSalients();
 };
 
 }

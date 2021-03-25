@@ -109,24 +109,9 @@ bool WhitewashDesigner::solve() {
 		wall.paintThickness_ = x + z;
 		wall.salientChipping_ = y;
 		wall.wallChipping_ = z;
-
-		if (!wall.salients_.empty()) {
-			wall.saliensChippingHeight_.reserve(wall.salients_.size());
-			if (wall.wallChipping_ > 0.f) {
-				// wall chipped, then all salients need to be chipped.
-				for (const auto& s : wall.salients_)
-					wall.saliensChippingHeight_.emplace_back(s.height_ + wall.wallChipping_);
-			} else if (wall.salientChipping_ > 0.f) {
-				// check if any salient chipped
-				float fh = wall.maxSalientHeight_ - wall.salientChipping_;
-				for (const auto& s : wall.salients_)
-					wall.saliensChippingHeight_.emplace_back(std::max(0.f, s.height_ - fh));
-			} else {
-				// just paint
-				wall.saliensChippingHeight_.resize(wall.salients_.size(), 0.f);
-			}
-		}
 	}
+
+	extractSalients();
 
 	// log result.
 	{
@@ -151,6 +136,58 @@ bool WhitewashDesigner::solve() {
 
 	return true;
 }
+
+void WhitewashDesigner::extractSalients() {
+	for (std::size_t i = 0; i < walls_.size(); ++i) {
+		auto& wall = walls_[i];
+		const auto& thewall = (*thewalls_)[i];
+
+		if (wall.salients_.empty() || wall.wallChipping_ > 0.f || wall.salientChipping_ < 1e-4) {
+			wall.salients_.clear();
+			wall.maxSalientHeight_ = 0.f;
+			continue;
+		}
+
+		float chipdis = wall.maxSalientHeight_ - wall.salientChipping_;
+
+		wall.salients_ = detectSalients(thewall, chipdis, 0.002f, 0.003f); // this can be more dense
+
+		wall.maxSalientHeight_ = 0.f;
+		if (!wall.salients_.empty()) {
+			for (const auto& s : wall.salients_) {
+				// if (s.area_ > params_.minSalientArea_)
+				wall.maxSalientHeight_ = std::max<double>(wall.maxSalientHeight_, s.height_);
+			}
+			wall.maxSalientHeight_ = std::min(wall.maxSalientHeight_, params_.maxSalientHeight_); // just ignore
+
+			wall.saliensChippingHeight_.reserve(wall.salients_.size());
+			if (wall.wallChipping_ > 0.f) {
+				// wall chipped, then all salients need to be chipped.
+				for (const auto& s : wall.salients_)
+					wall.saliensChippingHeight_.emplace_back(s.height_ + wall.wallChipping_);
+			} else if (wall.salientChipping_ > 0.f) {
+				// check if any salient chipped
+				float fh = wall.maxSalientHeight_ - wall.salientChipping_;
+				for (const auto& s : wall.salients_)
+					wall.saliensChippingHeight_.emplace_back(std::max(0.f, s.height_ - fh));
+			} else {
+				// just paint
+				wall.saliensChippingHeight_.resize(wall.salients_.size(), 0.f);
+			}
+		}
+	}
+
+
+	{
+		std::stringstream ss;
+		for (auto pr : ll::enumerate(walls_))
+			ss << ll::unsafe_format("[wall %d] salients: %d, height: %.6f\n", pr.index,
+			pr.iter->salients_.size(), pr.iter->maxSalientHeight_);
+
+		LOG(INFO) << "salients re-extracted: \n" << ss.str();
+	}
+}
+
 }
 
 #include "GeometryUtils.h"
@@ -161,13 +198,14 @@ bool WhitewashDesigner::solve() {
 namespace CloudReg {
 void WhitewashDesigner::inputData(const CloudItem& floor, const vecItems_t& walls) {
 	LL_ASSERT(walls.size() == floor.cadBorder_.front().size() && "wall size mismatch.");
+	thewalls_ = &walls;
 
 	walls_.resize(walls.size());
 	for (std::size_t i = 0; i < walls.size(); ++i) {
 		const auto& wall = walls[i];
 		auto& w = walls_[i];
 
-		w.salients_ = detectSalients(wall);
+		w.salients_ = detectSalients(wall, 0.002f);
 		if (!w.salients_.empty()) {
 			for (const auto& s : w.salients_) {
 				if (s.area_ > params_.minSalientArea_)
@@ -216,25 +254,25 @@ void WhitewashDesigner::inputData(const CloudItem& floor, const vecItems_t& wall
 	}
 }
 
-std::vector<Salient> WhitewashDesigner::detectSalients(const CloudItem& wall) const {
-	constexpr float HUMPED_THRESH = 0.002f;
-	constexpr float DOWNSAMPLE = 0.01f;
-	constexpr float CUSTER_DISTANCE = 0.03f;
-	constexpr int MIN_HUMPED_POINTS = 100;
+std::vector<Salient> WhitewashDesigner::detectSalients(const CloudItem& wall, float humped_thresh,
+	float downsampe, float cluster_distance, int min_humped_points) const {
+	constexpr float MAX_HUMPED_HEIGHT = 0.02f; // we assert that the points have been filtered.
 
 	//todo: this may need to return with sign.
 	auto dis_to_plane = [&](const Point& p) {
-		Eigen::Vector4d vp(p.x, p.y, p.z, 1.);
-		float dis = std::fabs(vp.dot(wall.cloudPlane_));
-		return dis;
+		float dis = pointToPLaneDist(wall.cloudPlane_, p); // vp.dot(wall.cloudPlane_);
+		return std::max(0.f, dis); // ignore hollow.
+
 	};
 
-	auto sparsed = geo::downsampleUniformly(wall.pCloud_, DOWNSAMPLE);
+	auto sparsed = geo::downsampleUniformly(wall.pCloud_, downsampe);
 
 	const float den = sparsed->size() / getSolidArea(wall);
-	LOG(INFO) << ll::unsafe_format("wall density: %.3f (count in each m^2), num thresh: %d.", den, MIN_HUMPED_POINTS);
+	LOG(INFO) << ll::unsafe_format("wall density: %.3f (count in each m^2), num thresh: %d.", den, min_humped_points);
 
-	auto hump = geo::filterPoints(sparsed, [&](const Point& p) { return dis_to_plane(p) > HUMPED_THRESH; });
+	auto hump = geo::filterPoints(sparsed, [&](const Point& p) {
+		float dis = dis_to_plane(p);
+		return dis > humped_thresh&& dis < MAX_HUMPED_HEIGHT; });
 
 	std::vector<Salient> salients;
 	std::vector<PointCloud::Ptr> salientClouds;
@@ -244,7 +282,7 @@ std::vector<Salient> WhitewashDesigner::detectSalients(const CloudItem& wall) co
 
 		std::vector<pcl::PointIndices> clusters;
 		pcl::EuclideanClusterExtraction<Point> ece;
-		ece.setClusterTolerance(0.1f);
+		ece.setClusterTolerance(cluster_distance);
 		ece.setSearchMethod(tree);
 		ece.setInputCloud(hump);
 		ece.extract(clusters);
@@ -252,7 +290,7 @@ std::vector<Salient> WhitewashDesigner::detectSalients(const CloudItem& wall) co
 		if (!clusters.empty()) {
 			for (const auto& indices : clusters) {
 				const std::size_t CNT = indices.indices.size();
-				if (CNT < MIN_HUMPED_POINTS) continue;
+				if (CNT < min_humped_points) continue;
 
 				Eigen::Vector4f v1, v2;
 				pcl::getMinMax3D(*hump, indices, v1, v2);
@@ -270,11 +308,19 @@ std::vector<Salient> WhitewashDesigner::detectSalients(const CloudItem& wall) co
 				Salient s;
 				s.boundingBoxMin_ = v1.block<3, 1>(0, 0);
 				s.boundingBoxMax_ = v2.block<3, 1>(0, 0);
-				s.height_ = ll::max_by([&](int i) {
+				auto hs = ll::mapf([&](int i) {
 					const auto& p = hump->points[i];
-					return dis_to_plane(p);
-				}, indices.indices).second;
-				s.area_ = indices.indices.size() / den;
+					return dis_to_plane(p); },
+					indices.indices);
+				int pt = hs.size() / 20;
+				std::partial_sort(hs.begin(), hs.begin() + pt + 1, hs.end(), std::greater<float>());
+				s.height_ = hs[pt];
+				//s.height_ = ll::max_by([&](int i) {
+				//	const auto& p = hump->points[i];
+				//	return dis_to_plane(p);
+				//}, indices.indices).second;
+				// s.area_ = indices.indices.size() / den;
+				s.area_ = indices.indices.size() / static_cast<float>(sparsed->size());
 
 				salients.emplace_back(s);
 			}
@@ -291,6 +337,9 @@ std::vector<Salient> WhitewashDesigner::detectSalients(const CloudItem& wall) co
 	SimpleViewer viewer;
 	viewer.addCloud(sparsed, 100., 100., 100.);
 	// viewer.addCloud(hump, 100., 100., 100.);
+
+	//auto tmp = geo::filterPoints(sparsed, [&](const Point& p) { return dis_to_plane(p) > 0.015f; });
+	//if (!tmp->empty()) viewer.addCloud(tmp, 255., 0., 0.);
 
 	for (const auto& s : salients) {
 		double r{ geo::random() }, g{ geo::random() }, b{ geo::random() };
@@ -428,9 +477,8 @@ void WhitewashDesigner::getWallConstraintPair(const std::vector<seg_pair_t>& roo
 
 }
 
-calcMeassurment_t WhitewashDesigner::getTargetPoint(const TargetItemType ptType, const Wall& wall, 
-	const CloudItem& wall_cloud, const Eigen::Vector4d& plane, double hDis, double vDis, double radius)
-{
+calcMeassurment_t WhitewashDesigner::getTargetPoint(const TargetItemType ptType, const Wall& wall,
+	const CloudItem& wall_cloud, const Eigen::Vector4d& plane, double hDis, double vDis, double radius) {
 	calcMeassurment_t item;
 
 	const auto& rootSeg = wall_cloud.cloudBorder_.front().back();
@@ -441,31 +489,25 @@ calcMeassurment_t WhitewashDesigner::getTargetPoint(const TargetItemType ptType,
 	int dir;
 	std::tie(optIndex, indexOther, dir) = getWallGrowAxisAndDir(sPt, ePt);
 
-	
 
-	
+
+
 	double v = .0;//top or botton
 	{
 		seg_pair_t calcSeg_h;
-		if (ptType == LEFT_BOTTON_E || ptType == LEFT_TOP_E)
-		{
+		if (ptType == LEFT_BOTTON_E || ptType == LEFT_TOP_E) {
 			calcSeg_h = wall_cloud.cloudBorder_.front()[0];
-		}
-		else
-		{
-			calcSeg_h = wall_cloud.cloudBorder_.front()[wall_cloud.cloudBorder_.front().size()-2];
+		} else {
+			calcSeg_h = wall_cloud.cloudBorder_.front()[wall_cloud.cloudBorder_.front().size() - 2];
 			std::swap(calcSeg_h.first, calcSeg_h.second);
 		}
-				
+
 		auto vecPt = ininterpolateSeg(calcSeg_h.first, calcSeg_h.second, 0.001);
 		std::size_t moveStep = vDis * 1000;
-		if (ptType == LEFT_BOTTON_E || ptType == RIGHT_BOTTON_E)
-		{			
+		if (ptType == LEFT_BOTTON_E || ptType == RIGHT_BOTTON_E) {
 			v = vecPt[moveStep][2];
-		}
-		else
-		{
-			v = vecPt[vecPt.size() - moveStep -1][2];
+		} else {
+			v = vecPt[vecPt.size() - moveStep - 1][2];
 		}
 
 		//std::cout <<"height: " <<calcSeg_h.first << " --- " << calcSeg_h.second << " --- " << v << std::endl;
@@ -473,15 +515,12 @@ calcMeassurment_t WhitewashDesigner::getTargetPoint(const TargetItemType ptType,
 
 	double h = .0;//left or right
 	{
-		
-		auto vecPt = ininterpolateSeg(sPt,ePt, 0.001);
+
+		auto vecPt = ininterpolateSeg(sPt, ePt, 0.001);
 		std::size_t moveStep = hDis * 1000;
-		if (ptType == LEFT_BOTTON_E || ptType == LEFT_TOP_E)
-		{
+		if (ptType == LEFT_BOTTON_E || ptType == LEFT_TOP_E) {
 			h = vecPt[moveStep][optIndex];
-		}
-		else
-		{
+		} else {
 			h = vecPt[vecPt.size() - moveStep - 1][optIndex];
 		}
 
@@ -502,18 +541,16 @@ calcMeassurment_t WhitewashDesigner::getTargetPoint(const TargetItemType ptType,
 	item.rangeSeg = calcBoxSegPair(vecPt);
 	auto filerPt = getRulerCorners(vecPt);
 	auto pCloud = filerCloudByConvexHull(wall_cloud.pCloud_, filerPt);
-	if (pCloud->points.empty())
-	{
+	if (pCloud->points.empty()) {
 		LOG(WARNING) << "filerCloudByConvexHull failed";
 		return item;
 	}
 	item.value = 0;
-	for (auto& pt : pCloud->points)
-	{
+	for (auto& pt : pCloud->points) {
 		item.value += pointToPLaneDist(plane, pt);
 	}
 	item.value = wall.paintThickness_ - (item.value / pCloud->points.size());
-	
+
 	return item;
 }
 
