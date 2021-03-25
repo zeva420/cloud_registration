@@ -232,7 +232,7 @@ int main()
 	}
 
 	CloudReg::CloudRegister obj;
-	obj.run(vecCloudPtr, cad_file);
+	obj.run(vecCloudPtr, cad_file, true, true,true);
    
 	auto mapCloud = obj.getAllCloudPlane();
 	std::vector<std::string> itemName{"Beam","Bottom","Wall","Top","Unknow"};
@@ -256,6 +256,16 @@ int main()
 			std::string file_name = name + "_" + std::to_string(index) + ".pcd";
 			writePCDFile(file_name, pCloud_filtered, vecBorder);
 
+			{
+				pcl::PointCloud<pcl::PointXYZ>::Ptr pNew(new pcl::PointCloud<pcl::PointXYZ>);
+				for(auto& p : pCloud_filtered->points)
+				{
+					double dist = pointToPLaneDist(item.cloudPlane_, p);
+					if (dist > 0.008) pNew->push_back(p);
+				}
+				std::string file_name = name + "_" + std::to_string(index) + "_salient.pcd";
+				writePCDFile(file_name, pNew, vecBorder);
+			}
 			
 			file_name = "cad_cloud"+ file_name;
 			pcl::io::savePCDFile(file_name, *item.pCADCloud_);
@@ -444,13 +454,29 @@ int main()
 	
 #endif
 	{
-		obj.whitewashPaint();
+		auto walls = obj.whitewashPaint(0.,0.008,0.005,0.002,0.015,-0.01,0.01,0.002);
+		for (auto& wall : walls)
+		{
+			std::cout << "salients: " << wall.salients_.size() << 
+				" paintThickness:"<< wall.paintThickness_ * 1000 << 
+				" wallChipping: "<< wall.wallChipping_ * 1000 << std::endl;
+		}
 		
-		auto valueLeft = obj.getTargetPoint(LEFT_BOTTON_E, 1, 0.1, 0.5, 0.01);
-		writePCDFile("room_target_left.pcd", nullptr, valueLeft.rangeSeg);
+		for (std::size_t i = 0; i < walls.size(); i++)
+		{
+			auto valueLeft1 = obj.getTargetPoint(LEFT_TOP_E, i, 0.3, 0.3, 0.01);
+			auto valueLeft2 = obj.getTargetPoint(LEFT_BOTTON_E, i, 0.3, 0.3, 0.01);
+			//writePCDFile("room_target_left.pcd", nullptr, valueLeft.rangeSeg);
 
-		auto valueRight = obj.getTargetPoint(RIGHT_BOTTON_E, 1, 0.1, 0.5, 0.01);
-		writePCDFile("room_target_right.pcd", nullptr, valueRight.rangeSeg);
+			auto valueRight1 = obj.getTargetPoint(RIGHT_TOP_E, i, 0.3, 0.3, 0.01);
+			auto valueRight2 = obj.getTargetPoint(RIGHT_BOTTON_E, i, 0.3, 0.3, 0.01);
+			//writePCDFile("room_target_right.pcd", nullptr, valueRight.rangeSeg);
+
+			std::cout << "target left top: " << valueLeft1.value * 1000 << " right top: " << valueRight1.value * 1000 
+				<< "target left botton: " << valueLeft2.value * 1000 << " right botton: " << valueRight2.value * 1000
+				<< std::endl;
+		}
+		
 	}
 	
 	return 0;
