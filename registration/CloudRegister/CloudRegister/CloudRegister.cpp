@@ -762,7 +762,7 @@ calcMeassurment_t CloudRegister::getTargetPoint(const TargetItemType ptType, con
 {
 	const auto& wall = walls_[wallIndex];
 	const auto& wall_cloud = mapCloudItem_[CLOUD_WALL_E][wallIndex];
-	Eigen::Vector4d plane = wall_cloud.cadPlane_;
+	Eigen::Vector4d plane = wall_cloud.cloudPlane_;
 	
 	WhitewashDesigner designer;
 	return designer.getTargetPoint(ptType, wall, wall_cloud, plane, hDis, vDis,radius);
