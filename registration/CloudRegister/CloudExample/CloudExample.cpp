@@ -232,7 +232,7 @@ int main()
 	}
 
 	CloudReg::CloudRegister obj;
-	obj.run(vecCloudPtr, cad_file, true, true,true);
+	obj.run(vecCloudPtr, cad_file, true, true,false);
    
 	auto mapCloud = obj.getAllCloudPlane();
 	std::vector<std::string> itemName{"Beam","Bottom","Wall","Top","Unknow"};
@@ -264,7 +264,7 @@ int main()
 					if (dist > 0.008) pNew->push_back(p);
 				}
 				std::string file_name = name + "_" + std::to_string(index) + "_salient.pcd";
-				writePCDFile(file_name, pNew, vecBorder);
+				if (!pNew->points.empty())writePCDFile(file_name, pNew, vecBorder);
 			}
 			
 			file_name = "cad_cloud"+ file_name;
@@ -454,7 +454,7 @@ int main()
 	
 #endif
 	{
-		auto walls = obj.whitewashPaint(0.,0.008,0.005,0.002,0.015,-0.01,0.01,0.002);
+		auto walls = obj.whitewashPaint(0.4,0.008,0.005,0.002,0.015,-0.01,0.01,0.002);
 		for (auto& wall : walls)
 		{
 			std::cout << "salients: " << wall.salients_.size() << 
@@ -464,16 +464,21 @@ int main()
 		
 		for (std::size_t i = 0; i < walls.size(); i++)
 		{
+			std::vector<seg_pair_t> vecSeg;
+
 			auto valueLeft1 = obj.getTargetPoint(LEFT_TOP_E, i, 0.3, 0.3, 0.01);
+			vecSeg.insert(vecSeg.end(), valueLeft1.rangeSeg.begin(), valueLeft1.rangeSeg.end());
 			auto valueLeft2 = obj.getTargetPoint(LEFT_BOTTON_E, i, 0.3, 0.3, 0.01);
-			//writePCDFile("room_target_left.pcd", nullptr, valueLeft.rangeSeg);
+			vecSeg.insert(vecSeg.end(), valueLeft2.rangeSeg.begin(), valueLeft2.rangeSeg.end());
 
 			auto valueRight1 = obj.getTargetPoint(RIGHT_TOP_E, i, 0.3, 0.3, 0.01);
+			vecSeg.insert(vecSeg.end(), valueRight1.rangeSeg.begin(), valueRight1.rangeSeg.end());
 			auto valueRight2 = obj.getTargetPoint(RIGHT_BOTTON_E, i, 0.3, 0.3, 0.01);
-			//writePCDFile("room_target_right.pcd", nullptr, valueRight.rangeSeg);
+			vecSeg.insert(vecSeg.end(), valueRight2.rangeSeg.begin(), valueRight2.rangeSeg.end());
+			writePCDFile("room_target_" + std::to_string(i) + ".pcd", nullptr, vecSeg);
 
 			std::cout << "target left top: " << valueLeft1.value * 1000 << " right top: " << valueRight1.value * 1000 
-				<< "target left botton: " << valueLeft2.value * 1000 << " right botton: " << valueRight2.value * 1000
+				<< " target left botton: " << valueLeft2.value * 1000 << " right botton: " << valueRight2.value * 1000
 				<< std::endl;
 		}
 		
